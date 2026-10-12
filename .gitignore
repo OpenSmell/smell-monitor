@@ -1,0 +1,43 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# KiCad - lock files
+*.lck
+~*.lck
+
+# KiCad - local/editor state
+*.kicad_prl
+fp-info-cache
+_autosave-*
+*-backups/
+
+# KiCad - backups
+*.bak
+*.bck
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.kicad_pro-bak
+
+# Editor local history
+.history/
+
+# FreeCAD backups
+*.FCStd1
+*.FCBak
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+
+# Secrets
+.env
+*.pem
