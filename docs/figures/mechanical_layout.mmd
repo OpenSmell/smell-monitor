@@ -1,0 +1,25 @@
+graph TD
+    subgraph FRONT["FRONT SENSING MODULE"]
+        IN["Intake 2x Ø5mm nostrils"] --> FIL["PTFE membrane (user-replaceable)"]
+        FIL --> CAV["PTFE/glass chamber insert<br/>90 x 55 x 24mm, radius >= 3mm"]
+        CAV --> BF["Perforated baffle<br/>sensors recessed ~8mm"]
+        BF --> SENS["Sensor breakout tops (J2-J17)"]
+    end
+
+    subgraph BULK["PCB-sealing bulkhead"]
+        G["Gasket"] --- PCB["PCB (120x70mm) - headers face forward"]
+    end
+
+    subgraph REAR["REAR SERVICE BAY"]
+        MCU["ESP32 + LDO + ADC + mux + OLED"]
+        FAN2["Fan 40mm (exhaust)"]
+        MCU --- FAN2
+    end
+
+    SENS --> G
+    PCB --> MCU
+    BULK --- MID["air pass-through"]
+
+    style FRONT fill:#14532d,color:#fff
+    style REAR fill:#1e293b,color:#fff
+    style BULK fill:#78350f,color:#fff

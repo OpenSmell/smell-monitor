@@ -1,0 +1,29 @@
+sequenceDiagram
+    autonumber
+    participant H as Host (Osmograph)
+    participant F as Firmware (ESP32)
+    participant A as ADS1115 x2
+    participant M as TCA9548A
+    participant S as SHT31
+    participant D as Digital sensors
+    participant U as OLED
+
+    H->>F: START command (USB-UART)
+    F->>U: phase=INTAKE
+    Note over F: fan ON 10s sample in
+    F->>S: read T and RH at 1 Hz
+    F->>U: phase=HOLD
+    Note over F: fan OFF 10s equilibrate
+    loop sample all channels
+        F->>A: ADS1115 ch 0-7 at 8 SPS
+        A-->>F: raw reading
+    end
+    loop each segment 0-7
+        F->>M: select channel
+        M->>D: transaction
+        D-->>F: sensor datum
+    end
+    F->>U: phase=PURGE
+    Note over F: fan ON 20s baseline reset
+    F-->>H: JSON record ts phase ao digital t rh
+    F->>U: summary complete

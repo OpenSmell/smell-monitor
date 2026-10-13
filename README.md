@@ -1,33 +1,79 @@
-# Smell Monitor: Open-Source Digital Olfaction Hardware
+# Smell Monitor — Open-Source Digital Olfaction Hardware
 
-**Status:** V0.1 Reference Design (Schematic complete, PCB layout in progress).
+**Status:** v1 architecture LOCKED (`docs/architecture.md` v1.0) — schematic v0.x, PCB layout in progress, enclosure pending.
 
-## Overview
-Smell Monitor is an open-source, modular hardware reference design for digital olfaction and environmental sensing. It provides a standardized, multi-channel data acquisition platform capable of interfacing with a wide variety of analog (MOX/electrochemical) and digital (MEMS) gas sensors.
+The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$50–150 BOM), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
 
-## Hardware Architecture
-The board is designed around a central microcontroller that manages data acquisition from two distinct sensor interfaces:
+**You** choose the sensors. **It** supplies the repeatable pneumatic environment, clean power, 16-bit acquisition, and logged temperature/humidity to make their outputs comparable.
 
-*   **Microcontroller:** ESP32-WROOM-32E (Wi-Fi/Bluetooth, dual-core).
-*   **Digital Multiplexer:** TCA9548A (8-channel I2C switch). Prevents address collisions, allowing multiple digital sensors with identical I2C addresses to operate on the same bus.
-*   **Analog-to-Digital Converters:** 2x ADS1115 (16-bit, 4-channel I2C ADCs). Provides high-resolution reading of analog sensor outputs.
-*   **Environmental Compensation:** SHT31-DIS. Placed on the main I2C bus to provide real-time temperature and humidity data for sensor drift compensation.
-*   **Power Regulation:** LM1117DT-3.3 (Converts 5V USB input to a regulated 3.3V rail).
-*   **I/O:** USB-C (Power/Data), 0.91" I2C OLED Display, Passive Buzzer.
+## Why it's different from incumbents
 
-### Sensor Interfaces
-The board features 16 universal vertical headers:
-1. **Analog Bank (8x 4-Pin):** `3.3V`, `GND`, `AOUT`, `DOUT`. Designed for MOX and electrochemical sensors.
-2. **Digital Bank (8x 6-Pin):** `3.3V`, `GND`, `SDA`, `SCL`, `INT`, `CTRL`. Designed for advanced digital MEMS sensors.
+| | Smell Monitor | Commercial e-noses |
+|---|---|---|
+| Price | ~$50–150 BOM | $8k–100k+ |
+| Architecture | Open, modular, sensor-agnostic | Closed, proprietary |
+| Sensors | You plug in whatever fits a slot | Vendor-locked array |
+| Users | Researchers, makers, small business | Large enterprise / regulated QC |
 
-## Project Status
-*   [x] Core component selection and schematic architecture.
-*   [x] I2C multiplexing and environmental compensation routing.
-*   [ ] Final schematic Design Rule Check (DRC) and Electrical Rule Check (ERC).
-*   [ ] PCB layout and routing.
-*   [ ] Bill of Materials (BOM) optimization for manufacturing.
+We're not competing on certified precision. We're building the *Arduino of noses* — an ecosystem of sensors, packs, software, and shared datasets.
+
+## Key features
+
+- **16 sensor slots, sensor-agnostic:** 8 analog (4-pin, 5 V) + 8 digital (6-pin, 3.3 V I2C). MOX, MEMS, NDIR, electrochemical — if the electrical contract fits, it works.
+- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), cavity-recessed sensors, PTFE/glass gas-contacting chamber.
+- **Defensible data:** 2× ADS1115 (16-bit ADC), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
+- **Open:** KiCad source, LCSC-numbered BOM (1-stop PCBA), STL/STEP enclosure, firmware, manuals — all in this repo.
+
+## Repository layout
+
+```
+smell-monitor/
+├── docs/                    # Architecture spec, manual, assembly guide, figures
+│   ├── architecture.md      # ← LOCKED decisions + rationale (read me first)
+│   ├── manual.md            # End-user / printed manual
+│   ├── assembly_guide.md    # Build + fabrication instructions
+│   └── figures/             # Mermaid diagrams (.mmd)
+├── electrical/
+│   ├── smell_monitor_v0/    # KiCad project (schematic, PCB)
+│   ├── bom.csv              # BOM with LCSC part numbers
+│   └── README.md
+├── mechanical/
+│   ├── freecad/  step/  stl/
+│   └── README.md
+├── firmware/
+│   ├── esp32/
+│   └── README.md
+└── README.md
+```
+
+## Quick links
+
+1. **Read the spec first:** `docs/architecture.md`
+2. **Build one:** `docs/assembly_guide.md`
+3. **Use one:** `docs/manual.md`
+4. **Order a board:** BOM + Gerbers (pending DRC/ERC-clean export) in `electrical/`
+
+## Project status
+
+- [x] Architecture locked — pneumatic, sensing, electrical, mechanical
+- [x] Core schematic (v0) and BOM with alternatives
+- [ ] ERC/DRC clean-up and review
+- [ ] PCB layout + routing
+- [ ] Enclosure CAD (FreeCAD) derived from routed board
+- [ ] Firmware (three-phase cycle + serial protocol)
+- [ ] Fabrication pass (Seeed Fusion / JLCPCB DC)
+- [ ] CFD validation pass (optional, §8.3)
 
 ## Contributing
-This is an active hardware development project. If you identify issues in the schematic or have recommendations for component selection, please open an Issue or submit a Pull Request. 
 
-*Hardware files are intended to be released under the CERN Open Hardware License.*
+Open issues for hardware bugs or component suggestions. Contributions welcome per the licenses. If you identify a conflict between files and `docs/architecture.md`, the architecture doc wins until amended (see its versioning note).
+
+## Licenses
+
+- Hardware: **CERN-OHL-S**
+- Firmware/software: **MIT**
+- Documentation: **CC BY-SA 4.0**
+
+## Community
+
+OpenSmell · [github.com/OpenSmell](https://github.com/OpenSmell) · smell-monitor issues are monitored.
