@@ -39,6 +39,16 @@ env/
 build/
 dist/
 
+# Generated CAD / drawings (rebuild from source)
+#   committed deliverables: mechanical/drawings/sheets/*.dxf + *.pdf
+mechanical/freecad/*.FCStd
+mechanical/freecad/*.FCStd1
+mechanical/freecad/*.STEP
+mechanical/freecad/*.stl
+mechanical/drawings/model_hlr.json
+mechanical/drawings/sheets/*.png
+
 # Secrets
 .env
 *.pem
+.opencode
