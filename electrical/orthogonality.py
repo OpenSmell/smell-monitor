@@ -459,10 +459,11 @@ def lane_report():
                               if s["footprint"][0] == w)[:3])
         print("  %-9s %-22s %-10d %s"
               % ("%d mm" % w, "%d / %d / %d" % tuple(fits), fits[1], ex))
-    deep = float(CONST["NOSEY"]) - float(CONST["FLOOR"])
-    print("  analog depth available %.0f mm (FLOOR %.0f -> NOSEY %.0f);"
-          % (deep, CONST["FLOOR"], CONST["NOSEY"]))
-    print("  two stacked sub-rows of 18 mm => 2x the single-row count.")
+    gap = float(CONST["A_Y0"]) - (float(CONST["D_Y0"]) + float(CONST["D_SY"]))
+    print("  row gap %.0f mm (digital row ends y=%.0f -> analog row y=%.0f);"
+          % (gap, CONST["D_Y0"] + CONST["D_SY"], CONST["A_Y0"]))
+    print("  analog row keeps %.0f mm to the rear wall (worst module 35 mm deep)."
+          % (CONST["WFB"] + CONST["CY"] - CONST["A_Y0"]))
 
 
 def _perturb_report(pool, n=200, lo=0.7, hi=1.3, seed=0):

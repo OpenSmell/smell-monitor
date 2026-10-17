@@ -8,7 +8,7 @@ Outputs:
   mechanical/drawings/model_hlr.json       real HLR 2D projections for sheets
 
 Coordinate frame (mm), origin = front-lower-left outer corner of shell:
-  X = width  (slot axis, 0..226)
+  X = width  (slot axis, 0..122)
   Y = depth  (front=0 .. rear=114)
   Z = height (0..90, up)
 
@@ -55,11 +55,21 @@ objs = {}  # label -> Part::Feature
 shell = doc.addObject("Part::Feature", "Shell")
 shell.Label = "shell"
 cavity = box(CX0, CY0, CAV_Z0, CX1, CY1, CAV_Z1)
-body = box(0, 0, 0, CONST["SH"], CONST["SW"], CONST["SHH"]).cut(cavity)
+# PCB seat: the board is the sealed chamber floor (blueprint.md 6.1/6.2), so
+# the shell carries a PCB_T-deep rebate on the PCB outline under the cavity.
+# The board drops in from below; its top face lands flush with z = FLOOR,
+# which is the datum behind "baffle 37 mm above board" and "29 mm module
+# allowance".  (The stacking error this fixes: PCB_Z used to be CAV_Z1-1.6,
+# which buried the board in the cavity ceiling and blocked all 3 intakes.)
+pcb_seat = box((CONST["SH"] - CONST["PCB_X"]) / 2.0,
+               (CONST["SW"] - CONST["PCB_Y"]) / 2.0, CONST["PCB_Z"],
+               (CONST["SH"] + CONST["PCB_X"]) / 2.0,
+               (CONST["SW"] + CONST["PCB_Y"]) / 2.0, CAV_Z0)
+body = box(0, 0, 0, CONST["SH"], CONST["SW"], CONST["SHH"]).cut(cavity).cut(pcb_seat)
 NO_X = (CONST["SH"] / 2 - 26, CONST["SH"] / 2, CONST["SH"] / 2 + 26)
 for cx in NO_X:                                   # 3x d6 through front wall
     body = body.cut(Part.makeCylinder(
-        CONST["NO_R"], 14.0, App.Vector(cx, -1.0, CONST["NO_Z"]),
+        CONST["NO_R"], 10.0, App.Vector(cx, -1.0, CONST["NO_Z"]),
         App.Vector(0, 1, 0)))
 body = body.cut(Part.makeCylinder(                # d40 through rear wall
     CONST["FAN_R"], 12.0, App.Vector(CONST["FAN_X"], 105.0, CONST["FAN_Z"]),
@@ -67,9 +77,9 @@ body = body.cut(Part.makeCylinder(                # d40 through rear wall
 shell.Shape = body
 
 # --- baffle plate with well slots ---------------------------------------
-# plate spans the whole cavity at BZ; wells are open-bottom slots
-# (they cut through the plate; the column is scavenged from below ->
-#  "open-bottom well" per blueprint.md 3.4)
+# Plate spans the whole cavity at BZ; well slots are open-bottom (they cut
+# through the plate) so the sub-baffle volume exchanges with the 11 mm flow
+# lane above it.  Digital wells sit upstream of the analog wells.
 baffle = doc.addObject("Part::Feature", "Baffle")
 baffle.Label = "baffle"
 plate = box(CX0, CY0, BZ - BT, CX1, CY1, BZ)
@@ -78,15 +88,20 @@ for cx in CONST["A_X"]:
                           BZ - BT, cx + CONST["A_SX"] / 2,
                           CONST["A_Y0"] + CONST["A_SY"], BZ))
 for cx in CONST["D_X"]:
-    plate = plate.cut(box(cx - CONST["D_SX"] / 2, CONST["NOSEY"],
+    plate = plate.cut(box(cx - CONST["D_SX"] / 2, CONST["D_Y0"],
                           BZ - BT, cx + CONST["D_SX"] / 2,
-                          CONST["NOSEY"] + CONST["D_SY"], BZ))
+                          CONST["D_Y0"] + CONST["D_SY"], BZ))
+# Reference T/RH port over the on-board SHT31 (U5) + its cap.  The compensation
+# backbone must sample the gas path, and U5 is a soldered part - not a plug-in
+# module - so it needs its own opening through the plate.
+plate = plate.cut(box(CONST["SHT_X"] - CONST["SHT_SX"] / 2, CONST["SHT_Y0"],
+                      BZ - BT, CONST["SHT_X"] + CONST["SHT_SX"] / 2,
+                      CONST["SHT_Y0"] + CONST["SHT_SY"], BZ))
 baffle.Shape = plate
 
-# --- the four-analog / four-digital nose opening as a baffle clear bay --
-# (kept as geometry note: nozzle row of digital column 4 is open to plenum)
-
-# --- PCB lid -------------------------------------------------------------
+# --- PCB: the sealed chamber floor ---------------------------------------
+# Its top face is at CAV_Z0, so "N mm above board" == "N mm above the cavity
+# floor" and the baffle/allowance/recess numbers in blueprint.md 4.6 hold.
 pcb = doc.addObject("Part::Feature", "PCB")
 pcb.Label = "pcb"
 pcb_x0 = (CONST["SH"] - CONST["PCB_X"]) / 2.0
@@ -100,23 +115,26 @@ nostrils = doc.addObject("Part::Feature", "Nostrils")
 nostrils.Label = "nostrils"
 ns = None
 for cx in NO_X:
-    n = Part.makeCylinder(CONST["NO_R"], 12.0,
+    n = Part.makeCylinder(CONST["NO_R"], 9.0,
                           App.Vector(cx, CONST["NO_Y"], CONST["NO_Z"]),
                           App.Vector(0, 1, 0))
     ns = n if ns is None else ns.fuse(n)
 nostrils.Shape = ns
 
-# --- intake plenum + filter slab (top-front, above baffle) --------------
-# filter: hydrophobic PTFE mesh, footprint >= 70 cm2 (target 100), flat pack
+# --- intake plenum + filter pack (top-front, above baffle) --------------
+# The filter is a SERIES element (blueprint.md 3.4 losses, 3.6 spec): it spans
+# the full 106 x 11 mm lane cross-section right behind the nostrils, so nothing
+# can bypass it and dust cannot reach the wells unfiltered.  It has to be a
+# pleated pack - a flat 106 x 11 face is only 11.7 cm2, and 3.6 needs >= 70 cm2
+# to stay <= 2 Pa.
 plenum = doc.addObject("Part::Feature", "Plenum")
 plenum.Label = "plenum"
-plenum.Shape = box(CX0 + 6, 20.0, BZ + 4.0, CX1 - 6, CY1 - 6, CAV_Z1 - 2.0)
+plenum.Shape = box(CX0, CY0, BZ, CX1, CONST["FILT_Y0"], CAV_Z1)
 
 filt = doc.addObject("Part::Feature", "Filter")
 filt.Label = "filter"
-filt_w = 90.0
-filt.Shape = box(MIDX - filt_w / 2, 34.0, BZ + 6.0,
-                 MIDX + filt_w / 2, 46.0, BZ + 6.0 + CONST["FILT_T"])
+filt.Shape = box(CX0, CONST["FILT_Y0"], BZ,
+                 CX1, CONST["FILT_Y0"] + CONST["FILT_T"], CAV_Z1)
 
 # --- taper duct + fan (rear) ---------------------------------------------
 duct = doc.addObject("Part::Feature", "Duct")

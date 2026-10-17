@@ -38,9 +38,10 @@ with open(HLR_JSON, encoding="utf-8") as _fh:
     HLR = json.load(_fh)
 
 PW, PH = 420.0, 297.0                 # A3 landscape, paper mm
-MARGIN, BORDER = 8.0, 10.0
-TB_W, TB_H = 170.0, 44.0              # ISO 7200 style title block
+MARGIN, BORDER = 6.0, 12.0            # trim edge + drawing border (6 mm zone strip)
+TB_W, TB_H = 180.0, 40.0              # ISO 7200 title block
 REV, PROJECT = "A", "OpenSmell"
+DATE = "2026-10-16"
 
 # ---- layers: name -> (ACI colour, linetype, lineweight 1/100 mm) -----------
 LAYERS = {
@@ -149,7 +150,7 @@ def place_view(psp, view, orient, s, left, bottom, hidden=True):
 
 
 def dim_h(psp, x0, x1, y_line, y_feat, s, layer="DIM"):
-    over = {"dimlfac": 1.0 / s, "dimtxt": 2.4, "dimasz": 1.6,
+    over = {"dimlfac": 1.0 / s, "dimtxt": 3.0, "dimasz": 2.0,
             "dimclrd": 1, "dimclre": 1, "dimclrt": 1, "dimtxsty": "Standard"}
     d = psp.add_linear_dim(base=(x0, y_line), p1=(x0, y_feat), p2=(x1, y_feat),
                            angle=0, override=over, dxfattribs={"layer": layer})
@@ -157,7 +158,7 @@ def dim_h(psp, x0, x1, y_line, y_feat, s, layer="DIM"):
 
 
 def dim_v(psp, y0, y1, x_line, x_feat, s, layer="DIM"):
-    over = {"dimlfac": 1.0 / s, "dimtxt": 2.4, "dimasz": 1.6,
+    over = {"dimlfac": 1.0 / s, "dimtxt": 3.0, "dimasz": 2.0,
             "dimclrd": 1, "dimclre": 1, "dimclrt": 1, "dimtxsty": "Standard"}
     d = psp.add_linear_dim(base=(x_line, y0), p1=(x_feat, y0), p2=(x_feat, y1),
                            angle=90, override=over, dxfattribs={"layer": layer})
@@ -168,12 +169,39 @@ def dim_v(psp, y0, y1, x_line, x_feat, s, layer="DIM"):
 #  Sheet furniture
 # ===========================================================================
 def frame(psp):
+    # ISO 5457 sheet: trim line, drawing border, and a zone reference grid
+    # (columns 1..6 across, rows A..D down) for locating features.
     psp.add_lwpolyline([(MARGIN, MARGIN), (PW - MARGIN, MARGIN),
                         (PW - MARGIN, PH - MARGIN), (MARGIN, PH - MARGIN)],
                        close=True, dxfattribs={"layer": "FRAME"})
     psp.add_lwpolyline([(BORDER, BORDER), (PW - BORDER, BORDER),
                         (PW - BORDER, PH - BORDER), (BORDER, PH - BORDER)],
                        close=True, dxfattribs={"layer": "VIS"})
+    nx, ny = 6, 4
+    xc = (MARGIN + BORDER) / 2.0
+    yc = (MARGIN + BORDER) / 2.0
+    for i in range(nx):
+        xa = BORDER + (PW - 2 * BORDER) * i / nx
+        xb = BORDER + (PW - 2 * BORDER) * (i + 1) / nx
+        if i:
+            psp.add_line((xa, MARGIN), (xa, BORDER), dxfattribs={"layer": "VIS"})
+            psp.add_line((xa, PH - BORDER), (xa, PH - MARGIN),
+                         dxfattribs={"layer": "VIS"})
+        for yy in (yc, PH - yc):
+            psp.add_text(str(i + 1), height=2.6,
+                         dxfattribs={"layer": "TXT"}).set_placement(
+                ((xa + xb) / 2.0, yy), align=_ALIGN["c"])
+    for j in range(ny):
+        ya = BORDER + (PH - 2 * BORDER) * j / ny
+        yb = BORDER + (PH - 2 * BORDER) * (j + 1) / ny
+        if j:
+            psp.add_line((MARGIN, ya), (BORDER, ya), dxfattribs={"layer": "VIS"})
+            psp.add_line((PW - BORDER, ya), (PW - MARGIN, ya),
+                         dxfattribs={"layer": "VIS"})
+        for xx in (xc, PW - xc):
+            psp.add_text(chr(ord("A") + j), height=2.6,
+                         dxfattribs={"layer": "TXT"}).set_placement(
+                (xx, (ya + yb) / 2.0), align=_ALIGN["c"])
 
 
 def first_angle_symbol(psp, x, y, s=1.0):
@@ -186,40 +214,67 @@ def first_angle_symbol(psp, x, y, s=1.0):
                      dxfattribs={"layer": "VIS"})
 
 
-def title_block(psp, f):
-    x0, y0 = PW - BORDER - TB_W, BORDER
-    x1, y1 = PW - BORDER, BORDER + TB_H
-    psp.add_lwpolyline([(x0, y0), (x1, y0), (x1, y1), (x0, y1)], close=True,
-                       dxfattribs={"layer": "THK"})
-    col = 42.0
-    xm = x1 - col
-    psp.add_line((xm, y0), (xm, y1), dxfattribs={"layer": "VIS"})
-    for i in range(1, 4):
-        psp.add_line((xm, y0 + i * TB_H / 4), (x1, y0 + i * TB_H / 4),
-                     dxfattribs={"layer": "VIS"})
-    a = y0 + TB_H * 0.46
-    psp.add_line((x0, a), (x1, a), dxfattribs={"layer": "VIS"})
-    psp.add_line((x0 + 100, a), (x0 + 100, y1), dxfattribs={"layer": "VIS"})
-    psp.add_line((x0, y0 + TB_H * 0.74), (x0 + 100, y0 + TB_H * 0.74),
-                 dxfattribs={"layer": "VIS"})
+def _fit(text, width, hgt):
+    """Truncate text so it cannot overflow a cell of `width` at text height."""
+    maxc = max(3, int(width / (0.62 * hgt)))
+    return text if len(text) <= maxc else text[:maxc - 1].rstrip() + "\u2026"
 
-    def txt(x, y, s, h, layer="TXT", align="bl"):
-        psp.add_text(s, height=h, dxfattribs={"layer": layer}).set_placement(
+
+def title_block(psp, f):
+    x1, y0 = PW - BORDER, BORDER
+    x0, y1 = x1 - TB_W, y0 + TB_H
+    xm = x0 + 125.0                    # info column | scale/logo column
+
+    def rect(a, b, ww, hh, layer="VIS"):
+        psp.add_lwpolyline([(a, b), (a + ww, b), (a + ww, b + hh), (a, b + hh)],
+                           close=True, dxfattribs={"layer": layer})
+
+    def line(a, b, c, d, layer="VIS"):
+        psp.add_line((a, b), (c, d), dxfattribs={"layer": layer})
+
+    def txt(x, y, s, hgt, align="bl", layer="TXT"):
+        psp.add_text(s, height=hgt, dxfattribs={"layer": layer}).set_placement(
             (x, y), align=_ALIGN[align])
 
-    txt(x0 + 2, y1 - 5.5, "%s  \u2013  %s" % (f["project"], f["title"]), 4.0)
-    txt(x0 + 2, y0 + TB_H * 0.74 + 2.0,
-        "DWG NO %s     REV %s     SHEET %s/%s" % (f["no"], REV, f["sheet"], f["sheets"]), 3.2)
-    txt(x0 + 2, y0 + TB_H * 0.74 - 2.4,
-        "SCALE %s   UNITS mm   PROJECTION FIRST ANGLE (ISO 128)" % f["scale"], 2.5)
-    txt(x0 + 2, a + 1.8, "MATERIAL   " + f["material"], 2.6)
-    txt(x0 + 2, a - 3.0, "FINISH     " + f["finish"], 2.6)
-    txt(x0 + 102, a + 1.8, "TOLERANCE general " + PROCESS["tolerance_general"], 2.6)
-    txt(x0 + 102, a - 3.0, "critical fits \u00b1" + PROCESS["tolerance_critical"]
-        + " (marked)", 2.6)
-    txt(x0 + 2, y1 - 9.5, "DRAWN OpenSmell   CHECK  \u2013", 2.2)
-    txt(x0 + 2, y0 + 1.6, "OpenSmell v1.1   |   " + f["notes"], 2.3)
-    first_angle_symbol(psp, x1 - 30, y0 + 8, 0.75)
+    rect(x0, y0, TB_W, TB_H, "THK")
+    line(xm, y0, xm, y1)                                   # column divider
+
+    # left column bands (bottom -> top): DRAWN | MATERIAL/FINISH | DWG No. | TITLE
+    b1, b2, b3 = y0 + 9.0, y0 + 21.0, y0 + 29.0
+    line(x0, b1, xm, b1)
+    line(x0, b2, xm, b2)
+    line(x0, b3, xm, b3)
+    line(x0 + 78, b3, x0 + 78, y1)                         # DWG No. | REV
+    line(x0 + 100, b3, x0 + 100, y1)                       # REV | SHEET
+    line(x0 + 46, y0, x0 + 46, b1)                         # DRAWN | CHECK
+    line(x0 + 92, y0, x0 + 92, b1)                         # CHECK | DATE
+
+    # right column bands: SCALE | SIZE | PROJECTION + logo
+    r1, r2 = y0 + 19.0, y0 + 28.0
+    line(xm, r1, x1, r1)
+    line(xm, r2, x1, r2)
+
+    txt(x0 + 2, b3 + 3.6, f["title"], 4.4)
+    txt(x0 + 2, b2 + 1.5, "DRAWING No.   " + f["no"], 3.4)
+    txt(x0 + 80, b2 + 1.5, "REV " + REV, 3.0)
+    txt(x0 + 102, b2 + 1.5, "SHEET %s/%s" % (f["sheet"], f["sheets"]), 2.8)
+    txt(x0 + 2, b1 + 6.0, _fit("MATERIAL   " + f["material"], 121, 2.4), 2.4)
+    txt(x0 + 2, b1 + 2.0, _fit("FINISH       " + f["finish"], 121, 2.4), 2.4)
+    txt(x0 + 2, y0 + 1.5, "DRAWN  OpenSmell", 2.4)
+    txt(x0 + 48, y0 + 1.5, "CHECK  \u2013", 2.4)
+    txt(x0 + 94, y0 + 1.5, "DATE  " + DATE, 2.4)
+
+    txt(xm + 2, r2 + 3.6, "SCALE   " + f["scale"], 3.2)
+    txt(xm + 2, r1 + 5.6, "SIZE   A3", 2.6)
+    txt(xm + 2, r1 + 2.4, "UNITS   mm", 2.6)
+    txt(xm + 2, y0 + 15.8, "FIRST ANGLE", 2.4)
+    txt(xm + 2, y0 + 12.6, "(ISO 128)", 2.4)
+    first_angle_symbol(psp, xm + 34, y0 + 3.0, 0.62)
+
+    # notes live just above the block (keeps the cells uncluttered)
+    txt(x1, y1 + 2.4, "NOTES:  " + f["notes"], 2.3, "r")
+    txt(x1, y1 + 5.2, "GENERAL TOLERANCE  " + PROCESS["tolerance_general"]
+        + "   \u00b7   PROJECT " + PROJECT + " v1.1  REV " + REV, 2.3, "r")
 
 
 def caption(psp, x, y, text):
@@ -235,7 +290,7 @@ def view_front(psp, left, bottom, s):
     w = r[2] - r[0]
     dim_h(psp, r[0], r[2], r[1] - 12, r[1], s)
     dim_v(psp, r[1], r[3], r[0] - 12, r[0], s)
-    psp.add_text("3\u00d7\u00d86 nostrils", height=2.4,
+    psp.add_text("3\u00d7DIA6 nostrils", height=2.4,
                  dxfattribs={"layer": "TXT"}).set_placement((left + w / 2, r[1] - 20),
                                                             align=_ALIGN["c"])
     return r
@@ -272,7 +327,8 @@ def view_baffle_plan(psp, left, bottom, s):
 
 
 def view_baffle_section(psp, left, bottom, s):
-    return place_view(psp, HLR["baffle"]["SECTION_AA"], 270, s, left, bottom)
+    return place_view(psp, HLR["baffle"]["SECTION_AA"], 270, s, left, bottom,
+                      hidden=True)
 
 
 def view_baffle_iso(psp, left, bottom, s):
@@ -280,7 +336,7 @@ def view_baffle_iso(psp, left, bottom, s):
 
 
 def view_assembly_iso(psp, left, bottom, s):
-    return place_view(psp, HLR["assembly"]["ISO"], 0, s, left, bottom, hidden=False)
+    return place_view(psp, HLR["assembly"]["ISO"], 0, s, left, bottom, hidden=True)
 
 
 def bom(psp, x0, y0):
@@ -290,13 +346,13 @@ def bom(psp, x0, y0):
             CONST["SH"], CONST["SW"], CONST["SHH"],
             CONST["CX"], CONST["CY"], CONST["CH"]), "1",
          "PETG FDM (or AL 6061-T6)", "make"),
-        ("2", "Baffle plate  %d\u00d7%d\u00d7%d, %d open wells" % (
+        ("2", "Baffle plate  %d\u00d7%d\u00d7%d, %d wells + ref port" % (
             CONST["CX"], CONST["CY"], CONST["BAFFLE_T"], n_wells), "1",
          "PTFE machined (or PVDF)", "make"),
-        ("3", "Axial fan  \u00d840 \u00d7 t10, 5 V", "1",
+        ("3", "Axial fan  DIA40 \u00d7 t10, 5 V", "1",
          "off-the-shelf (substitute any 40mm)", "buy"),
-        ("4", "Filter slab PTFE \u2248100 cm\u00b2", "1",
-         "off-the-shelf (hydrophobic mesh)", "buy"),
+        ("4", "Filter pack PTFE, full-flow 106\u00d711 face",
+         "1", "pleated, \u2265100 cm\u00b2 media", "buy"),
         ("5", "Main PCB  %d\u00d7%d (SHT31, MCU)" % (
             CONST["PCB_X"], CONST["PCB_Y"]), "1",
          "FR4 1.6 mm + build", "make"),
@@ -343,11 +399,12 @@ def sheet_assembly(doc):
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
     psp.add_text("isometric general arrangement \u2013 shell, baffle plane, "
-                 "3\u00d7 nostril, PCB lid, \u00d840 rear exhaust", height=3,
+                 "3\u00d7 nostril, filter pack, PCB floor, DIA40 rear exhaust",
+                 height=3,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
-    view_assembly_iso(psp, 80, 62, 0.38)
-    caption(psp, 170, 54, "ISO \u2013 general arrangement  (NTS)")
+    r = view_assembly_iso(psp, 148, 74, 0.52)
+    caption(psp, (r[0] + r[2]) / 2, 64, "ISO \u2013 general arrangement  (NTS)")
     bom(psp, 22.0, 220.0)
     title_block(psp, dict(COMMON, title="ASSEMBLY", no="OS-000", sheet="1",
                           sheets="3", scale="NTS", material="see BOM",
@@ -365,7 +422,7 @@ def sheet_shell(doc):
     r1 = view_front(psp, 40, 205, 0.5)
     caption(psp, 40 + (r1[2] - r1[0]) / 2, 190, "FRONT (intake face)  1:2")
     r2 = view_plan(psp, 40, 100, 0.5)
-    caption(psp, 40 + (r2[2] - r2[0]) / 2, 85, "PLAN (lid removed)  1:2")
+    caption(psp, 40 + (r2[2] - r2[0]) / 2, 85, "PLAN (PCB floor not fitted)  1:2")
     r3 = view_section_bb(psp, 300, 205, 0.5)
     caption(psp, 300 + (r3[2] - r3[0]) / 2, 190,
             "SECTION B-B (x=%d)  1:2" % (CONST["SH"] / 2))
@@ -386,12 +443,13 @@ def sheet_baffle(doc):
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
     r1 = view_baffle_plan(psp, 40, 190, 0.5)
-    caption(psp, 40 + (r1[2] - r1[0]) / 2, 178,
-            "PLAN (%d wells)  1:2" % (len(CONST["A_X"]) + len(CONST["D_X"])))
-    view_baffle_section(psp, 285, 220, 0.5)
-    caption(psp, 330, 210, "SECTION A-A (2 mm plate)  1:2")
-    view_baffle_iso(psp, 300, 100, 0.35)
-    caption(psp, 330, 90, "ISO \u2013 wells open-bottom  (NTS)")
+    caption(psp, 40 + (r1[2] - r1[0]) / 2, 170,
+            "PLAN (%d wells + ref port)  1:2" % (len(CONST["A_X"])
+                                                 + len(CONST["D_X"])))
+    view_baffle_section(psp, 40, 140, 1.0)
+    caption(psp, 95, 130, "SECTION A-A  (plate t=2, wells open-bottom)  1:1")
+    view_baffle_iso(psp, 285, 150, 0.55)
+    caption(psp, 330, 138, "ISO \u2013 wells open-bottom  (NTS)")
     title_block(psp, dict(COMMON, title="BAFFLE \u2013 well plate", no="OS-002",
                           sheet="3", sheets="3", scale="1:2",
                           material=PROCESS["baffle"]["primary"],
@@ -407,24 +465,28 @@ def plot(sheets):
     from ezdxf.addons.drawing.pymupdf import PyMuPdfBackend
     from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
     from ezdxf.addons.drawing.layout import Page, Units, Settings
+    from ezdxf.addons.drawing.config import Configuration, ColorPolicy
     from ezdxf.math import BoundingBox2d
     import matplotlib.pyplot as plt
     from pypdf import PdfWriter, PdfReader
     import io
 
+    # Engineering drawings are monochrome: layers differ by lineweight/linetype,
+    # not colour (screen colours are a CAD convention, not a drawing board one).
+    cfg = Configuration(color_policy=ColorPolicy.MONOCHROME, lineweight_scaling=1.0)
     box = BoundingBox2d([(0, 0), (PW, PH)])
     page = Page(PW, PH, Units.mm)
     settings = Settings(fit_page=False)
     writer = PdfWriter()
     for doc, lay in sheets:
         b = PyMuPdfBackend()
-        Frontend(RenderContext(doc), b).draw_layout(lay)
+        Frontend(RenderContext(doc), b, config=cfg).draw_layout(lay)
         replay = b.get_replay(page, settings=settings, render_box=box)
         writer.append(PdfReader(io.BytesIO(replay.doc.tobytes())))
         fig = plt.figure(figsize=(PW / 25.4, PH / 25.4))
         ax = fig.add_axes([0, 0, 1, 1])
         ax.set_axis_off()
-        Frontend(RenderContext(doc), MatplotlibBackend(ax)).draw_layout(
+        Frontend(RenderContext(doc), MatplotlibBackend(ax), config=cfg).draw_layout(
             lay, finalize=True)
         fig.savefig(os.path.join(OUT, lay.name + ".png"), dpi=150)
         plt.close(fig)

@@ -81,15 +81,26 @@ check("shell FRONT nostrils r = NO_R, pitch 26",
       and near(sorted(c["c"][1] for c in fc)[1] - sorted(c["c"][1] for c in fc)[0],
                CONST["SH"] / 2 - (CONST["SH"] / 2 - 26), 1e-3), "")
 
-# baffle plan: outer 4 + N slots x 4 wells = 4N + 4 straight edges
+# baffle plan: outer 4 + (N slots + 1 reference port) x 4 = 4N + 4 straight edges
 N_SLOTS = len(CONST["A_X"]) + len(CONST["D_X"])
+N_PORTS = 1                       # SHT31 reference-sensor port
 bl = [e for e in ents("baffle", "PLAN", "visible") if e["t"] == "line"]
 bx0, by0, bx1, by1 = extent(bl)
 check("baffle PLAN extent = cavity",
       near(bx1 - bx0, CONST["CX"], 1e-3) and near(by1 - by0, CONST["CY"], 1e-3),
       f"{bx1-bx0:.1f} x {by1-by0:.1f} vs {CONST['CX']} x {CONST['CY']}")
-check(f"baffle PLAN = {4*N_SLOTS+4} edges (outer 4 + {N_SLOTS} wells x 4)",
-      len(bl) == 4 * N_SLOTS + 4, f"{len(bl)}")
+check(f"baffle PLAN = {4*(N_SLOTS+N_PORTS)+4} edges "
+      f"(outer 4 + ({N_SLOTS} wells + {N_PORTS} port) x 4)",
+      len(bl) == 4 * (N_SLOTS + N_PORTS) + 4, f"{len(bl)}")
+# the reference port must be in the lane, upstream of the hot analog row and
+# clear of both well rows (a module must not sit over it)
+check("SHT31 port clears both module rows and stays in-cavity",
+      CONST["SHT_Y0"] >= CONST["D_Y0"] + CONST["D_SY"]
+      and CONST["SHT_Y0"] + CONST["SHT_SY"] <= CONST["A_Y0"]
+      and CONST["SHT_X"] - CONST["SHT_SX"] / 2 >= CONST["WSIDE"]
+      and CONST["SHT_X"] + CONST["SHT_SX"] / 2 <= CONST["WSIDE"] + CONST["CX"],
+      f"y {CONST['SHT_Y0']}..{CONST['SHT_Y0']+CONST['SHT_SY']} "
+      f"x {CONST['SHT_X']-CONST['SHT_SX']/2}..{CONST['SHT_X']+CONST['SHT_SX']/2}")
 
 sl = ents("shell", "PLAN", "visible")
 sx0, _, sx1, _ = extent(sl)
