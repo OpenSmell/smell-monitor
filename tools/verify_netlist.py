@@ -1,9 +1,10 @@
-"""Parity gate: the KiCad-exported netlist must equal the board.py model.
+"""Parity + ERC gate: the KiCad-exported netlist must equal the board.py model.
 
 board.py is the design's source of truth; gen_schematic.py turns it into a
 KiCad sheet.  This gate re-exports the netlist from that sheet with KiCad's own
 tool and checks every net's pin list against the model, so the schematic can
-never silently drift from the model (or vice versa).
+never silently drift from the model (or vice versa).  It then runs KiCad's ERC
+on the same sheet, so "ERC clean" is verified rather than asserted by hand.
 
 Run:  python tools/verify_netlist.py
 Needs kicad-cli on PATH or at the default install location.
@@ -133,6 +134,18 @@ def main():
                        check=True, capture_output=True)
         got = exported_nets(out)
 
+        # ERC at the same time: the sheet is generated, so "ERC clean" is a
+        # property of the generator and belongs in the gate, not in a manual
+        # step that leaves a report lying in the working tree.
+        erc = os.path.join(tmp, "erc.rpt")
+        rc = subprocess.run([KICAD_CLI, "sch", "erc", "--severity-error",
+                             "--exit-code-violations", "-o", erc, SCH],
+                            capture_output=True).returncode
+        erc_txt = (open(erc, encoding="utf-8", errors="replace").read()
+                   if os.path.isfile(erc) else "")
+        erc_line = next((ln.strip() for ln in erc_txt.splitlines()
+                         if "ERC messages:" in ln), "")
+
     want = {}
     for net, conns in B.NETS.items():
         want[net] = set()
@@ -154,12 +167,18 @@ def main():
                               % (net, missing, extra))
 
     print("model nets=%d  sheet nets=%d" % (len(want), len(got)))
+    if erc_line:
+        print("ERC: %s" % erc_line)
+    if rc != 0 and not errors:
+        print("ERC FAILED (%d)" % rc)
+        print(erc_txt[-2000:])
     if errors:
         print("MISMATCH (%d):" % len(errors))
         for e in errors[:40]:
             print("  -", e)
+    if errors or rc != 0:
         sys.exit(1)
-    print("NETLIST PARITY OK")
+    print("NETLIST PARITY OK - ERC clean")
 
 
 if __name__ == "__main__":

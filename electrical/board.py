@@ -7,8 +7,9 @@ into an explicit **netlist**: the parts fitted to the board and the net every
 pin lands on. It is the common origin for three deliverables, so they cannot
 drift from each other:
 
-  * the generated KiCad schematic   (`tools/gen_schematic.py`)
-  * the generated PCB               (footprint placement + rats nest)
+  * the generated KiCad schematic   (`electrical/gen_schematic.py`)
+  * the generated PCB               (`electrical/gen_pcb.py` placement, then
+                                     `electrical/route_pcb.py` to route it)
   * the BOM                         (KiCad BOM export; `bom.csv` is regenerated,
                                      never hand-counted - hand counts drift)
 
@@ -232,7 +233,7 @@ def build():
     part("U3", "Interface_USB:CH340C", "CH340C", "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm")
     part("U4", "Interface_Expansion:TCA9548APWR", "TCA9548A",
          "Package_SO:TSSOP-24_4.4x7.8mm_P0.65mm")
-    part("U5", "Sensor_Humidity:SHT31-DIS", "SHT31-DIS-B", "Package_DFN_QFN:DFN-8-1EP_2.5x2.5mm_P0.5mm_EP1.4x1.4mm")
+    part("U5", "Sensor_Humidity:SHT31-DIS", "SHT31-DIS-B", "Sensor_Humidity:Sensirion_DFN-8-1EP_2.5x2.5mm_P0.5mm_EP1.1x1.7mm")
     part("U6", "Display_Graphic:ER_OLEDM0.91_1x-I2C", "SSD1306-B",
          "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
     part("U7", "Regulator_Linear:AMS1117CD-3.3", "AMS1117-3.3",
@@ -247,11 +248,11 @@ def build():
         part("J%d" % (6 + k), "Connector_Generic:Conn_01x06", "1x06 female",
              "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Vertical")
     part("J10", "Connector_Generic:Conn_01x02", "JST-PH 2P fan",
-         "Connector_JST:JST_PH_B2B-PH-K-S_1x02_P2.00mm_Vertical")
+         "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical")
 
     part("Q1", "Transistor_FET:Q_NMOS_GSD", "AO3400A", "Package_TO_SOT_SMD:SOT-23")
     part("Q2", "Transistor_BJT:Q_NPN_BCE", "MMBT3904", "Package_TO_SOT_SMD:SOT-23")
-    part("BZ1", "Device:Buzzer", "MBT-12A05", "Buzzer:Buzzer_12x9.5mm_D10.2mm")
+    part("BZ1", "Device:Buzzer", "MBT-12A05", "Buzzer_Beeper:Buzzer_12x9.5RM7.6")
     part("LED1", "Device:LED", "Red", "LED_SMD:LED_0603_1608Metric")
     part("SW1", "Switch:SW_Push", "MEASURE", "Button_Switch_SMD:SW_SPST_TL3342")
     part("SW2", "Switch:SW_Push", "BOOT", "Button_Switch_SMD:SW_SPST_TL3342")
