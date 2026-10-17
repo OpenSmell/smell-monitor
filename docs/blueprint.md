@@ -398,52 +398,94 @@ over-provisioned for the casual user and exactly right for a lab:
 | Lab researcher (broadest) | 4 | MQ-135 + MICS-6814 + MQ-136 + SCD40 |
 | *Starter pack (all personas)* | *5 + base* | *the pack above* |
 
-### 4.5 Sensor module footprints (datasheet-derived)
+### 4.5 Sensor module envelope and connector classes
 
-**Worst-case analog module:** 22 × 35 × **23 mm** can (MQ family).
-**Worst-case digital module:** ≤ 26 × 23 × 8 mm (Adafruit STEMMA QT class).
+The chamber cannot be sized from a table of "typical" breakout dimensions,
+because for the parts this product recommends no such table exists. Auditing the
+real ones (`mechanical/modules.py`, gate `tools/verify_module_fit.py`) turned up
+five facts that the earlier "worst-case 22 × 35 × 23" assumption hid:
 
-Read the envelope *in the mounted pose*: the socket is a vertical 2.54 mm
-receptacle, so a module plugs in perpendicular to the board and stands up like a
-card. The **35 mm (analog) / 26 mm (digital) edge runs along the flow**, the
-**22 mm (analog) / 23 mm (digital) edge is the height above the board**, and on
-the wide analog parts the can protrudes sideways out of the card, which is what
-the 26 mm in-row pitch has to clear.
+1. **The same sensor ships on different boards.** The MQ-135 today is a 32 × 20,
+   32 × 22, 36 × 24 *or* 40 × 21 mm board depending on vendor. "Worst case 35"
+   was a single vendor's number presented as a datasheet fact.
+2. **The same breakout ships with a different pin order.** MQ-135 breakouts are
+   sold as `VCC GND AO DO` *and* as `VCC GND DO AO`. A passive 2.54 mm receptacle
+   cannot promise which signal lands on which pin (§4.2's `+5V GND AO DO 3V3`
+   order is one vendor's convention, not a standard).
+3. **Several recommended parts are not plug-in modules at all.** MICS-6814,
+   SCD40/41, SGP4x and BME688 are SMD packages; they are only pluggable because
+   somebody else's *carrier board* exists, and carriers vary in size.
+4. **MICS-6814 has three analog outputs**, while one analog slot reads one AO.
+5. **Not every module uses a 2.54 mm header.** MH-Z19C-PC is a 38.8 mm flat
+   module with a 1.5 mm JST-ZH connector; Adafruit STEMMA QT boards use 1.0 mm
+   JST-SH (their unpopulated 0.1 in holes make them 2.54-compatible). The ZE03
+   is not a card at all but a Ø23.5 × 24.5 mm can.
 
-| Module | L×W (mm) | Bank | Fits |
-|--------|-----------|------|------|
-| MQ-135/136/137/138 breakout | 35 × 22 | Analog (26) | Yes, 4 mm gap |
-| Winsen MH-Z19B NDIR | 33 × 20 | Analog (26) | Yes |
-| CM1106H-NS NDIR | 33 × 19.7 | Analog (26) | Yes |
-| Sensirion SCD30 NDIR | 35 × 23 | Analog (26) | Yes (widest) |
-| SCD40/41 | 10.1² / ≈25 × 17 | Digital (21) | Yes |
-| BME688 / SGP30 / SGP40 | ≤ 25 | Digital (21) | Yes |
-| Piezo film DT1-028K | 41 × 30 film | Analog (via amp) | Yes |
-| QCM / quartz rig | 8–10 crystal | Digital | Custom, freq on GPIO |
+So the slot is a **standard, not a universal socket**:
+
+| Slot standard | Value |
+|---------------|-------|
+| Connector | 1 × N male 2.54 mm on the module, receptacle on the board |
+| Pose | connector edge horizontal; card plane parallel to the flow (header line along Y) |
+| Module must | present a 2.54 mm header, ≤ the envelope below, 1 analog output per analog slot |
+| Anything else | arrives on a carrier, or on a pigtail into an unused well |
+
+Verified numbers (mm). `FITS` is the gate's verdict against the geometry in
+`mechanical/constants.py`; `MEASURE` means a deciding number is not yet known.
+
+| Module | Form | Outline | Bank | Verdict | Note |
+|--------|------|---------|------|---------|------|
+| MQ-135/136 class | card | 32 × 20 … 40 × 21 × 1.6 | Analog | **MEASURE** | 40.5–48.5 mm tall in the standing pose ⇒ **hits the plate** (37 mm clear). Resolved by the connector-edge measurement below. |
+| Winsen ZE03 (EC) | can | Ø23.5 × 24.5 | Analog | FITS | 33 mm tall ⇒ only a 4 mm recess (spec 8); Ø23.5 in a 26 mm pitch = 2.5 mm gap |
+| MH-Z19C-PC (NDIR) | flat | 38.8 × 19.7 × 8.6 | Analog | **carrier** | JST-ZH 1.5 mm, not 2.54 — pigtail or carrier |
+| Adafruit STEMMA QT | card | 25.4 × 17.8 × 4.6 | Digital | FITS | needs its 0.1 in header soldered |
+| SCD40/41, SGP4x, BME688, MICS-6814 | SMD | 2.45² … 10.1² | both | **carrier** | MICS-6814 also needs 3 AO channels |
+
+The two facts that decide the analog-row envelope are still open, and they are
+one caliper measurement each:
+
+* **Which card edge carries the connector.** If the 4-pin header is on a MQ
+  breakout's *short* edge (as the usual 32 × 20 module looks in vendor photos),
+  the card stands on that edge and its **long** edge becomes the height:
+  8.5 mm of socket + 32–40 mm of board = 40.5–48.5 mm, i.e. through the 37 mm
+  gap to the plate. If the header is on the *long* edge the card is only
+  20–24 mm tall and everything fits with room to spare. The 29 mm allowance
+  in §4.6 assumed the second case; it is a *requirement*, not a market fact.
+* **Where the sensing element sits along the card.** With the card standing on
+  its short edge the element is centred on the header line, which is exactly
+  where the baffle aperture is — centring is right. With the card standing on
+  its long edge the element is 10–20 mm downstream of the header line and the
+  aperture, centred on the header line, would **miss the sensor**.
+
+There is no pose in which the aperture can be right for both, which is itself the
+result: the pose must be fixed first, then the aperture placed from it.
 
 ### 4.6 Derived layout rules
 
 | Rule | Value | Derivation |
 |------|-------|-----------|
-| Analog in-row pitch | **26 mm** | worst in-row width 22 mm + ≥ 4 mm gap |
+| Analog in-row pitch | **26 mm** | the module is 24.6 mm across when its Ø19 can points sideways (card 1.6 + can 23) → 1.4 mm gap |
 | Digital in-row pitch | **21 mm** | worst 17.6–22.8 mm + ≥ 3 mm gap |
-| Analog row span (4) | 3×26 + 22 = **100 mm** | dictates chamber length ≈ 106 mm |
-| Digital row span (4) | 3×21 + 18 = **81 mm** | |
-| Chamber inner depth | **≈ 100 mm** | module depth 35 + lane ≥ 30 + digital 26 |
-| Module height allowance | **29 mm** | 22 body + 5 socket + 2 clearance |
-| Module envelope along flow | analog **≤ 35 mm**, digital **≤ 26 mm** | §4.5 worst-case lengths |
-| Insertion orientation | connector edge **toward the front**, silkscreen arrow | a 35 mm module cannot be free-oriented inside 100 mm of depth |
+| Analog row span (4) | 3×26 + 24.6 = **102.6 mm** | with every can pointing the same way; the end cans must face inward or the chain exits the cavity (x −2.6 … 124.6 in a 114 mm shell) |
+| Digital row span (4) | 3×21 + 5 = **68 mm** | no cans |
+| Free depth per row | 26 / 42 / 32 mm | ahead of the digital row / between the rows / behind the analog row |
+| Module height allowance | **≤ 29 mm**, i.e. 8 mm of recess under the plate | 8.5 socket + card + 8 must stay ≤ 37 mm; **open** — the real card height is §4.5's measurement |
+| Module envelope along flow | analog **≤ 35 mm**, digital **≤ 26 mm** | a *requirement on the module* (§4.5), not a market fact |
+| Insertion orientation | card body into the free depth, silkscreen arrow | a 35 mm analog card only fits extending **forward** into the 42 mm inter-row gap; a digital card extends **rearward**, stopping ≥ 7 mm short of the analog apertures |
 | Baffle plane | **37 mm** above board | sensor recess 8 mm below flow |
 | Cavity inner height | **48 mm** | 37 baffle + 11 mm air lane |
 
-> **Mounting is not free.** A module hangs off its connector by its full 35 mm
-> (analog) / 26 mm (digital) length, so two rows of plug-in cards cannot both be
-> inserted either way round: at 100 mm of depth, a rearward-facing analog module
-> reaches the rear wall and a forward-facing digital module reaches the front
-> wall. The slot therefore has a *documented* orientation — connector toward the
-> front of the chamber, arrow on the silkscreen — and the rules above are sized
-> from that pose. Flipping a module is allowed only where §4.5 dimensions leave
-> the clearance in the §14 open-item check.
+> **Mounting is not free, and the previous rule was backwards.** A module hangs
+> off its connector by its card length. "Connector edge toward the front" put a
+> 35 mm analog card's far edge at y = 110 mm — through the rear wall at 107 —
+> which is the failure §4.6 already warned about in the same paragraph. The
+> correct rule is that the connector edge sits at the rear of the *analog* row
+> (card body forward, into the 42 mm gap) and at the front of the *digital* row
+> (card body rearward, no more than 33 mm). Because the free depths are 26/42/32
+> and the apertures are placed at the header lines, the pose and the aperture
+> positions must be derived together — see §4.5's aperture-alignment finding and
+> §14's open item. Until the card height is measured, the module envelope is a
+> requirement, not a verified fit.
 
 > 17.5 mm pitch (older spec) is **discarded** — it cannot seat two MQ modules
 > (17.5 < 22). The 26 mm analog lane is the "wide-body" lane; a narrow lane
@@ -545,7 +587,8 @@ pass. The 17-gas "broad" research set needs 8 analog and deliberately does
 
 ### 4.8 Open items
 
-MQ module mass from a physical sample · fan derating through the real filter
+MQ module envelope **and mass** from a physical sample (§4.5 — three caliper
+numbers decide the chamber) · fan derating through the real filter
 (flow bench / scaled CFD) · sensor-matrix upkeep as new market sensors appear
 (add a row in `electrical/sensor_matrix.py`; the gate re-solves the pack).
 
@@ -997,6 +1040,7 @@ path for automatic zero/baseline calibration.
 | H | 2026-10-15 | **rev-B board model + analog-slot fix.** Added `electrical/board.py`: the fitted parts and the net every pin lands on (**63 parts / 50 nets / 225 connections**), derived from `interface.py` + §5 and machine-checked against the real KiCad symbol library, so the schematic/PCB/BOM generators share one source. **Analog slot reordered to `5V GND AO DO 3V3`** (was `5V 3V3 GND AO DO`) so a 4-pin MQ-type module (VCC,GND,AO,DO) seats straight onto pins 1–4 with power and ground adjacent — the old order put a naive 4-pin plug's GND onto 3V3. Filled three spec/BOM gaps as recorded `DECISIONS`: **U3 CH340C** USB↔UART bridge (blueprint says USB-C carries serial; the BOM had none), **BOOT/RESET/MEASURE buttons**, and **USB-C CC 5.1 kΩ** pulldowns. `bom.csv` passive counts are no longer authoritative — the BOM is regenerated from the schematic. Header G→H. |
 | I | 2026-10-16 | **Schematic emitted from the model, and wireless telemetry adopted.** `electrical/gen_schematic.py` builds `smell_monitor_v1_1.kicad_sch` straight from `electrical/board.py`; KiCad **ERC is clean (0 violations)** and a new gate `tools/verify_netlist.py` re-exports the netlist with `kicad-cli` and proves it matches the model pin-for-pin, so schematic and model cannot drift. Board-model fix: **U3 CH340C now runs from 5 V** with V3 decoupled to GND (it is a `power_out`; tying it to +3V3 collided with the AMS1117 VO), and decoupling follows. §7 comms now emit **one JSON record over three transports** — USB serial (wired default), **Wi-Fi 2.4 GHz** (MQTT + HTTP/WebSocket), and **Bluetooth LE** (GATT notify + credential provisioning) — all on the pre-certified ESP32-WROOM-32E radio with **no BOM change**. Wrote the v1.1 firmware (`firmware/esp32/smell_monitor/`, arduino-cli): 4 analog + 4 digital + SHT31 acquisition, three-phase cycle, OLED/LED/buzzer, and all three transports — **compiles clean** (1.73 MB, 54% of a `huge_app` partition), and `tools/verify_firmware_pins.py` pins the firmware pin map to `interface.PINMAP` so it cannot drift. Header H→I. |
 | J | 2026-10-17 | **PCB placed, routed and DRC-clean; chamber stack-up fixed; flow order corrected.** Added `electrical/gen_pcb.py` (placement only, `--force`-guarded), `electrical/route_pcb.py` (DSN → FreeRouting `-mp 12` → SES, refuses to save with any unconnected net) and `tools/export_fab.py`, wiring the board to the sky so the routed copper is *reproducible* rather than hand-drawn; `tools/verify_pcb.py` gates it. Netclass track width 0.15 → **0.30 mm** because FreeRouting necks to 75/50 % of nominal, which is what produced the earlier 109 `track_width` DRC errors; DRC is now **0 violations / 0 unconnected**, and `fab/` carries only the layers a board shop can use (16 cosmetic layers and a 5 MB STEP dropped). Mechanical fix: `PCB_Z` was `CAV_Z1 − 1.6` = 58.4 mm, i.e. the board sat in the cavity *ceiling* and physically **blocked all three Ø6 intakes** — it is now `FLOOR − PCB_T`, seated in a shell rebate with its top face flush with the cavity floor, which is the only way §4.6's "baffle 37 mm above board / 29 mm module allowance / 8 mm recess" (12+37=49, 12+29=41, 49−41=8) adds up. Nostril axis 58 → 55 mm so the full bore opens into the 11 mm lane. Flow order corrected: the **digital row is now upstream and the analog/MOX row downstream** — the 4 MOX heaters ≈ 3.6 W, MOX consumes reducing gas and desorbs during purge, so nothing should sit behind that row; this also makes §4.3's "U5 upstream of the MOX array" true (it was not) and puts the small cards ahead of the wide ones. Added a **reference port** in the baffle over U5 (`SHT_*`) — the soldered SHT31 was otherwise sealed behind a solid plate. Filter moved from a floating 90 × 12 slab to a **series element spanning the full 106 × 11 mm lane** behind the nostrils (a bypassable filter is not a filter); its area spec forces a pleated pack. Documented the module envelope + insertion orientation in §4.6. Header I→J. |
+| K | 2026-10-17 | **Module envelope audited against real breakouts; §4.5/§4.6 rewritten.** Added `mechanical/modules.py` (per-module form, outline, connector class, sensing-element geometry — each with a source) and gate `tools/verify_module_fit.py` (reports by default so the suite stays green; `--strict` is what CI runs once the sample is measured). Findings that remove hidden assumptions: the MQ-135 is sold on 32×20, 32×22, 36×24 *or* 40×21 mm boards, so "worst case 22 × 35 × 23" was a vendor lottery presented as a datasheet fact; MQ breakouts ship as `VCC GND AO DO` *and* `VCC GND DO AO`, so §4.2's pin order is a convention, not a standard, and a swapped module puts its 0–5 V AO on an unprotected 3.3 V GPIO (`DO0..DO3`); the ZE03 is a Ø23.5 × 24.5 mm can, not a card; MH-Z19C-PC is 38.8 × 19.7 × 8.6 mm with a 1.5 mm JST-ZH connector; MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts (MICS-6814 has three analog outputs against one AO per slot). §4.6 corrections: the "connector edge toward the front" insertion rule sent a 35 mm analog card through the rear wall, so the rule is now "card body into the free depth" (26/42/32 mm per lane), and the analog pitch derivation is corrected to card 1.6 + Ø19×23 can = 24.6 mm across in a 26 mm pitch. `tools/verify_pcb.py` placement checks are now measured from the board's own outline, so moving the board in the KiCad sheet (centring it) is safe — proven by re-running the gate on a board translated by (+60, +25) mm. Header J→K. |
 
 **Open items (need measurement or decision):**
 - Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
@@ -1004,11 +1048,31 @@ path for automatic zero/baseline calibration.
   (0 violations / 0 unconnected / 0 footprint errors) → fab package exported.
   `tools/verify_pcb.py` now holds that line. The v0 schematic is retained only as
   a pin-name source for `board.py`.
+- **Module envelope: MEASURE the module (top mechanical item)** — §4.5/§4.6 no
+  longer assume "22 × 35 × 23". `mechanical/modules.py` + `tools/verify_module_fit.py`
+  show that a 32–40 mm MQ breakout standing on its connector edge needs 40.5–48.5 mm
+  of height where 37 mm exists, i.e. it would pass through the baffle plate. Three
+  caliper measurements decide it: (1) which card edge carries the 2.54 mm header,
+  (2) the card's height above the board once plugged in, (3) the distance from the
+  header to the sensing element along the card. Until then the module envelope is a
+  requirement, and the gate runs non-strict (it exits 0 and prints OPEN; CI should
+  run `--strict` once the numbers are in).
+- **Connector classes are not standardised** — MQ breakouts exist as both
+  `VCC GND AO DO` and `VCC GND DO AO`, so the slot's pin order is one vendor's
+  convention. Today a swapped module is harmless on the AO pin (10k/10k divider,
+  §5.3) but puts its 0–5 V analog output straight on a 3.3 V ESP32 GPIO on the DO
+  pin (`board.py` connects `DO0..DO3` unmodified). Cheap fix: a 10 kΩ series
+  resistor per DO pin (limits the clamp current to ~170 µA and survives the swap),
+  plus a documented pin order and a polarising key. Decide before the next board
+  revision; the module pose may change anyway (§4.5), which re-routes the board.
+- **Carrier boards** — MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts, and
+  MICS-6814 has three analog outputs against one AO per slot. The §4.4 pack needs
+  a named carrier (or a different part) before it is orderable.
 - Mechanical: OS-003 (PCB floor plan) and OS-004 (pneumatic schematic) sheets (§12).
 - **Module mounting key** — the slot orientation is a *rule* (§4.6), not yet a
-  feature. Worth adding an actual key so a module cannot be reversed: the analog
-  module hangs 35 mm off its header, so a rearward-facing MQ card reaches the rear
-  wall. Confirm with a physical module before the first enclosure revision.
+  feature: the rule now positions the analog card body in the 42 mm inter-row gap
+  and the digital card body rearward, and the baffle apertures must be placed from
+  that same pose (§4.5). Worth adding an actual key so a module cannot be reversed.
 - **PTFE insert floor + the user-facing openings (top mechanical item)** — §6.3
   already requires a separate PTFE insert, but the volume model has none, so today
   the board's whole top face (106 cm² of FR4 + solder mask, plus every component)
@@ -1025,7 +1089,10 @@ path for automatic zero/baseline calibration.
   is only 11.7 cm², so the ≥70 cm² spec forces a folded pack); fan P/N.
 - CFD: one optional `simpleFoam` pass at 15 and 150 L/min (§8.3), including the
   parallel path through the 8 wells + reference port into the shared sub-baffle
-  volume (NF5 well-washout).
+  volume (NF5 well-washout), and the front-row question: the modules stand *below*
+  the plate in one shared volume, so the digital row cannot obstruct the 11 mm
+  lane itself — what it can do is perturb the exchange between the upstream
+  apertures and the analog ones, which is exactly what the solve must answer.
 - Mass: MQ module mass from a physical sample.
 
 *Changes to a locked section require a revision bump and a row in this table.*
