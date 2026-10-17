@@ -43,7 +43,8 @@ import board as B  # noqa: E402
 from constants import CONST  # noqa: E402
 
 PROJECT = "smell_monitor_v1_1"
-PCB = os.path.join(ROOT, "electrical", PROJECT, PROJECT + ".kicad_pcb")
+PCB = os.environ.get("SMELL_PCB") or os.path.join(
+    ROOT, "electrical", PROJECT, PROJECT + ".kicad_pcb")
 MIN_TRACK_MM = 0.15            # board design-rule minimum (netclass nominal 0.30)
 FAILS = []
 CHECKS = []
@@ -63,12 +64,26 @@ board = pcbnew.LoadBoard(PCB)
 B.build()                       # board.py builds PARTS/NETS on demand
 
 # ------------------------------- placement ----------------------------------
+# measure the outline from the Edge.Cuts segments themselves - the bounding box
+# would include the 0.1 mm edge line width
+edge = []
+for d in board.GetDrawings():
+    if d.GetLayer() == pcbnew.Edge_Cuts and isinstance(d, pcbnew.PCB_SHAPE):
+        for pt in (d.GetStart(), d.GetEnd()):
+            edge.append((mm(pt.x), mm(pt.y)))
+w = max(p[0] for p in edge) - min(p[0] for p in edge)
+h = max(p[1] for p in edge) - min(p[1] for p in edge)
+# everything below is checked relative to the board's own outline origin, so
+# dragging the board anywhere in the KiCad sheet (e.g. centring it) is safe
+ox = min(p[0] for p in edge)
+oy = min(p[1] for p in edge)
+
 # what must land on a chamber well is the header's connector line (the pad
 # centre), not the footprint origin
 def pad_centre(fp):
     pts = [p.GetPosition() for p in fp.Pads()]
-    return (sum(mm(p.x) for p in pts) / len(pts),
-            sum(mm(p.y) for p in pts) / len(pts))
+    return (sum(mm(p.x) for p in pts) / len(pts) - ox,
+            sum(mm(p.y) for p in pts) / len(pts) - oy)
 
 
 rows = {"analog": IF.ANALOG_HEADERS, "digital": IF.DIGITAL_HEADERS}
@@ -88,15 +103,6 @@ for bank, want in rows.items():
                                  for g in got if g]))
 
 # ------------------------------ fabrication ---------------------------------
-# measure the outline from the Edge.Cuts segments themselves - the bounding box
-# would include the 0.1 mm edge line width
-edge = []
-for d in board.GetDrawings():
-    if d.GetLayer() == pcbnew.Edge_Cuts and isinstance(d, pcbnew.PCB_SHAPE):
-        for pt in (d.GetStart(), d.GetEnd()):
-            edge.append((mm(pt.x), mm(pt.y)))
-w = max(p[0] for p in edge) - min(p[0] for p in edge)
-h = max(p[1] for p in edge) - min(p[1] for p in edge)
 check(f"board outline = {CONST['PCB_X']:.0f} x {CONST['PCB_Y']:.0f} mm",
       abs(w - CONST["PCB_X"]) <= 0.01 and abs(h - CONST["PCB_Y"]) <= 0.01,
       f"{w} x {h}")
