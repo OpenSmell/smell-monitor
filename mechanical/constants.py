@@ -27,8 +27,13 @@ CONST = {
     # baffle plane: 37 mm above the *chamber floor* (see PCB_Z below)
     "BAFFLE_Z": 12.0 + 37.0, "BAFFLE_T": 2.0,
     # well/row layout (seat to blueprint.md 4.6): 4 digital (front, upstream)
-    # + 4 analog (rear, downstream).  Slot geometry is sized to the worst-case
-    # breakout: analog 22 wide x 35 long x 23 can; digital <= 26 x 23 x 8.
+    # + 4 analog (rear, downstream).  Slot geometry is a REQUIREMENT on the
+    # module (blueprint 4.5): a 2.54 mm header, one analog output, <= the
+    # envelope below.  The real breakouts are checked against it by
+    # mechanical/modules.py + tools/verify_module_fit.py -- an MQ-135 is sold
+    # on 32x20 .. 40x21 mm boards, and a card standing on its connector edge is
+    # 40.5-48.5 mm tall (37 mm exists below the plate), so the pose/height is
+    # the top open mechanical item, not a settled number.
     "A_X": [22, 48, 74, 100],                          # analog centres, pitch 26
     "A_SX": 22.0, "A_SY": 18.0, "A_Y0": 66.0,          # slot x-width, y-depth, y-start
     "D_X": [29.5, 50.5, 71.5, 92.5],                   # digital, pitch 21
@@ -72,7 +77,8 @@ PROCESS = {
     "baffle": {
         "primary": "PTFE, machined (inert, non-porous, hydrophobic)",
         "substitute": "PVDF (Kynar) or borosilicate glass (3.0 mm)",
-        "finish": "deburr; 8 open-bottom wells + 1 sensor port, d/w to CONST",
+        "finish": "deburr; 8 open-bottom wells (4 x 22x18 analog, 4 x 18x16 "
+                  "digital) + the 16x12 U5 reference port",
     },
     "tolerance_general": "ISO 2768-mK",
     "tolerance_critical": "0.05",
