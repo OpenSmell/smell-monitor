@@ -1,0 +1,17 @@
+# arduino-cli project profile for OpenSmell v1.1 firmware.
+# Build:  arduino-cli compile --profile default
+# Upload: arduino-cli upload  --profile default -p <COMx>
+#
+# Requires the ESP32 board-manager URL once per machine:
+#   arduino-cli config add board_manager.additional_urls \
+#     https://espressif.github.io/arduino-esp32/package_esp32_index.json
+#   arduino-cli core update-index && arduino-cli core install esp32:esp32@3.3.12
+profiles:
+  default:
+    fqbn: esp32:esp32:esp32:PartitionScheme=huge_app
+    platforms:
+      - platform: esp32:esp32
+    libraries:
+      - U8g2 (2.36.19)
+      - PubSubClient (2.8.0)
+default_profile: default
