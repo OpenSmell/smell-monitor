@@ -1,6 +1,6 @@
 # Smell Monitor — Open-Source Digital Olfaction Hardware
 
-**Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Model + HLR drawing set produced (`mechanical/`); schematic v0.x; PCB layout, firmware and enclosure pending.
+**Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced.
 
 The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$50–150 BOM), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
 
@@ -19,10 +19,10 @@ We're not competing on certified precision. We're building the *Arduino of noses
 
 ## Key features
 
-- **16 sensor slots, sensor-agnostic:** 8 analog (5-pin: 5 V + 3 V3 + GND + AO + DO) + 8 digital (6-pin, 3.3 V I2C). MOX, MEMS, NDIR, electrochemical, piezo, QCM — if the electrical contract fits, it works.
+- **8 sensor slots, sensor-agnostic:** 4 analog (5-pin: 5 V + GND + AO + DO + 3V3) + 4 digital (6-pin, 3.3 V I2C). MOX, MEMS, NDIR, electrochemical, piezo, QCM — if the electrical contract fits, it works.
 - **Repeatable measurements:** active three-phase cycle (intake → hold → purge), cavity-recessed sensors, PTFE/glass gas-contacting chamber.
-- **Defensible data:** 2× ADS1115 (16-bit ADC), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
-- **Open:** KiCad source, LCSC-numbered BOM (1-stop PCBA), STL/STEP enclosure, firmware, manuals — all in this repo.
+- **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
+- **Open:** KiCad source, BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. (Part numbers: `electrical/bom.csv` is designator/value/footprint/qty; supplier PNs are still an open item.)
 
 ## Repository layout
 
@@ -32,40 +32,53 @@ smell-monitor/
 │   └── blueprint.md         # ← THE single source of truth: objective, design,
 │                            #   verification, BOM, assembly, manual, drawings
 ├── electrical/
-│   ├── smell_monitor_v0/    # KiCad project (schematic v0.x, PCB in progress)
-│   ├── bom.csv              # BOM with LCSC part numbers
-│   └── README.md
+│   ├── interface.py         # the frozen slot contract (schematic+PCB+firmware)
+│   ├── board.py             # parts + nets (netlist source of truth)
+│   ├── gen_schematic.py     #   -> KiCad schematic (ERC-clean)
+│   ├── gen_pcb.py           #   -> placed board (--force-guarded)
+│   ├── route_pcb.py         #   -> DSN / FreeRouting / SES auto-route
+│   ├── bom.csv              # designator, value, footprint, qty
+│   └── smell_monitor_v1_1/  # KiCad project + routed board + fab/ export
 ├── mechanical/
 │   ├── constants.py         # locked parametric dimensions (single source)
 │   ├── freecad/             # parametric 3D model (build + style scripts)
-│   ├── drawings/            # DXF/PDF sheet generation
-│   └── README.md
-├── firmware/
-│   └── README.md            # firmware requirements (see blueprint §7)
-├── tools/
-│   └── verify_cad.py        # numeric CAD gate
+│   └── drawings/            # DXF/PDF sheet generation
+├── firmware/esp32/smell_monitor/   # ESP32 firmware (arduino-cli, sketch.yaml)
+├── tools/                   # numeric verification gates (see below)
 └── README.md
 ```
+
+Every claim above is checked by a gate that must exit 0 — there are no
+hand-verified numbers:
+
+| Gate | Checks |
+|---|---|
+| `tools/verify_electrical.py` | slot contract ↔ geometry ↔ GPIO/pin budget |
+| `tools/verify_netlist.py` | model netlist == exported schematic netlist |
+| `tools/verify_pcb.py` | headers on contract, outline, track width, vias, 0 unconnected, DRC |
+| `tools/verify_cad.py` | HLR views, baffle wells, DXFs, vector A3 PDF, print meshes |
+| `tools/verify_sensor_matrix.py` | starter pack covers every persona |
+| `tools/verify_orthogonality.py` | response-matrix rank / slot-count trade study |
+| `tools/verify_firmware_pins.py` | firmware pin map == `interface.PINMAP` |
 
 ## Quick links
 
 1. **Read the blueprint:** `docs/blueprint.md` — objective & success criteria (§0), design (§1–7), verification (§8)
 2. **Build one:** `docs/blueprint.md` §9 (BOM) → §10 (assembly)
 3. **Use one:** `docs/blueprint.md` §11 (user manual)
-4. **Order a board:** BOM + Gerbers (pending ERC/DRC-clean export) in `electrical/`
+4. **Order a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
 
 ## Project status
 
 - [x] Objective & success criteria locked (blueprint §0)
 - [x] Architecture locked — pneumatic, sensing, electrical, mechanical (blueprint §1–7)
-- [x] Volume model (FreeCAD, `mechanical/freecad/`)
-- [x] Core schematic (v0) and BOM with alternatives
-- [x] Drawing set — real HLR views → editable DXF + vector PDF (blueprint §12)
+- [x] Volume model + HLR drawing set — real hidden-line views → editable DXF + vector PDF (blueprint §12)
+- [x] Schematic generated from the model, ERC-clean, with netlist parity
+- [x] PCB placed + routed + DRC-clean, reproducibly (blueprint §12.1)
+- [x] Fab package (Gerbers + drill + CPL)
+- [x] Firmware — three-phase cycle, USB/Wi-Fi/BLE, compiles clean
 - [ ] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004
-- [ ] ERC/DRC clean-up and review
-- [ ] PCB layout + routing
-- [ ] Enclosure CAD derived from routed board
-- [ ] Firmware (three-phase cycle + serial protocol)
+- [ ] Enclosure CAD derived from the routed board (open: module mounting key, PTFE floor liner, reference pocket — §14)
 - [ ] Fabrication pass (Seeed Fusion / JLCPCB)
 - [ ] CFD validation pass (optional, blueprint §8.3)
 

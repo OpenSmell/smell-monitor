@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Document** | OS-BP-001 |
-| **Revision** | H |
-| **Date** | 2026-10-15 |
-| **Status** | Objective & architecture locked; electrical/mechanical detail in progress |
+| **Revision** | J |
+| **Date** | 2026-10-17 |
+| **Status** | Architecture locked; schematic ERC-clean, PCB routed and DRC-clean, firmware compiling |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -97,7 +97,7 @@ not a substitute for lab GC/MS.
 | O2 | Modularity | 4 analog + 4 digital fixed slots (8 total); sensors are plug-in breakouts, sensor-agnostic |
 | O3 | Repeatability | §0.4 P1/G1 |
 | O4 | Buildability | Standard tools; no custom parts beyond the printed shell + insert |
-| O5 | Power | USB-C 5 V/2 A; idle < 1 W, ≈ 5 W loaded (MOX heaters dominate); §5.8 |
+| O5 | Power | USB-C 5 V/3 A source (≥ 1.5 A needed); idle < 1 W, ≈ 5 W loaded (MOX heaters dominate); §5.8 |
 | O6 | Reliability | Sensor swap without tools; chamber cleanable |
 
 ### 0.7 Non-goals
@@ -203,7 +203,7 @@ met with ~10 theoretical exchanges.
 |---|---|
 | 3×Ø6 bellmouth nostrils (Re ≈ 1180 laminar, K ≈ 0.04) | 0.21 Pa (2.6 Pa if sharp — bellmouth mandatory) |
 | Inlet plenum expansion (85 → 1680 mm²) | ~0.01 Pa |
-| Filter pack (hydrophobic PTFE + prefilter, ~100 cm²) | 1.5 Pa clean / ≤ 3 fouled |
+| Filter pack (hydrophobic PTFE + prefilter, pleated, ~100 cm²) | 1.5 Pa clean / ≤ 3 fouled |
 | Chamber duct (106 × 11 mm lane, Re ≈ 160) | 0.03 Pa |
 | Sensor wells (open-bottom, τ_well ≈ 1.2 s) | ~0.02 Pa |
 | Fan inlet + exhaust grille | ~0.10 Pa |
@@ -227,6 +227,8 @@ A 0.45 µm PTFE membrane needs ~0.16–0.2 m² of media to stay ≤ 5 Pa at this
 
 | Property | Spec |
 |---|---|
+| Position | **series element**: spans the full 106 × 11 mm lane cross-section immediately behind the nostrils, so no stream can bypass it |
+| Form | pleated pack (a flat 106 × 11 face is only 11.7 cm² — the media must be folded to reach the area below) |
 | Hydrophobic PTFE mesh / coating | WEP ≥ 350 mbar |
 | Particle-cut pre-filter | 5–20 µm nominal |
 | Effective area | ≥ 70 cm² clean, target 100 cm² |
@@ -264,15 +266,32 @@ environment is ours; chemistry choice is the user's.
 
 The board has **8 slots in two rows — 4 analog + 4 digital**:
 
-```
-   front (3 nostrils)                    rear (fan exhaust)
-        |                                      |
-        v                                      v
-   J2/A1   J3/A2   J4/A3   J5/A4      <-- ANALOG row   (5 V,  AO/DO)
-   J6/D1   J7/D2   J8/D3   J9/D4      <-- DIGITAL row  (3.3 V, I2C)
+Plan view. X = width (the rows), Y = depth; the sample flows front → rear:
 
-        one PCB (114 x 105 mm); all 8 sockets face up
 ```
+   front wall: 3 x D6 nostrils ....................... sample in
+        |
+        v            <---- flow, cavity depth 100 mm ---->
+   J6/D1  J7/D2  J8/D3  J9/D4    DIGITAL row  (3.3 V, I2C)   upstream
+   J2/A1  J3/A2  J4/A3  J5/A4    ANALOG  row  (5 V,  AO/DO)  downstream
+        |
+        v
+   rear wall: taper duct -> D40 fan .................. exhaust
+```
+
+One PCB, 114 × 105 mm, seated as the chamber **floor** (its top face is the
+cavity floor, see §6.2). All 8 sockets face up and every breakout module stands
+**perpendicular** to the board, its plane parallel to the flow, so one module
+never shadows the row behind it and the connector line of every slot runs along
+the flow axis.
+
+**Why digital is upstream.** The analog bank is where the 5 V parts live, and
+those are the ones that disturb the gas: four MOX heaters ≈ 3.6 W into ~2.5×10⁻⁴
+m³/s is a ≳ 10 K local rise, MOX *consumes* reducing gas (it is a net sink), and
+it desorbs during purge. Putting that row last means nothing is downstream of it,
+the small cold digital breakouts present the least blockage to the wide analog
+cards behind them, and purge carries the analog row's own desorbed VOC straight
+out of the exhaust.
 
 Two rows, because the two kinds of sensor need different electricity:
 
@@ -291,11 +310,15 @@ covers every real application (§4.7).
 
 | Pin | Name | Rail | Notes |
 |-----|------|------|-------|
-| 1 | `+5V` | 5 V | Module logic + MOX heater (250 mA/slot budget) |
-| 2 | `3V3` | 3.3 V | For 3.3 V-native analog modules |
-| 3 | `GND` | GND | |
-| 4 | `AO` | — | Analog out → fixed 2:1 divider → ADS1115 (2.5 V full scale) |
-| 5 | `DO` | — | Digital out → ESP32 GPIO (input, pull-down) |
+| 1 | `+5V` | 5 V | Module logic + MOX heater (150 mA/slot budget, ≈0.9 W worst case) |
+| 2 | `GND` | GND | |
+| 3 | `AO` | — | Analog out → fixed 2:1 divider → ADS1115 (2.5 V full scale) |
+| 4 | `DO` | — | Digital out → ESP32 GPIO (input, pull-down) |
+| 5 | `3V3` | 3.3 V | For 3.3 V-native analog modules |
+
+Order is `5V GND AO DO 3V3` (frozen in `electrical/interface.py`), not
+`5V 3V3 GND AO DO`: a naive 4-pin MQ-type module (VCC, GND, AO, DO) then seats on
+pins 1–4 with power and ground adjacent, instead of landing its GND on 3V3.
 
 The 2:1 divider is fixed and always present; a 0–5 V swing cannot exceed the ADC
 range. A 3.3 V-output sensor reads at 66% of full scale — thousands of counts.
@@ -318,10 +341,13 @@ to be truly sensor-agnostic.
 
 ### 4.3 Environmental sensing (compensation backbone)
 
-SHT31-D (`U5`) sits in the gas path **upstream of the MOX array**, on the master
-I²C bus (not behind the mux). Firmware logs T/RH at 1 Hz beside every record; no
-hard correction in firmware — raw + environment data is the contract with the
-host for compensation models.
+SHT31-D (`U5`) sits in the gas path **upstream of the MOX array** (between the
+digital row and the analog row), on the master I²C bus (not behind the mux).
+`U5` is soldered to the board rather than plugged in, so the baffle carries a
+dedicated reference port over it (`CONST["SHT_*"]`) — without that opening the
+compensation backbone would be sealed behind a solid plate. Firmware logs T/RH
+at 1 Hz beside every record; no hard correction in firmware — raw + environment
+data is the contract with the host for compensation models.
 
 ### 4.4 Recommended starter pack (matrix-derived)
 
@@ -374,8 +400,15 @@ over-provisioned for the casual user and exactly right for a lab:
 
 ### 4.5 Sensor module footprints (datasheet-derived)
 
-**Worst-case analog module:** 22 × 35 × **23 mm** tall (MQ family).
+**Worst-case analog module:** 22 × 35 × **23 mm** can (MQ family).
 **Worst-case digital module:** ≤ 26 × 23 × 8 mm (Adafruit STEMMA QT class).
+
+Read the envelope *in the mounted pose*: the socket is a vertical 2.54 mm
+receptacle, so a module plugs in perpendicular to the board and stands up like a
+card. The **35 mm (analog) / 26 mm (digital) edge runs along the flow**, the
+**22 mm (analog) / 23 mm (digital) edge is the height above the board**, and on
+the wide analog parts the can protrudes sideways out of the card, which is what
+the 26 mm in-row pitch has to clear.
 
 | Module | L×W (mm) | Bank | Fits |
 |--------|-----------|------|------|
@@ -398,8 +431,19 @@ over-provisioned for the casual user and exactly right for a lab:
 | Digital row span (4) | 3×21 + 18 = **81 mm** | |
 | Chamber inner depth | **≈ 100 mm** | module depth 35 + lane ≥ 30 + digital 26 |
 | Module height allowance | **29 mm** | 22 body + 5 socket + 2 clearance |
+| Module envelope along flow | analog **≤ 35 mm**, digital **≤ 26 mm** | §4.5 worst-case lengths |
+| Insertion orientation | connector edge **toward the front**, silkscreen arrow | a 35 mm module cannot be free-oriented inside 100 mm of depth |
 | Baffle plane | **37 mm** above board | sensor recess 8 mm below flow |
 | Cavity inner height | **48 mm** | 37 baffle + 11 mm air lane |
+
+> **Mounting is not free.** A module hangs off its connector by its full 35 mm
+> (analog) / 26 mm (digital) length, so two rows of plug-in cards cannot both be
+> inserted either way round: at 100 mm of depth, a rearward-facing analog module
+> reaches the rear wall and a forward-facing digital module reaches the front
+> wall. The slot therefore has a *documented* orientation — connector toward the
+> front of the chamber, arrow on the silkscreen — and the rules above are sized
+> from that pose. Flipping a module is allowed only where §4.5 dimensions leave
+> the clearance in the §14 open-item check.
 
 > 17.5 mm pitch (older spec) is **discarded** — it cannot seat two MQ modules
 > (17.5 < 22). The 26 mm analog lane is the "wide-body" lane; a narrow lane
@@ -607,12 +651,28 @@ and `python tools/verify_sensor_matrix.py` (pack draw).
 
 ### 6.1 Envelope & layout
 
-Shell **122 × 114 × 90 mm** (8 mm walls + feet + fan + inlet plenum). Board
-**114 × 105 mm**, two zones: front sensing module, rear service bay, separated by
-a sealed bulkhead. Electronics heat stays out of the sensing cavity (the dominant
-reason sensors drift during a run). The **PCB is the seal**: sensor headers poke
-through a gasket on the bulkhead; the chamber inner walls bolt down over it. The
-fan lives in the service bay exhausting out the rear.
+Shell **122 × 114 × 90 mm** (8 mm walls + feet + Ø40 rear fan grille + inlet
+plenum). Board **114 × 105 mm**, carrying all 64 parts. The **PCB is the seal and
+the chamber floor**: it drops into a 1.6 mm rebate so its top face *is* the cavity
+floor, the chamber walls seal down onto it, and the 8 sensor headers stand up
+inside the chamber (§4). The fan exhausts through the rear wall.
+
+Keeping electronics heat and electronics surfaces *out* of the sensing cavity is
+the dominant drift lever, and that is what §6.3's separate **PTFE insert** is for:
+a 2 mm PTFE floor sheet over the board with 9 clearance holes, one per socket plus
+U5, so the sockets poke through, the modules stand on their sockets above it, and
+the rest of the board is behind a sealed inert surface.
+
+> **Not in the volume model yet — read §14 before believing the gas path.**
+> The FreeCAD model as it stands is the chamber + envelope study: it has no PTFE
+> insert, no service compartment, no USB-C cutout, no OLED window and no button
+> or buzzer openings. Without the insert the whole board top face — 106 cm² of
+> FR4 and solder mask, the ESP32, the USB-C receptacle, the OLED — is wetted, and
+> the electronics share the sensors' air: FR4 and component plastics sorb and
+> re-release VOC (carryover, exactly what this design is trying to avoid), and the
+> 0603 analog dividers sit ~10 K above ambient so their tempco lands on the
+> readings. Until the insert and the openings are modelled, build with the liner
+> and burn the board in before any baseline run.
 
 ### 6.2 Chamber geometry (locked)
 
@@ -623,7 +683,18 @@ fan lives in the service bay exhausting out the rear.
 | Outlet | Ø40 mm into fan (48→10 taper) |
 | Baffle plane | 37 mm above board; recess 8 mm |
 | Header pitch | 26 mm analog / 21 mm digital |
-| PCB lid | 114 × 105 × 1.6 mm |
+| PCB floor | 114 × 105 × 1.6 mm, top face flush with the cavity floor (z = 12 mm) |
+| Filter | pleated pack spanning the 106 × 11 mm lane, 14 mm behind the nostrils |
+| Reference port | 16 × 12 mm opening in the baffle over U5 (SHT31) |
+
+The datum matters: the board's **top face is z = 12 mm**, the same plane the
+cavity floor sits on, which is what makes "baffle 37 mm above board"
+(12 + 37 = 49 mm), the "29 mm module allowance" and the "8 mm sensor recess"
+(49 − 41 = 8) mutually consistent. The board is also 8 mm wider and 5 mm longer
+than the cavity (114 × 105 vs 106 × 100), which is exactly why it needs the
+rebate rather than an interference fit. The 2 mm PTFE insert floor sits on the
+board and does not move the datum: the modules stand in their sockets, above it
+(§6.1).
 
 ### 6.3 Materials & sample-memory control
 
@@ -664,14 +735,26 @@ Structurally defined; timing parameterised. Reference target: Arduino-ESP32 core
 single serial main loop + cyclic state machine (see `firmware/`).
 
 1. **Cycle state machine** — IDLE → INTAKE(10 s) → HOLD(10 s) → PURGE(20 s) →
-   report; driven by button (`GPIO0`) or host command over USB-UART.
-2. **Analog acquisition** — during HOLD, interleave 8 ADS1115 channels at
-   ~8 SPS/ch with per-channel averaging.
-3. **Digital scan** — during HOLD, iterate TCA9548A channels 0–7; driver registry
-   keyed by detected chip ID.
+   report; driven by the MEASURE button (`GPIO23`) or a host command over any
+   transport. `GPIO0` is the BOOT/strapping button only.
+2. **Analog acquisition** — during HOLD, read the **4 ADS1115 channels** (AIN0–3,
+   one per analog slot) at ~8 SPS/channel with per-channel averaging.
+3. **Digital scan** — during HOLD, iterate **TCA9548A channels 0–3** (one per
+   digital slot); driver registry keyed by the chip ID found on each channel.
 4. **Environmental logging** — SHT31 at 1 Hz, all phases.
-5. **Comms** — JSON-over-USB-UART at 115200 baud:
-   `{ts, phase, ao[8], digital[8], t, rh, cycle_id}` → host (Osmograph).
+5. **Comms** — one JSON record shape over three transports; **USB serial is the
+   wired default and always on**:
+   `{ts, phase, ao[4], digital[4], t, rh, cycle_id}`
+   - **USB-UART** @115200 baud → host (Osmograph). Carries power and data.
+   - **Wi-Fi 2.4 GHz** — join (STA) using credentials set over serial or BLE,
+     with a fallback soft-AP for first-time setup; publish records to **MQTT**
+     (JSON topic) and serve a minimal **HTTP/JSON + WebSocket** live endpoint.
+     Off by default, enabled by button or host command, so idle stays < 1 W.
+   - **Bluetooth LE** — a GATT **notify** characteristic streams the same JSON
+     frames for phone/field use, plus a write/command characteristic; BLE is also
+     the credential-provisioning path.
+   The radio is on the **ESP32-WROOM-32E** module (pre-certified; no BOM change);
+   Wi-Fi TX peaks ~0.5 A, already inside the §6 power budget.
 6. **UI** — OLED phase/values; LED state machine (§5.6).
 7. **Self-test on boot** — fan tach (if present), I²C enumeration, divider sanity,
    SHT31 read; pass/fail on OLED.
@@ -679,16 +762,23 @@ single serial main loop + cyclic state machine (see `firmware/`).
 **Proposed source layout:**
 
 ```
-firmware/esp32/
-├── src/
-│   ├── main.cpp          # init + loop
-│   ├── cycle.h/.cpp      # three-phase state machine
-│   ├── sensors/          # ADS1115, TCA9548A drivers, digital sensor registry
-│   ├── ui/               # OLED, LED, buzzer
-│   └── serial_proto.cpp  # JSON records out
-├── platformio.ini        # ESP32-WROOM-32E target
-└── test/                 # unit tests for cycle state transitions
+firmware/esp32/smell_monitor/     # arduino-cli sketch; build with:
+                                  #   arduino-cli compile --profile default
+├── smell_monitor.ino   # setup() / loop()
+├── config.h            # pins + I2C addresses (checked vs interface.PINMAP)
+├── proto.h/.cpp        # one JSON record shape (all transports)
+├── sensors.h/.cpp      # ADS1115, TCA9548A, SHT31 (raw I2C, no extra libs)
+├── ui.h/.cpp           # OLED (U8g2), status LED, buzzer
+├── net.h/.cpp          # USB serial + Wi-Fi (MQTT + HTTP) + BLE (GATT)
+├── cycle.h/.cpp        # three-phase state machine + acquisition
+├── sketch.yaml         # profile: esp32:esp32:esp32 (huge_app) + libs
+└── test/               # unit tests for cycle state transitions
 ```
+
+Target: **Arduino-ESP32 core 3.x** (`esp32:esp32:esp32`, partition scheme
+`huge_app` — the radio + OLED stack needs > 1.3 MB). Builds clean against
+U8g2 2.36.19 + PubSubClient 2.8.0; `tools/verify_firmware_pins.py` checks the
+firmware pin map against `interface.PINMAP`.
 
 **Non-goals:** no on-device classification; no hard sensor calibration.
 
@@ -717,15 +807,16 @@ velocity ≤ 0.1 × duct core. Tool: OpenFOAM `simpleFoam`. This is *validation*
 not a design driver — v1 geometry is already locked by the rules of §3 and §4.
 
 ### 8.4 Delivery checklist for fabrication
-- [ ] ERC 0 errors · [ ] DRC 0 errors · [ ] BOM with LCSC numbers
-- [ ] Gerbers + drill + position file · [ ] STEP of assembly + enclosure
-- [ ] Assembly guide · [ ] Firmware binary + flash guide
+- [x] ERC 0 errors · [x] DRC 0 errors (`tools/verify_netlist.py`, `tools/verify_pcb.py`)
+- [x] Gerbers + drill + CPL (`tools/export_fab.py` → `electrical/smell_monitor_v1_1/fab/`)
+- [ ] Supplier part numbers in the BOM (`electrical/bom.csv` is designator/value/footprint/qty only)
+- [ ] STEP of assembly + enclosure · [ ] Assembly guide · [ ] Firmware binary + flash guide
 
 ---
 
 ## 9. Bill of Materials
 
-Base electronics (representative; full line-item list with LCSC part numbers in
+Base electronics (representative; the full line-item list is in
 `electrical/bom.csv`):
 
 | Ref | Part | Notes |
@@ -750,8 +841,8 @@ divider on AO · OLED 0.96" + active buzzer.
 
 ## 10. Assembly & Bring-up
 
-Sources: PCB `electrical/smell_monitor_v0/` · BOM `electrical/bom.csv` ·
-enclosure `mechanical/` · sensors user-supplied.
+Sources: PCB `electrical/smell_monitor_v1_1/` (routed, DRC-clean) · BOM
+`electrical/bom.csv` · enclosure `mechanical/` · sensors user-supplied.
 
 **Order of soldering (small → large):** 0603 passives → U7 (SOT-223 tab well
 soldered) → U2/U4/U5 → OLED/LED/buzzer → connectors (USB-C, JST, 8 headers)
@@ -761,10 +852,12 @@ soldered) → U2/U4/U5 → OLED/LED/buzzer → connectors (USB-C, JST, 8 headers
 I²C scan expects `0x48, 0x44, 0x70, 0x3C` · flash firmware, confirm
 self-test screen.
 
-**Chamber assembly:** PTFE insert against PCB bulkhead gasket → baffle over
-sensor area → filter + retainer behind intake → fan in service bay (exhaust out)
-→ seal bulkhead, fix halves. Insert sensor breakouts before closing the hatch,
-sensing elements facing up through the baffle.
+**Chamber assembly:** PTFE liner into the shell → PCB into the 1.6 mm rebate
+(top face flush with the cavity floor) → seat the 8 sensor breakouts from above,
+connector edge toward the front, connector line along the flow → baffle plate
+over the sensor area (wells over the slots, reference port over U5) → pleated
+filter pack into its retainer spanning the lane immediately behind the nostrils
+→ fan in the service bay (exhaust out the rear) → seal, close the hatch.
 
 **Final integration:** power-on self-test `OK` · purge sanity (3 clean cycles,
 baselines within a few %) · sample challenge (coffee; confirm response, then full
@@ -783,7 +876,9 @@ sensor research.
 
 **Operating a measurement.** Place near (not touching) the sample → press measure
 → wait ≈ 40 s (10 intake / 10 hold / 20 purge). LED: slow blink = idle, breathing
-= sampling, solid = analysing, fast blink = results ready.
+= sampling, solid = analysing, fast blink = results ready. Results stream over the
+**USB-C cable** by default; the same readings can be sent over **Wi-Fi** or
+**Bluetooth** to a phone or network once enabled (button or host command).
 
 **Slots.** 4 analog (`5V|GND|AO|DO|3V3`) for MOX/e-chem/NDIR-5V; 4 digital
 (`3V3|GND|SDA|SCL|INT|CTRL`) for MEMS/NDIR-I²C. Any matching breakout module
@@ -807,11 +902,11 @@ clean · bad data → check cable, 115200 baud.
 **Safety.** Experimental/research instrument, 5 V USB-C, do not open the service
 bay while powered, keep from liquids, not for explosive atmospheres.
 
-**Specifications.** Power USB-C 5 V/2 A · idle < 1 W, ≈ 5 W loaded with four
+**Specifications.** Power USB-C 5 V (3 A source assumed; ≥ 1.5 A needed) · idle < 1 W, ≈ 5 W loaded with four
 MOX modules (their heaters dominate — see §5.8) · 4+4 sensor ports · cycle
 ≈ 40 s · airflow 15 L/min design purge (> 100 L/min flush) · intake filter
 replaceable PTFE · 122 × 114 × 90 mm · ≈ 340 g · 5–40 °C, 20–80% RH · USB-C
-serial 115200 baud.
+serial 115200 baud · Wi-Fi 2.4 GHz + Bluetooth LE (same data).
 
 ---
 
@@ -825,7 +920,7 @@ plotted **PDF** for the record — per ASME Y14.100 / ISO 5457 practice.
 |-------|---------|--------|
 | OS-000 | Assembly — isometric general arrangement + BOM | **produced** |
 | OS-001 | Shell — front / plan / section B-B + iso | **produced** |
-| OS-002 | Baffle — plan (16 wells) / section A-A + iso | **produced** |
+| OS-002 | Baffle — plan (8 wells + reference port) / section A-A + iso | **produced** |
 | OS-003 | PCB mechanical floor plan — board 114×105, header rows | planned |
 | OS-004 | Pneumatic schematic — flow path, ΔP, fan operating point | planned |
 
@@ -847,6 +942,27 @@ a plotted vector **PDF** in `mechanical/drawings/sheets/`.
 
 **Two-stage pipeline:** FreeCAD (model + HLR) → system Python (ezdxf sheet
 composition + plot). OS-003/004 remain to be authored (§14).
+
+### 12.1 PCB deliverables (routed output)
+
+The board is generated, not hand-drawn, and every generator refuses to overwrite
+a board that already carries copper without an explicit `--force`, so routing can
+never be silently destroyed or faked:
+
+- `electrical/board.py` — parts + nets (the netlist source of truth).
+- `electrical/gen_schematic.py` → `smell_monitor_v1_1.kicad_sch` (ERC-clean).
+- `electrical/gen_pcb.py` — placement only: outline, footprints, netclasses.
+  The 8 sensing headers are placed on `interface.ANALOG_HEADERS` /
+  `DIGITAL_HEADERS`, exactly the chamber wells.
+- `electrical/route_pcb.py` — export Specctra DSN → FreeRouting (`java -jar`,
+  `-mp 12`) → import SES. Refuses to save unless 0 unconnected remain. The
+  autorouter is multi-threaded and not bit-reproducible; the *outcome* is
+  (0 unconnected, 0 DRC violations).
+- `tools/export_fab.py` → `electrical/smell_monitor_v1_1/fab/` — the exact fab
+  layer set (F/B Cu, mask, silkscreen, paste, Edge.Cuts), Excellon drill and one
+  CPL; any stray layer in the folder is deleted.
+- `tools/verify_pcb.py` — numeric gate on the routed board (headers on contract,
+  outline, minimum track width, via stack, 0 unconnected, DRC clean).
 
 ---
 
@@ -879,12 +995,37 @@ path for automatic zero/baseline calibration.
 | F | 2026-10-15 | **§4 reads as a product spec.** Added a board diagram and a plain explanation of the 4 analog / 4 digital split (two rows because the two sensor kinds need different electricity). Removed all internal editing instructions from the user-facing text. Engineering note (maintainers only): `sensor_matrix.BANK_CAP` and `verify_sensor_matrix.SLOT_COUNT` now derive from `CONST["A_X"]`/`["D_X"]` instead of a hard-coded 4/4, so the two counts cannot drift; the 8+8 contract (`build_pinmap(8,8)`) remains the growth path. |
 | G | 2026-10-15 | **Whole 46-row sensor pool re-derived against datasheets; trade-study numbers re-synced (final).** Every row now carries `basis` + citable `src` with unbacked keys machine-flagged `inferred`. Corrections: MQ-3 replaced unsupported toluene/acetone with datasheet-curve gases (CH₄, CO), methanol flagged inferred; MQ-2 dropped unsupported toluene; MQ-8 added curve alcohol and range corrected to 100–1000 ppm (Winsen ver1.6); MQ-9 H₂ range added; MQ-131 identified as the low-concentration variant (Cl₂/NO₂ cross); MQ-138 added H₂, range 5–500 ppm; MICS-2714 replaced unsupported O₃ with documented H₂ (NO noted); MICS-5524 added documented NH₃; SGP30/40/41 non-reference keys flagged `inferred`. Gates re-run (all PASS) → §4.7 re-synced: broad **8.21**, analog pool **7.93** vs digital 3.43, digital-only **50%**; A-floor and candidate-frontier tables updated. Header F→G. |
 | H | 2026-10-15 | **rev-B board model + analog-slot fix.** Added `electrical/board.py`: the fitted parts and the net every pin lands on (**63 parts / 50 nets / 225 connections**), derived from `interface.py` + §5 and machine-checked against the real KiCad symbol library, so the schematic/PCB/BOM generators share one source. **Analog slot reordered to `5V GND AO DO 3V3`** (was `5V 3V3 GND AO DO`) so a 4-pin MQ-type module (VCC,GND,AO,DO) seats straight onto pins 1–4 with power and ground adjacent — the old order put a naive 4-pin plug's GND onto 3V3. Filled three spec/BOM gaps as recorded `DECISIONS`: **U3 CH340C** USB↔UART bridge (blueprint says USB-C carries serial; the BOM had none), **BOOT/RESET/MEASURE buttons**, and **USB-C CC 5.1 kΩ** pulldowns. `bom.csv` passive counts are no longer authoritative — the BOM is regenerated from the schematic. Header G→H. |
+| I | 2026-10-16 | **Schematic emitted from the model, and wireless telemetry adopted.** `electrical/gen_schematic.py` builds `smell_monitor_v1_1.kicad_sch` straight from `electrical/board.py`; KiCad **ERC is clean (0 violations)** and a new gate `tools/verify_netlist.py` re-exports the netlist with `kicad-cli` and proves it matches the model pin-for-pin, so schematic and model cannot drift. Board-model fix: **U3 CH340C now runs from 5 V** with V3 decoupled to GND (it is a `power_out`; tying it to +3V3 collided with the AMS1117 VO), and decoupling follows. §7 comms now emit **one JSON record over three transports** — USB serial (wired default), **Wi-Fi 2.4 GHz** (MQTT + HTTP/WebSocket), and **Bluetooth LE** (GATT notify + credential provisioning) — all on the pre-certified ESP32-WROOM-32E radio with **no BOM change**. Wrote the v1.1 firmware (`firmware/esp32/smell_monitor/`, arduino-cli): 4 analog + 4 digital + SHT31 acquisition, three-phase cycle, OLED/LED/buzzer, and all three transports — **compiles clean** (1.73 MB, 54% of a `huge_app` partition), and `tools/verify_firmware_pins.py` pins the firmware pin map to `interface.PINMAP` so it cannot drift. Header H→I. |
+| J | 2026-10-17 | **PCB placed, routed and DRC-clean; chamber stack-up fixed; flow order corrected.** Added `electrical/gen_pcb.py` (placement only, `--force`-guarded), `electrical/route_pcb.py` (DSN → FreeRouting `-mp 12` → SES, refuses to save with any unconnected net) and `tools/export_fab.py`, wiring the board to the sky so the routed copper is *reproducible* rather than hand-drawn; `tools/verify_pcb.py` gates it. Netclass track width 0.15 → **0.30 mm** because FreeRouting necks to 75/50 % of nominal, which is what produced the earlier 109 `track_width` DRC errors; DRC is now **0 violations / 0 unconnected**, and `fab/` carries only the layers a board shop can use (16 cosmetic layers and a 5 MB STEP dropped). Mechanical fix: `PCB_Z` was `CAV_Z1 − 1.6` = 58.4 mm, i.e. the board sat in the cavity *ceiling* and physically **blocked all three Ø6 intakes** — it is now `FLOOR − PCB_T`, seated in a shell rebate with its top face flush with the cavity floor, which is the only way §4.6's "baffle 37 mm above board / 29 mm module allowance / 8 mm recess" (12+37=49, 12+29=41, 49−41=8) adds up. Nostril axis 58 → 55 mm so the full bore opens into the 11 mm lane. Flow order corrected: the **digital row is now upstream and the analog/MOX row downstream** — the 4 MOX heaters ≈ 3.6 W, MOX consumes reducing gas and desorbs during purge, so nothing should sit behind that row; this also makes §4.3's "U5 upstream of the MOX array" true (it was not) and puts the small cards ahead of the wide ones. Added a **reference port** in the baffle over U5 (`SHT_*`) — the soldered SHT31 was otherwise sealed behind a solid plate. Filter moved from a floating 90 × 12 slab to a **series element spanning the full 106 × 11 mm lane** behind the nostrils (a bypassable filter is not a filter); its area spec forces a pleated pack. Documented the module envelope + insertion orientation in §4.6. Header I→J. |
 
 **Open items (need measurement or decision):**
-- Electrical: board model done (`electrical/board.py`, netlist gate green); next generate the ERC-clean schematic from it → route to DRC → rev-B board (§8.1). The v0 schematic predates this architecture (old 8 analog + 8 digital with 2× ADS1115) and is discarded.
+- Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
+  schematic → placed + routed PCB (847 segments / 102 vias) → **DRC clean**
+  (0 violations / 0 unconnected / 0 footprint errors) → fab package exported.
+  `tools/verify_pcb.py` now holds that line. The v0 schematic is retained only as
+  a pin-name source for `board.py`.
 - Mechanical: OS-003 (PCB floor plan) and OS-004 (pneumatic schematic) sheets (§12).
-- Pneumatic: NF1 filter ΔP bench + final media vendor; fan P/N confirmation.
-- CFD: one optional `simpleFoam` pass at 15 and 150 L/min (§8.3).
+- **Module mounting key** — the slot orientation is a *rule* (§4.6), not yet a
+  feature. Worth adding an actual key so a module cannot be reversed: the analog
+  module hangs 35 mm off its header, so a rearward-facing MQ card reaches the rear
+  wall. Confirm with a physical module before the first enclosure revision.
+- **PTFE insert floor + the user-facing openings (top mechanical item)** — §6.3
+  already requires a separate PTFE insert, but the volume model has none, so today
+  the board's whole top face (106 cm² of FR4 + solder mask, plus every component)
+  is gas-wetted and the electronics share the sensors' air (§6.1). Needs: the 2 mm
+  insert floor with 9 clearance holes (one per socket + U5), and the shell
+  openings the product needs anyway — USB-C, OLED window, three buttons, buzzer,
+  LED — none of which exist in the model. An enclosure revision, not a parameter
+  edit.
+- **Reference pocket** — U5 sees the sample through a 16 × 12 mm port, but its
+  pocket below the baffle is ~35 mm deep (a deep cavity in a boundary layer can
+  go stagnant). Verify with the smoke-ribbon test (NF2); if it lags, raise U5 on a
+  short carrier. A digital module's card can also overhang ~2 mm of that port.
+- Pneumatic: NF1 filter ΔP bench + **pleated media vendor** (a flat 106 × 11 face
+  is only 11.7 cm², so the ≥70 cm² spec forces a folded pack); fan P/N.
+- CFD: one optional `simpleFoam` pass at 15 and 150 L/min (§8.3), including the
+  parallel path through the 8 wells + reference port into the shared sub-baffle
+  volume (NF5 well-washout).
 - Mass: MQ module mass from a physical sample.
 
 *Changes to a locked section require a revision bump and a row in this table.*
