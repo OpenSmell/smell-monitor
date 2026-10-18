@@ -210,6 +210,32 @@ def hlr_view(shape, direction):
     return {"dir": list(direction), "visible": _ents(vis), "hidden": _ents(hid)}
 
 
+def axis_vectors(direction):
+    """(u,v) components of the global +X/+Y/+Z axes *measured* in this projection.
+
+    An orthographic projection is linear, so recording these three vectors makes
+    the projection exactly invertible: a model point (x, y, z) lands at
+    u = ax[X].u*x + ax[Y].u*y + ax[Z].u*z (likewise v).  The drawing generator
+    needs that to place dimensions on real features - a dimension that is not on
+    the feature it names is a lie.  Measured by projecting a 100 mm reference
+    line along each global axis with the same projector, never assumed.
+    """
+    L = 100.0
+    out = {}
+    for name, end in (("X", (L, 0, 0)), ("Y", (0, L, 0)), ("Z", (0, 0, L))):
+        line = Part.makeLine(App.Vector(0, 0, 0), App.Vector(*end))
+        g = TechDraw.projectEx(Part.makeCompound([line]), App.Vector(*direction))
+        edges = g[0].Edges + g[1].Edges + g[2].Edges + g[3].Edges + g[4].Edges
+        if not edges:
+            # the axis is parallel to the view direction: it has no in-plane
+            # component, so it projects to a point (a zero vector).
+            out[name] = [0.0, 0.0]
+            continue
+        a, b = edges[0].Vertexes[0].Point, edges[0].Vertexes[-1].Point
+        out[name] = [round((b.x - a.x) / L, 6), round((b.y - a.y) / L, 6)]
+    return out
+
+
 def half_space_cut(shape, axis, coord, keep_less=True):
     B = 1000.0
     if axis == 0:
@@ -230,6 +256,35 @@ sec_bb = half_space_cut(shell.Shape, 0, MIDX, keep_less=True)
 sec_aa = half_space_cut(baffle.Shape, 1, CONST["A_Y0"] + CONST["A_SY"] / 2.0,
                         keep_less=True)
 
+def moved(shape, v):
+    """A copy of `shape` translated by v (works whether translate copies or not)."""
+    vec = App.Vector(*v)
+    fn = getattr(shape, "translated", None)
+    if fn is not None:
+        return fn(vec)
+    s = shape.copy()
+    r = s.translate(vec)
+    return r if r is not None else s
+
+
+# Exploded general arrangement: the parts come out along the assembly axis (+Z),
+# which is the direction a builder actually moves them (the board drops in from
+# below, everything above it lifts out).  The nostrils are bores in the shell, so
+# they stay with it.  The offsets travel to the drawing as data, so the balloon
+# leaders always point at the real exploded positions.
+EXPLODE = {
+    "baffle": (0, 0, 46),
+    "filter": (0, 0, 56),
+    "pcb": (0, 0, 78),
+    "fan": (0, 34, 60),
+}
+exploded = shell.Shape
+for _s, _v in ((baffle.Shape, EXPLODE["baffle"]),
+               (filt.Shape, EXPLODE["filter"]),
+               (pcb.Shape, EXPLODE["pcb"]),
+               (fan.Shape, EXPLODE["fan"])):
+    exploded = exploded.fuse(moved(_s, _v))
+
 VIEW_REQUESTS = [
     ("shell", "FRONT", shell.Shape, (0, -1, 0)),
     ("shell", "PLAN", shell.Shape, (0, 0, 1)),
@@ -239,11 +294,14 @@ VIEW_REQUESTS = [
     ("baffle", "SECTION_AA", sec_aa, (0, 1, 0)),
     ("baffle", "ISO", baffle.Shape, (1, -1, 1)),
     ("assembly", "ISO", assembly, (1, -1, 1)),
+    ("assembly", "EXPLODED", exploded, (1, -1, 1)),
 ]
 
-out = {}
+out = {"explode": {k: list(v) for k, v in EXPLODE.items()}}
 for part, view, shp, direction in VIEW_REQUESTS:
-    out.setdefault(part, {})[view] = hlr_view(shp, direction)
+    rec = hlr_view(shp, direction)
+    rec["axes"] = axis_vectors(direction)
+    out.setdefault(part, {})[view] = rec
 
 with open(OUT_JSON, "w", encoding="utf-8") as fh:
     json.dump(out, fh, indent=1)

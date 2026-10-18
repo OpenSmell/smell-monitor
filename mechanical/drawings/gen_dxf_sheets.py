@@ -6,20 +6,30 @@ Authoring model
 Geometry comes from real model hidden-line removal (HLR) computed in FreeCAD
 (`mechanical/freecad/build_smell_monitor.py` -> `model_hlr.json`).  This script
 never invents outlines: it places the measured visible/hidden edges onto A3
-paperspace layouts at 1:1 paper millimetres (420 x 297), with true DIMENSION
-entities whose displayed value is the model millimetre size (dimlfac = 1/s).
-The DXF is the authoritative, editable CAD source; the PDF and PNG are plots.
+paperspace layouts at paper millimetres (420 x 297).
+
+The HLR record also carries `axes`: the (u, v) components of the global +X/+Y/+Z
+axes *measured* in that projection by the same projector.  An orthographic
+projection is linear, so every view here can map a model point (x, y, z) to its
+exact paper position.  That is what lets dimensions and leaders be attached to
+the real features they name instead of to hand-guessed paper coordinates - a
+dimension that is not on its feature is a lie, and this file refuses to guess.
+
+Dimensions are true DIMENSION entities whose displayed value is the model
+millimetre size (dimlfac = 1/s), so the DXF stays the editable CAD source and the
+PDF/PNG are only plots.
 
 Outputs (mechanical/drawings/sheets/)
-  OS-000.dxf / .png     assembly
+  OS-000.dxf / .png     assembly + exploded view + BOM
   OS-001.dxf / .png     shell
-  OS-002.dxf / .png     baffle
+  OS-002.dxf / .png     baffle plate
   OpenSmell_v1.1_sheets.pdf        (3 pages, exact A3, vector)
 
-Pipeline:  FreeCAD build (model + HLR)  ->  this script (sheets).
+Pipeline:  FreeCAD build (model + HLR + axes)  ->  this script (sheets).
 Run:  python mechanical/drawings/gen_dxf_sheets.py
 """
 import json
+import math
 import os
 import sys
 
@@ -40,8 +50,8 @@ with open(HLR_JSON, encoding="utf-8") as _fh:
 PW, PH = 420.0, 297.0                 # A3 landscape, paper mm
 MARGIN, BORDER = 6.0, 12.0            # trim edge + drawing border (6 mm zone strip)
 TB_W, TB_H = 180.0, 40.0              # ISO 7200 title block
-REV, PROJECT = "A", "OpenSmell"
-DATE = "2026-10-16"
+REV, PROJECT = "L", "OpenSmell"       # sheet revision tracks the design revision
+DATE = "2026-10-18"
 
 # ---- layers: name -> (ACI colour, linetype, lineweight 1/100 mm) -----------
 LAYERS = {
@@ -58,7 +68,8 @@ LAYERS = {
 }
 _ALIGN = {"l": TextEntityAlignment.LEFT, "c": TextEntityAlignment.MIDDLE_CENTER,
           "r": TextEntityAlignment.RIGHT, "tc": TextEntityAlignment.TOP_CENTER,
-          "bl": TextEntityAlignment.BOTTOM_LEFT}
+          "bl": TextEntityAlignment.BOTTOM_LEFT,
+          "lt": TextEntityAlignment.TOP_LEFT}
 
 
 def new_doc():
@@ -85,9 +96,6 @@ def new_doc():
     return doc
 
 
-# ===========================================================================
-#  HLR geometry on paper
-# ===========================================================================
 def _rot(x, y, mode):
     if mode == 90:
         return (-y, x)
@@ -98,71 +106,173 @@ def _rot(x, y, mode):
     return (x, y)
 
 
-def _ext(view, orient):
-    xs, ys = [], []
-    for grp in ("visible", "hidden"):
-        for e in view[grp]:
-            t = e["t"]
-            if t == "line":
-                pts = (e["a"], e["b"])
-            elif t in ("circle", "arc"):
-                pts = ((e["c"][0] - e["r"], e["c"][1] - e["r"]),
-                       (e["c"][0] + e["r"], e["c"][1] + e["r"]))
-            else:
-                pts = e["pts"]
-            for p in pts:
-                u, v = _rot(p[0], p[1], orient)
-                xs.append(u)
-                ys.append(v)
-    return (min(xs), min(ys), max(xs), max(ys))
+def _ent_pts(e):
+    """The raw projection-plane points an HLR entity spans."""
+    t = e["t"]
+    if t == "line":
+        return (e["a"], e["b"])
+    if t in ("circle", "arc"):
+        c, r = e["c"], e["r"]
+        return ((c[0] - r, c[1] - r), (c[0] + r, c[1] + r))
+    return e["pts"]
 
 
-def place_view(psp, view, orient, s, left, bottom, hidden=True):
-    """Draw an HLR view so its lower-left oriented corner sits at (left,bottom)."""
-    minx, miny, _, _ = _ext(view, orient)
+def _arrow(psp, tip, ang_deg, size=2.4, layer="DIM"):
+    a = math.radians(ang_deg)
+    w = size * 0.26
+    p1 = (tip[0] - size * math.cos(a) + w * math.sin(a),
+          tip[1] - size * math.sin(a) - w * math.cos(a))
+    p2 = (tip[0] - size * math.cos(a) - w * math.sin(a),
+          tip[1] - size * math.sin(a) + w * math.cos(a))
+    psp.add_solid([tip, p1, p2, tip], dxfattribs={"layer": layer})
 
-    def T(x, y):
-        u, v = _rot(x, y, orient)
-        return (left + (u - minx) * s, bottom + (v - miny) * s)
 
-    def group(ents, layer):
-        for e in ents:
-            t = e["t"]
-            if t == "line":
-                psp.add_line(T(*e["a"]), T(*e["b"]), dxfattribs={"layer": layer})
-            elif t == "circle":
-                psp.add_circle(T(*e["c"]), e["r"] * s, dxfattribs={"layer": layer})
-            elif t == "arc":
-                psp.add_arc(T(*e["c"]), e["r"] * s,
-                            (e["a0"] + orient) % 360.0,
-                            (e["a1"] + orient) % 360.0,
-                            dxfattribs={"layer": layer})
-            elif t == "poly":
-                psp.add_lwpolyline([T(*p) for p in e["pts"]],
+# ===========================================================================
+#  A placed HLR view, with the measured model -> paper mapping
+# ===========================================================================
+class View:
+    """An HLR view on paper, dimensionable in model millimetres.
+
+    Mapping (exact, because orthographic projection is linear)::
+
+        u = ax[X][0]*x + ax[Y][0]*y + ax[Z][0]*z        (v likewise)
+        paper = (left + (u' - u0)*s, bottom + (v' - v0)*s),  (u', v') = rot(u, v)
+
+    `ax` is measured by the FreeCAD builder, never assumed (see its docstring).
+    """
+
+    def __init__(self, psp, part, view, orient, s, left, bottom, hidden=True):
+        self.psp = psp
+        self.rec = HLR[part][view]
+        self.ax = self.rec["axes"]
+        self.orient = orient
+        self.s = float(s)
+        self.left, self.bottom = float(left), float(bottom)
+        self.hidden = hidden
+        x0, y0, x1, y1 = self._raw_ext()
+        corners = [_rot(x, y, orient) for x in (x0, x1) for y in (y0, y1)]
+        us = [c[0] for c in corners]
+        vs = [c[1] for c in corners]
+        self.u0, self.v0, self.u1, self.v1 = min(us), min(vs), max(us), max(vs)
+        self.draw()
+
+    # ---- geometry ---------------------------------------------------------
+    def _raw_ext(self):
+        xs, ys = [], []
+        for grp in ("visible", "hidden"):
+            for e in self.rec[grp]:
+                for p in _ent_pts(e):
+                    xs.append(p[0])
+                    ys.append(p[1])
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def _T(self, uv):
+        u, v = _rot(uv[0], uv[1], self.orient)
+        return (self.left + (u - self.u0) * self.s,
+                self.bottom + (v - self.v0) * self.s)
+
+    def P(self, x, y, z):
+        """Paper coordinates of model point (x, y, z), in shell-frame mm."""
+        u = (self.ax["X"][0] * x + self.ax["Y"][0] * y + self.ax["Z"][0] * z)
+        v = (self.ax["X"][1] * x + self.ax["Y"][1] * y + self.ax["Z"][1] * z)
+        return self._T((u, v))
+
+    @property
+    def box(self):
+        return (self.left, self.bottom,
+                self.left + (self.u1 - self.u0) * self.s,
+                self.bottom + (self.v1 - self.v0) * self.s)
+
+    @property
+    def centre(self):
+        b = self.box
+        return ((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0)
+
+    def draw(self):
+        psp = self.psp
+        for grp, layer in (("visible", "VIS"), ("hidden", "HID")):
+            if grp == "hidden" and not self.hidden:
+                continue
+            for e in self.rec[grp]:
+                t = e["t"]
+                if t == "line":
+                    psp.add_line(self._T(e["a"]), self._T(e["b"]),
+                                 dxfattribs={"layer": layer})
+                elif t == "circle":
+                    psp.add_circle(self._T(e["c"]), e["r"] * self.s,
                                    dxfattribs={"layer": layer})
+                elif t == "arc":
+                    psp.add_arc(self._T(e["c"]), e["r"] * self.s,
+                                (e["a0"] + self.orient) % 360.0,
+                                (e["a1"] + self.orient) % 360.0,
+                                dxfattribs={"layer": layer})
+                elif t == "poly":
+                    psp.add_lwpolyline([self._T(p) for p in e["pts"]],
+                                       dxfattribs={"layer": layer})
 
-    group(view["visible"], "VIS")
-    if hidden:
-        group(view["hidden"], "HID")
-    w = (_ext(view, orient)[2] - minx) * s
-    h = (_ext(view, orient)[3] - miny) * s
-    return (left, bottom, left + w, bottom + h)
+    # ---- dimensions (features named in model mm) --------------------------
+    def _dec(self, measure):
+        return 0 if abs(measure - round(measure)) < 0.01 else 1
 
+    def _ovr(self, measure):
+        return {"dimlfac": 1.0 / self.s, "dimtxt": 3.0, "dimasz": 2.0,
+                "dimclrd": 1, "dimclre": 1, "dimclrt": 1,
+                "dimdec": self._dec(measure), "dimtxsty": "Standard"}
 
-def dim_h(psp, x0, x1, y_line, y_feat, s, layer="DIM"):
-    over = {"dimlfac": 1.0 / s, "dimtxt": 3.0, "dimasz": 2.0,
-            "dimclrd": 1, "dimclre": 1, "dimclrt": 1, "dimtxsty": "Standard"}
-    d = psp.add_linear_dim(base=(x0, y_line), p1=(x0, y_feat), p2=(x1, y_feat),
-                           angle=0, override=over, dxfattribs={"layer": layer})
-    d.render()
+    def dim_x(self, a, b, off, above=False, layer="DIM"):
+        """Horizontal dimension between two model points, `off` mm below them."""
+        A, B = self.P(*a), self.P(*b)
+        m = abs(B[0] - A[0]) / self.s
+        y = ((max(A[1], B[1]) + off) if above else (min(A[1], B[1]) - off))
+        self.psp.add_linear_dim(base=(A[0], y), p1=A, p2=B, angle=0,
+                                override=self._ovr(m),
+                                dxfattribs={"layer": layer}).render()
 
+    def dim_y(self, a, b, off, side="left", layer="DIM"):
+        """Vertical dimension between two model points, `off` mm to one side."""
+        A, B = self.P(*a), self.P(*b)
+        m = abs(B[1] - A[1]) / self.s
+        x = (min(A[0], B[0]) - off) if side == "left" else (max(A[0], B[0]) + off)
+        self.psp.add_linear_dim(base=(x, A[1]), p1=A, p2=B, angle=90,
+                                override=self._ovr(m),
+                                dxfattribs={"layer": layer}).render()
 
-def dim_v(psp, y0, y1, x_line, x_feat, s, layer="DIM"):
-    over = {"dimlfac": 1.0 / s, "dimtxt": 3.0, "dimasz": 2.0,
-            "dimclrd": 1, "dimclre": 1, "dimclrt": 1, "dimtxsty": "Standard"}
-    d = psp.add_linear_dim(base=(x_line, y0), p1=(x_feat, y0), p2=(x_feat, y1),
-                           angle=90, override=over, dxfattribs={"layer": layer})
-    d.render()
+    def chain_x(self, pts, off, above=False, layer="DIM"):
+        """A line of horizontal dimensions through a list of model points."""
+        for a, b in zip(pts, pts[1:]):
+            self.dim_x(a, b, off, above, layer)
+
+    def chain_y(self, pts, off, side="left", layer="DIM"):
+        for a, b in zip(pts, pts[1:]):
+            self.dim_y(a, b, off, side, layer)
+
+    # ---- annotation -------------------------------------------------------
+    def leader(self, model_pt, dx, dy, text, size=2.4, layer="DIM"):
+        psp = self.psp
+        p = self.P(*model_pt)
+        tail = (p[0] + dx, p[1] + dy)
+        _arrow(psp, p, math.degrees(math.atan2(tail[1] - p[1], tail[0] - p[0])))
+        psp.add_line(p, tail, dxfattribs={"layer": layer})
+        w = 0.60 * size * len(text) + 3.0
+        right = dx >= 0
+        end = (tail[0] + w, tail[1]) if right else (tail[0] - w, tail[1])
+        psp.add_line(tail, end, dxfattribs={"layer": layer})
+        x = tail[0] + 1.6 if right else tail[0] - 1.6
+        psp.add_text(text, height=size, dxfattribs={"layer": "TXT"}).set_placement(
+            (x, tail[1] + 1.0), align=_ALIGN["l" if right else "r"])
+
+    def balloon(self, model_pt, dx, dy, num, r=3.6):
+        psp = self.psp
+        p = self.P(*model_pt)
+        c = (p[0] + dx, p[1] + dy)
+        ang = math.degrees(math.atan2(p[1] - c[1], p[0] - c[0]))
+        edge = (c[0] + r * math.cos(math.radians(ang)),
+                c[1] + r * math.sin(math.radians(ang)))
+        psp.add_line(edge, p, dxfattribs={"layer": "VIS"})
+        _arrow(psp, p, ang)
+        psp.add_circle(c, r, dxfattribs={"layer": "TXT"})
+        psp.add_text(str(num), height=2.8,
+                     dxfattribs={"layer": "TXT"}).set_placement(c, align=_ALIGN["c"])
 
 
 # ===========================================================================
@@ -282,61 +392,23 @@ def caption(psp, x, y, text):
         (x, y), align=_ALIGN["c"])
 
 
-# ===========================================================================
-#  Views from HLR (orientation chosen to read upright)
-# ===========================================================================
-def view_front(psp, left, bottom, s):
-    r = place_view(psp, HLR["shell"]["FRONT"], 270, s, left, bottom)
-    w = r[2] - r[0]
-    dim_h(psp, r[0], r[2], r[1] - 12, r[1], s)
-    dim_v(psp, r[1], r[3], r[0] - 12, r[0], s)
-    psp.add_text("3\u00d7DIA6 nostrils", height=2.4,
-                 dxfattribs={"layer": "TXT"}).set_placement((left + w / 2, r[1] - 20),
+def notes_block(psp, x, y, lines, size=2.5, lead=3.6):
+    """A numbered general-notes list, top-left anchored at (x, y)."""
+    psp.add_text("NOTES", height=3.0,
+                 dxfattribs={"layer": "TXT"}).set_placement((x, y))
+    for i, t in enumerate(lines):
+        psp.add_text("%d.  %s" % (i + 1, t), height=size,
+                     dxfattribs={"layer": "TXT"}).set_placement(
+            (x, y - lead * (i + 1)))
+
+
+def section_marker(psp, x, y, label, size=3.0):
+    """A section flag: a filled triangle with the section letter."""
+    psp.add_solid([(x, y), (x - 3.2, y - 5.0), (x + 3.2, y - 5.0), (x, y)],
+                  dxfattribs={"layer": "SEC"})
+    psp.add_text(label, height=size,
+                 dxfattribs={"layer": "TXT"}).set_placement((x, y + 1.2),
                                                             align=_ALIGN["c"])
-    return r
-
-
-def view_plan(psp, left, bottom, s):
-    r = place_view(psp, HLR["shell"]["PLAN"], 0, s, left, bottom)
-    dim_h(psp, r[0], r[2], r[1] - 12, r[1], s)
-    dim_v(psp, r[1], r[3], r[2] + 12, r[2], s)
-    return r
-
-
-def view_section_bb(psp, left, bottom, s):
-    r = place_view(psp, HLR["shell"]["SECTION_BB"], 90, s, left, bottom)
-    dim_h(psp, r[0], r[2], r[1] - 12, r[1], s)
-    dim_v(psp, r[1], r[3], r[0] - 12, r[0], s)
-    return r
-
-
-def view_shell_iso(psp, left, bottom, s):
-    return place_view(psp, HLR["shell"]["ISO"], 0, s, left, bottom, hidden=False)
-
-
-def view_baffle_plan(psp, left, bottom, s):
-    r = place_view(psp, HLR["baffle"]["PLAN"], 0, s, left, bottom)
-    dim_h(psp, r[0], r[2], r[1] - 12, r[1], s)
-    dim_v(psp, r[1], r[3], r[2] + 12, r[2], s)
-    dx = (CONST["A_X"][1] - CONST["A_X"][0]) * s
-    psp.add_text("pitch %d analog / %d digital" % (
-        CONST["A_X"][1] - CONST["A_X"][0], CONST["D_X"][1] - CONST["D_X"][0]),
-        height=2.6, dxfattribs={"layer": "TXT"}).set_placement(
-        (left + (r[2] - r[0]) / 2, r[3] + 6), align=_ALIGN["c"])
-    return r
-
-
-def view_baffle_section(psp, left, bottom, s):
-    return place_view(psp, HLR["baffle"]["SECTION_AA"], 270, s, left, bottom,
-                      hidden=True)
-
-
-def view_baffle_iso(psp, left, bottom, s):
-    return place_view(psp, HLR["baffle"]["ISO"], 0, s, left, bottom, hidden=False)
-
-
-def view_assembly_iso(psp, left, bottom, s):
-    return place_view(psp, HLR["assembly"]["ISO"], 0, s, left, bottom, hidden=True)
 
 
 def bom(psp, x0, y0):
@@ -349,22 +421,22 @@ def bom(psp, x0, y0):
         ("2", "Baffle plate  %d\u00d7%d\u00d7%d, %d wells + ref port" % (
             CONST["CX"], CONST["CY"], CONST["BAFFLE_T"], n_wells), "1",
          "PTFE machined (or PVDF)", "make"),
-        ("3", "Axial fan  DIA40 \u00d7 t10, 5 V", "1",
-         "off-the-shelf (substitute any 40mm)", "buy"),
-        ("4", "Filter pack PTFE, full-flow 106\u00d711 face",
-         "1", "pleated, \u2265100 cm\u00b2 media", "buy"),
-        ("5", "Main PCB  %d\u00d7%d (SHT31, MCU)" % (
+        ("3", "Filter pack, full-lane series element",
+         "1", "pleated PTFE, \u226570 cm\u00b2 media", "buy"),
+        ("4", "Main PCB  %d\u00d7%d, sealed chamber floor" % (
             CONST["PCB_X"], CONST["PCB_Y"]), "1",
-         "FR4 1.6 mm + build", "make"),
+         "FR4 1.6 mm + build (OS-003)", "make"),
+        ("5", "Axial fan  DIA40 \u00d7 t10, 5 V", "1",
+         "off-the-shelf (any 40 mm)", "buy"),
     ]
     colw = [12, 92, 10, 74, 14]
     psp.add_text("BILL OF MATERIALS", height=3.4,
-                 dxfattribs={"layer": "TXT"}).set_placement((x0, y0 + 8))
+                 dxfattribs={"layer": "TXT"}).set_placement((x0, y0 + 9))
     heads = ["ITEM", "PART / DESCRIPTION", "QTY", "MATERIAL / SOURCE", "TYPE"]
     x = x0
     for h, wd in zip(heads, colw):
         psp.add_text(h, height=2.7, dxfattribs={"layer": "TXT"}).set_placement(
-            (x + 1, y0 + 4))
+            (x + 1, y0 + 0.6))
         psp.add_lwpolyline([(x, y0 - 4), (x + wd, y0 - 4), (x + wd, y0 + 5),
                             (x, y0 + 5)], close=True, dxfattribs={"layer": "DIM"})
         x += wd
@@ -390,6 +462,12 @@ def bom(psp, x0, y0):
 COMMON = dict(project=PROJECT, notes="all dims mm; deburr/de-flash; "
               "seal wetted faces; print thin parts 0.2 mm layer")
 
+A_X, D_X = CONST["A_X"], CONST["D_X"]
+CX0, CY0 = CONST["WSIDE"], CONST["WFB"]
+CX1, CY1 = CX0 + CONST["CX"], CY0 + CONST["CY"]
+BZ, BT = CONST["BAFFLE_Z"], CONST["BAFFLE_T"]
+MIDX = CONST["SH"] / 2.0
+
 
 def sheet_assembly(doc):
     psp = doc.layouts.new("OS-000")
@@ -398,14 +476,40 @@ def sheet_assembly(doc):
     psp.add_text("ASSEMBLY \u2013 OpenSmell v1.1 sensing platform", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    psp.add_text("isometric general arrangement \u2013 shell, baffle plane, "
-                 "3\u00d7 nostril, filter pack, PCB floor, DIA40 rear exhaust",
-                 height=3,
+    psp.add_text("exploded isometric (parts separated along the assembly axis) "
+                 "+ general arrangement \u2013 shell, baffle plate, filter pack, "
+                 "PCB chamber floor, DIA40 exhaust fan", height=3,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
-    r = view_assembly_iso(psp, 148, 74, 0.52)
-    caption(psp, (r[0] + r[2]) / 2, 64, "ISO \u2013 general arrangement  (NTS)")
-    bom(psp, 22.0, 220.0)
+
+    ex = View(psp, "assembly", "EXPLODED", 0, 0.42, 152, 92, hidden=False)
+    caption(psp, ex.centre[0], 84, "EXPLODED \u2013 assembly order  (NTS)")
+    off = HLR["explode"]
+    ex.balloon((MIDX, CONST["SW"] / 2, CONST["SHH"] - 8), -46, 30, 1)
+    ex.balloon((CX0 + CONST["CX"] / 2, CY0 + CONST["CY"] / 2,
+                BZ + BT / 2 + off["baffle"][2]), -40, -26, 2)
+    ex.balloon((MIDX, CONST["FILT_Y0"] + CONST["FILT_T"] / 2,
+                (BZ + CONST["FLOOR"] + CONST["CH"]) / 2 + off["filter"][2]),
+               6, 44, 3)
+    ex.balloon((MIDX, CONST["SW"] / 2,
+                CONST["PCB_Z"] + CONST["PCB_T"] / 2 + off["pcb"][2]), -46, -8, 4)
+    ex.balloon((CONST["FAN_X"], CONST["FAN_Y"] + CONST["FAN_T"] / 2,
+                CONST["FAN_Z"] + off["fan"][2]), 40, 8, 5)
+
+    ga = View(psp, "assembly", "ISO", 0, 0.26, 262, 132, hidden=True)
+    caption(psp, ga.centre[0], 126, "ISO \u2013 general arrangement  (NTS)")
+
+    bom(psp, 20.0, 232.0)
+    notes_block(psp, 264, 108, [
+        "ENVELOPE %d \u00d7 %d \u00d7 %d; CAVITY %d \u00d7 %d \u00d7 %d." % (
+            CONST["SH"], CONST["SW"], CONST["SHH"], CONST["CX"], CONST["CY"],
+            CONST["CH"]),
+        "FLOW: DIA6 INTAKE \u2192 FILTER \u2192 11 mm LANE \u2192 8 WELLS "
+        "\u2192 DUCT \u2192 DIA40 FAN.",
+        "PCB = CHAMBER FLOOR (OS-001); CARTRIDGES LIFT OUT WITH THE PLATE.",
+        "NO SILICONE, PVC, PAPER OR FOAM WHERE THE SAMPLE TOUCHES.",
+        "ITEM NUMBERS MATCH THE BOM; EXPLODED IS A TRUE HLR.",
+    ])
     title_block(psp, dict(COMMON, title="ASSEMBLY", no="OS-000", sheet="1",
                           sheets="3", scale="NTS", material="see BOM",
                           finish="see BOM"))
@@ -419,15 +523,62 @@ def sheet_shell(doc):
     psp.add_text("SHELL \u2013 main body  (OS-001)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    r1 = view_front(psp, 40, 205, 0.5)
-    caption(psp, 40 + (r1[2] - r1[0]) / 2, 190, "FRONT (intake face)  1:2")
-    r2 = view_plan(psp, 40, 100, 0.5)
-    caption(psp, 40 + (r2[2] - r2[0]) / 2, 85, "PLAN (PCB floor not fitted)  1:2")
-    r3 = view_section_bb(psp, 300, 205, 0.5)
-    caption(psp, 300 + (r3[2] - r3[0]) / 2, 190,
-            "SECTION B-B (x=%d)  1:2" % (CONST["SH"] / 2))
-    view_shell_iso(psp, 300, 100, 0.32)
-    caption(psp, 330, 90, "ISO \u2013 shell / cavity / baffle plane  (NTS)")
+
+    # ---- FRONT: X (horizontal) x Z (vertical), 1:2 ----------------------
+    v = View(psp, "shell", "FRONT", 270, 0.5, 74, 206)
+    caption(psp, v.centre[0], 184, "FRONT (intake face)  1:2")
+    v.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 16)                     # 122
+    v.chain_x([(MIDX - 26, 0, 0), (MIDX, 0, 0), (MIDX + 26, 0, 0)], 8)  # 26/26
+    v.dim_y((0, 0, 0), (0, 0, CONST["SHH"]), 13, "left")             # 90
+    v.chain_y([(CONST["SH"], 0, 0), (CONST["SH"], 0, CONST["FLOOR"]),
+               (CONST["SH"], 0, CONST["NO_Z"])], 13, "right")        # 12 / 43
+    v.leader((MIDX, 0, CONST["NO_Z"]), 30, 20,
+             "3 \u00d7 DIA%d through, bore axis z=%d" % (
+                 2 * CONST["NO_R"], CONST["NO_Z"]))
+    section_marker(psp, 74 + MIDX * 0.5, 256, "B")
+
+    # ---- PLAN: X (horizontal) x Y (vertical), 1:2 ------------------------
+    p = View(psp, "shell", "PLAN", 0, 0.5, 74, 104)
+    caption(psp, p.centre[0], 82, "PLAN (PCB seat not fitted)  1:2")
+    p.chain_x([(0, 0, 0), (CX0, 0, 0), (CX1, 0, 0), (CONST["SH"], 0, 0)], 8)
+    p.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 16)
+    p.chain_y([(CONST["SH"], 0, 0), (CONST["SH"], CY0, 0),
+               (CONST["SH"], CY1, 0), (CONST["SH"], CONST["SW"], 0)],
+              8, "right")
+    p.dim_y((CONST["SH"], 0, 0), (CONST["SH"], CONST["SW"], 0), 16, "right")
+    p.leader((CX0, CY0 + CONST["CY"] / 2, CONST["FLOOR"]), -26, -46,
+             "cavity %d \u00d7 %d \u00d7 %d" % (
+                 CONST["CX"], CONST["CY"], CONST["CH"]))
+
+    # ---- SECTION B-B through x=61: Y (horizontal) x Z (vertical), 1:2 ----
+    s = View(psp, "shell", "SECTION_BB", 90, 0.5, 232, 206)
+    caption(psp, s.centre[0], 184, "SECTION B-B (x=%d)  1:2" % MIDX)
+    s.dim_x((0, 0, 0), (0, CONST["SW"], 0), 16)                      # 114
+    s.chain_y([(0, 0, 0), (0, 0, CONST["FLOOR"]), (0, 0, BZ),
+               (0, 0, CONST["FLOOR"] + CONST["CH"]), (0, 0, CONST["SHH"])],
+              11, "left")                                            # 12/37/11/30
+    s.dim_y((0, 0, 0), (0, 0, CONST["SHH"]), 11, "right")            # 90
+    s.leader((0, CONST["FAN_Y"], CONST["FAN_Z"]), -30, -26,
+             "DIA%d exhaust, axis z=%d" % (
+                 2 * CONST["FAN_R"], CONST["FAN_Z"]))
+    s.leader((0, CONST["FILT_Y0"], CONST["FLOOR"] + 3), 48, -26,
+             "filter plane y=%d\u2013%d (pack not shown)" % (
+                 CONST["FILT_Y0"], CONST["FILT_Y0"] + CONST["FILT_T"]))
+
+    iso = View(psp, "shell", "ISO", 0, 0.30, 314, 96, hidden=False)
+    caption(psp, iso.centre[0], 90, "ISO \u2013 shell, cavity and baffle plane"
+            "  (NTS)")
+
+    notes_block(psp, 170, 128, [
+        "MATERIAL: PETG FDM, 0.2 mm LAYER, 4 PERIMETERS; SEAL WETTED FACES.",
+        "PCB SEAT REBATE 1.6 DEEP: THE BOARD IS THE SEALED CHAMBER FLOOR "
+        "(z=%d)." % CONST["FLOOR"],
+        "BAFFLE PLANE z=%d (%d ABOVE THE FLOOR). MODULE ALLOWANCE %d, "
+        "RECESS %d." % (BZ, BZ - CONST["FLOOR"],
+                        CONST["BAFFLE_Z"] - CONST["FLOOR"] - 8, 8),
+        "ALL OPENINGS DEBURRED; NO SILICONE, PVC OR FOAM IN THE GAS PATH.",
+        "DIMS IN mm; DATUM = FRONT-LOWER-LEFT OUTER CORNER.",
+    ])
     title_block(psp, dict(COMMON, title="SHELL \u2013 main body", no="OS-001",
                           sheet="2", sheets="3", scale="1:2",
                           material=PROCESS["shell"]["primary"],
@@ -442,16 +593,58 @@ def sheet_baffle(doc):
     psp.add_text("BAFFLE \u2013 well plate  (OS-002)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    r1 = view_baffle_plan(psp, 40, 190, 0.5)
-    caption(psp, 40 + (r1[2] - r1[0]) / 2, 170,
-            "PLAN (%d wells + ref port)  1:2" % (len(CONST["A_X"])
-                                                 + len(CONST["D_X"])))
-    view_baffle_section(psp, 40, 140, 1.0)
-    caption(psp, 95, 130, "SECTION A-A  (plate t=2, wells open-bottom)  1:1")
-    view_baffle_iso(psp, 285, 150, 0.55)
-    caption(psp, 330, 138, "ISO \u2013 wells open-bottom  (NTS)")
+
+    # ---- PLAN: X (horizontal) x Y (vertical), 1:2 ------------------------
+    p = View(psp, "baffle", "PLAN", 0, 0.5, 66, 202)
+    caption(psp, p.centre[0], 188,
+            "PLAN (%d wells + reference port)  1:2" % (len(A_X) + len(D_X)))
+    p.chain_x([(CX0, CY0, 0)] + [(x, CY0, 0) for x in A_X] + [(CX1, CY0, 0)], 8)
+    p.dim_x((CX0, CY0, 0), (CX1, CY0, 0), 16)                        # 106
+    p.chain_x([(CX0, CY1, 0)] + [(x, CY1, 0) for x in D_X] + [(CX1, CY1, 0)],
+              8, above=True)
+    p.dim_y((CX1, CY0, 0), (CX1, CY1, 0), 16, "right")                # 100
+    p.dim_y((CX1, CONST["D_Y0"], 0), (CX1, CONST["D_Y0"] + CONST["D_SY"], 0),
+            8, "right")
+    p.dim_y((CX1, CONST["A_Y0"], 0), (CX1, CONST["A_Y0"] + CONST["A_SY"], 0),
+            8, "right")
+    p.dim_y((CX1, CONST["SHT_Y0"], 0),
+            (CX1, CONST["SHT_Y0"] + CONST["SHT_SY"], 0), 8, "right")
+    p.leader((A_X[0], CONST["A_Y0"] + CONST["A_SY"] / 2, BZ), -20, 34,
+             "4 \u00d7 %d \u00d7 %d analog wells" % (CONST["A_SX"], CONST["A_SY"]))
+    p.leader((D_X[0], CONST["D_Y0"] + CONST["D_SY"] / 2, BZ), -20, 34,
+             "4 \u00d7 %d \u00d7 %d digital wells" % (
+                 CONST["D_SX"], CONST["D_SY"]))
+    p.leader((CONST["SHT_X"], CONST["SHT_Y0"] + CONST["SHT_SY"] / 2, BZ),
+             -26, -16, "U5 port %d \u00d7 %d" % (
+                 CONST["SHT_SX"], CONST["SHT_SY"]))
+
+    # ---- SECTION A-A through an analog well row: X x Z, 1:1 --------------
+    a = View(psp, "baffle", "SECTION_AA", 270, 1.0, 66, 150, hidden=False)
+    caption(psp, a.centre[0], 136, "SECTION A-A (analog well row)  1:1")
+    a.dim_x((CX0, 0, BZ), (CX1, 0, BZ), 8)                           # 106
+    a.chain_x([(A_X[0] - CONST["A_SX"] / 2, 0, BZ),
+               (A_X[0] + CONST["A_SX"] / 2, 0, BZ)], 8)              # 22
+    a.chain_x([(A_X[0] + CONST["A_SX"] / 2, 0, BZ),
+               (A_X[1] - CONST["A_SX"] / 2, 0, BZ)], 8)              # 4 rib
+    a.chain_y([(0, 0, BZ - BT), (0, 0, BZ)], 16)                     # 2
+    a.leader((A_X[0], 0, BZ - BT / 2), 26, -22,
+             "well open-bottom (through plate)")
+
+    iso = View(psp, "baffle", "ISO", 0, 0.50, 296, 158, hidden=False)
+    caption(psp, iso.centre[0], 152, "ISO \u2013 wells open-bottom  (NTS)")
+
+    notes_block(psp, 264, 258, [
+        "MATERIAL: PTFE, MACHINED. SUBSTITUTE: PVDF OR BOROSILICATE.",
+        "PLATE %d \u00d7 %d \u00d7 %d, SEATS ON THE SHELL LEDGE AT z=%d." % (
+            CONST["CX"], CONST["CY"], BT, BZ - BT),
+        "WELL ORDER IS FLOW ORDER: DIGITAL UPSTREAM, ANALOG DOWNSTREAM.",
+        "EVERY WELL IS OPEN-BOTTOM: THE CELL READS THE SUB-BAFFLE VOLUME.",
+        "ANALOG WELLS %d \u00d7 %d, DIGITAL WELLS %d \u00d7 %d (4 EACH)." % (
+            CONST["A_SX"], CONST["A_SY"], CONST["D_SX"], CONST["D_SY"]),
+        "GENERAL TOLERANCE ISO 2768-mK; WETTED FACES FREE OF RESIDUE.",
+    ])
     title_block(psp, dict(COMMON, title="BAFFLE \u2013 well plate", no="OS-002",
-                          sheet="3", sheets="3", scale="1:2",
+                          sheet="3", sheets="3", scale="AS NOTED",
                           material=PROCESS["baffle"]["primary"],
                           finish=PROCESS["baffle"]["finish"]))
     return psp

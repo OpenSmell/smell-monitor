@@ -72,6 +72,31 @@ def extent(lst):
 check("HLR has shell/baffle/assembly views",
       {"shell", "baffle", "assembly"} <= set(hlr),
       ",".join(sorted(hlr)))
+check("HLR has an exploded assembly view",
+      "EXPLODED" in hlr.get("assembly", {}),
+      ",".join(sorted(hlr.get("assembly", {}))))
+
+# Every view must carry the *measured* projection axes: the sheet generator maps
+# dimensions onto features through them, so a view without them cannot be
+# dimensioned honestly.  An orthographic projection never stretches an axis
+# (|axis| <= 1) and the axes seen true length are exactly 1.
+for _part, _views in hlr.items():
+    if _part == "explode":
+        continue
+    for _view, _rec in _views.items():
+        _ax = _rec.get("axes") or {}
+        _ok = (set(_ax) == {"X", "Y", "Z"}
+               and all(len(_v) == 2 for _v in _ax.values()))
+        _norms = [_v[0] ** 2 + _v[1] ** 2 for _v in _ax.values()] if _ok else []
+        if _ok:
+            _nz = [round(_n, 6) for _n in _norms if _n > 1e-9]
+            _ok = (all(_n <= 1.0 + 1e-6 for _n in _norms) and bool(_nz)
+                   and len(set(_nz)) == 1)
+        check(f"HLR {_part}/{_view} carries measured projection axes", _ok,
+              str(_ax))
+check("exploded view offsets are recorded with the geometry",
+      set(hlr.get("explode", {})) == {"baffle", "filter", "pcb", "fan"},
+      str(hlr.get("explode")))
 
 fc = circles(ents("shell", "FRONT", "visible"))
 check("shell FRONT = 3 nostril circles",
@@ -150,12 +175,19 @@ for s in ("smell_monitor_shell.stl", "smell_monitor_baffle.stl"):
 
 # ------------------------- CAD drawing sheets (DXF source) ------------------
 SHEET_DIMS = {
-    "OS-000": set(),                       # assembly: BOM only
-    "OS-001": {CONST["SH"], CONST["SHH"], CONST["SW"]},
-    "OS-002": {CONST["CX"], CONST["CY"]},
+    "OS-000": set(),                       # assembly: BOM + NTS views
+    "OS-001": {CONST["SH"], CONST["SW"], CONST["SHH"], CONST["CX"], CONST["CY"],
+               CONST["FLOOR"], 11.0, 26.0, 37.0, 43.0},
+    "OS-002": {CONST["CX"], CONST["CY"], CONST["A_SX"], CONST["A_SY"],
+               CONST["D_SX"], CONST["D_SY"], 26.0, 21.0, 12.0,
+               float(CONST["BAFFLE_T"])},
 }
+# A drawing that stops stating its geometry has stopped being a drawing, so each
+# part sheet must carry at least this many dimensions.
+SHEET_MIN_DIMS = {"OS-000": 0, "OS-001": 15, "OS-002": 12}
 SHEET_TOKENS = {
-    "OS-000": ("ASSEMBLY", "BILL OF MATERIALS", "PETG", "PTFE", "OpenSmell"),
+    "OS-000": ("ASSEMBLY", "EXPLODED", "BILL OF MATERIALS", "PETG", "PTFE",
+               "OpenSmell"),
     "OS-001": ("SHELL", "FRONT", "PLAN", "SECTION B-B", "MATERIAL"),
     "OS-002": ("BAFFLE", "PLAN", "SECTION A-A", "MATERIAL"),
 }
@@ -173,6 +205,9 @@ for name, want in SHEET_DIMS.items():
                    for d in lay.query("DIMENSION")})
     check(f"sheet {name} dims measure true mm",
           want <= set(dims), f"got {dims}")
+    check(f"sheet {name} is dimensioned (>= {SHEET_MIN_DIMS[name]} dims)",
+          len(lay.query("DIMENSION")) >= SHEET_MIN_DIMS[name],
+          f"{len(lay.query('DIMENSION'))} dims")
     txt = " ".join((t.dxf.text or "") for t in lay.query("TEXT"))
     for tok in SHEET_TOKENS[name]:
         check(f"sheet {name} text contains '{tok}'", tok in txt)
@@ -196,6 +231,25 @@ for name, want in SHEET_DIMS.items():
             if not (6 <= x <= 414 and 6 <= y <= 291):
                 inside = False
     check(f"sheet {name} geometry inside A3 frame", inside)
+    # text must not run past the border either: the insert point is not enough,
+    # because a long note anchored on the left overflows to the right.  Width is
+    # estimated from the character count (the plot font is ~0.7 x height wide),
+    # which is the same rule the note wording is written to.
+    wide = []
+    for e in lay.query("TEXT"):
+        t = e.dxf.text or ""
+        if not t:
+            continue
+        w = 0.75 * e.dxf.height * len(t)
+        ha = e.dxf.get("halign", 0)
+        x = e.dxf.insert.x
+        x0 = x if ha == 0 else (x - w / 2.0 if ha == 1 else x - w)
+        if len(t) == 1 and (x0 + w <= 12.5 or x0 >= 407.5):
+            continue                     # ISO 5457 zone label, lives in the strip
+        if x0 < 6 or x0 + w > 408:
+            wide.append("%.0f..%.0f %s" % (x0, x0 + w, t[:28]))
+    check(f"sheet {name} text fits inside the border", not wide,
+          "; ".join(wide[:3]))
 
 # ------------------------------- sheets PDF ---------------------------------
 PDF = os.path.join(SHEETS, "OpenSmell_v1.1_sheets.pdf")
