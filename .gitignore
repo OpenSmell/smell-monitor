@@ -39,13 +39,15 @@ env/
 build/
 dist/
 
-# Generated CAD / drawings (rebuild from source)
-#   committed deliverables: mechanical/drawings/sheets/*.dxf + *.pdf
+# Generated CAD / drawings
+#   committed deliverables:
+#     mechanical/drawings/sheets/*.dxf + *.pdf   editable sheets + plot
+#     mechanical/drawings/model_hlr.json         the gate's input (so a fresh
+#                                                clone can run the CAD gate)
+#     mechanical/freecad/smell_monitor*.STEP     the 3D part data
+#     mechanical/freecad/smell_monitor_*.stl     print meshes
 mechanical/freecad/*.FCStd
 mechanical/freecad/*.FCStd1
-mechanical/freecad/*.STEP
-mechanical/freecad/*.stl
-mechanical/drawings/model_hlr.json
 mechanical/drawings/sheets/*.png
 
 # Secrets
