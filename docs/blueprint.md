@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Document** | OS-BP-001 |
-| **Revision** | J |
-| **Date** | 2026-10-17 |
-| **Status** | Architecture locked; schematic ERC-clean, PCB routed and DRC-clean, firmware compiling |
+| **Revision** | L |
+| **Date** | 2026-10-18 |
+| **Status** | Architecture locked (socket fixed by `docs/module-standard.md`, blueprint §4.9); schematic ERC-clean, PCB routed and DRC-clean, firmware compiling; revision L is the board re-derive |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -17,14 +17,17 @@ ISO 5457 (sheet sizes) · ISO 2768 (general tolerances) · CERN-OHL-S / DIN SPEC
 
 **How to read this document.** Every requirement traces upward to a success
 criterion in §0.4 and downward to a design value and a verification test. A
-number that traces to nothing does not belong here.
+number that traces to nothing does not belong here. §15 records why the
+hard-to-vary choices are what they are, and which claims are proven, calculated
+or untested. The module interface is `docs/module-standard.md`.
 
 ### Contents
 0. Objective & Success Criteria · 1. System Overview · 2. Operating Principle ·
 3. Pneumatic Design · 4. Sensing Interface · 5. Electrical Design ·
 6. Mechanical Design · 7. Firmware Requirements · 8. Verification & Validation ·
 9. Bill of Materials · 10. Assembly & Bring-up · 11. User Manual ·
-12. Drawing Set · 13. Risks & Future · 14. Revision History
+12. Drawing Set · 13. Risks & Future · 14. Revision History ·
+15. Design Decision Record
 
 ---
 
@@ -94,7 +97,7 @@ not a substitute for lab GC/MS.
 | # | Objective | Target |
 |---|-----------|--------|
 | O1 | Cost (BOM) | ≤ $60 at qty 10 (base electronics) |
-| O2 | Modularity | 4 analog + 4 digital fixed slots (8 total); sensors are plug-in breakouts, sensor-agnostic |
+| O2 | Modularity | 8 identical slots, each carrying a 5 V gas-cell socket and a 3.3 V Qwiic port (§4.9); sensors are plug-in breakouts, sensor-agnostic |
 | O3 | Repeatability | §0.4 P1/G1 |
 | O4 | Buildability | Standard tools; no custom parts beyond the printed shell + insert |
 | O5 | Power | USB-C 5 V/3 A source (≥ 1.5 A needed); idle < 1 W, ≈ 5 W loaded (MOX heaters dominate); §5.8 |
@@ -119,7 +122,7 @@ flowchart LR
     S[Sample / headspace] --> N["3x Ø6 bellmouth nostrils"]
     N --> F[PTFE filter pack]
     F --> C["Sensing chamber<br/>106 x 100 x 48 mm"]
-    C --> B["Baffled sensor array<br/>4 analog + 4 digital"]
+    C --> B["Baffled sensor array<br/>8 uniform slots"]
     B --> X["40 mm PWM fan (rear)"]
     X --> E[Exhaust]
     ENV["SHT31 (T/RH)<br/>upstream of sensors"] -.-> C
@@ -128,9 +131,11 @@ flowchart LR
     M --> U["USB-C to host (Osmograph)"]
 ```
 
-**Signal path.** Analog slots → fixed 2:1 divider → ADS1115 (16-bit) · digital
-slots → per-slot TCA9548A channel → ESP32 I²C · SHT31 + OLED on the master bus ·
-USB-C carries power and serial data to the host.
+**Signal path.** Any slot → its fixed 2:1 divider → ADS1115 (16-bit) when an
+analog cell is fitted, or its own TCA9548A channel → ESP32 I²C when an I²C module
+is fitted · SHT31 + OLED on the master bus · USB-C carries power and serial data
+to the host. §4.9 defines the uniform slot; the board in the tree is still the
+4 analog + 4 digital as-built revision that preceded it.
 
 **Flow discipline (non-negotiable):** single pass front→rear; no internal
 baffles except the sensor screen; no sharp internal corners (R ≥ 3 mm); sensors
@@ -258,6 +263,16 @@ Fan @ ~25% ≈ 10–14 dBA · @ full ≈ 16–20 dBA · bellmouth inlet whistle 
 ---
 
 ## 4. Sensing Interface — The Contract
+
+> **§4.1–§4.7 describe the as-built revision; §4.9 supersedes the socket.**
+> The as-built board has two different slot types (4 analog + 4 digital), 5- and
+> 6-pin, with modules standing perpendicular to the board and one ADC.
+> **[§4.9](#49-the-module-standard-osm-1--the-decision-that-closes-45) and
+> `docs/module-standard.md` replace that with one uniform slot design repeated
+> eight times — a keyed 5 V gas-cell socket plus a Qwiic port at every slot — and
+> flat-mounted cartridges.** Revision L is the board that implements it. If you
+> are designing a module, read the standard first; the mechanical derivation of
+> the envelope stays in §4.5/§4.6.
 
 The platform defines **two kinds of slot**; it does **not** define sensor
 chemistry. Sensors are ordinary plug-in breakout modules; anything matching a
@@ -598,6 +613,42 @@ MQ module envelope **and mass** from a physical sample (§4.5 — three caliper
 numbers decide the chamber) · fan derating through the real filter
 (flow bench / scaled CFD) · sensor-matrix upkeep as new market sensors appear
 (add a row in `electrical/sensor_matrix.py`; the gate re-solves the pack).
+
+### 4.9 The module standard (OSM-1) — the decision that closes §4.5
+
+§4.5 and the trade study in §4.7 both end at the same wall: the market sells one
+socket contract (2.54 mm) and a size zoo (see `mechanical/modules.py`), so
+"which modules fit" is not answerable in general. The answer adopted is to stop
+chasing footprints and define the socket:
+
+**One slot design, repeated.** Every slot carries a keyed 5 V gas-cell socket
+(1×6) *and* a 3.3 V Qwiic/STEMMA QT port, over its own 20 × 20 mm window. There
+is no analog row and digital row for the user to get wrong; the module's own
+identity tells the base how to talk to it. The full rules — pinouts, the
+identity EEPROM and its memory map, the flat cartridge envelope, the wetted
+material bans, the conformance checklist and the cost — are in
+**`docs/module-standard.md`**, with the same numbers as data in
+`mechanical/standard.py` and the gap against the as-built board reported by
+`tools/verify_module_fit.py`.
+
+Three consequences matter here:
+
+| Decision | Why |
+|----------|-----|
+| **Flat cartridge** (card parallel to the board, right-angle header in a vertical socket, sensing face up, lifts out upward) | a MOX can's inlet is its **end face**, so flat points it at its window instead of at its neighbour; and it turns the 40–48 mm standing height that collided with the plate into 25 mm |
+| **Uniform 24 mm pitch, 8 slots, 2 rows of 4** | four slots span 96 mm inside the existing 106 mm cavity, so uniformity costs **no size**: the same 122 mm shell, built from one repeat unit instead of two different ones |
+| **Identity EEPROM on the cartridge** | pin order stops being a hazard, calibration and exposure hours travel with the cell, and per-cell drift becomes a software problem (the TEDS idea from IEEE 1451, one pin for all slots) |
+
+The chamber is a **cascade**, not eight parallel chambers: the upstream row sees
+fresh sample and the downstream row sees partly-depleted sample. Each record
+therefore carries its slot index and flow position so the host models the
+depletion, and the guidance is to put the cells you trust most upstream. That,
+the window pitch and the front-row/aperture exchange question are what the CFD
+pass in §8.3 must quantify — §4.9 fixes the hardware, the solve fixes the
+numbers.
+
+Service access follows from the flat pose and is an enclosure requirement, not a
+socket one: the cartridge comes out upward, so the baffle plate is the lid (§14).
 
 ---
 
@@ -1026,6 +1077,7 @@ never be silently destroyed or faked:
 | Sensor drift over months | Swappable sockets + SHT31 data + shared open dataset |
 | USB-C current limits | 5 V/3 A source assumed; §5.8 |
 | MOX cross-sensitivity | Cannot be fixed in hardware; platform removes confounders only |
+| Silicone poisoning of MOX in the field (the classic irreversible death) | Assembly ban: no silicone or PVC anywhere the gas touches (§5). Per-cell exposure hours and peak temperature live in the cartridge EEPROM (§4.9), so a cell that has been through a silicone event is de-rated or refused instead of quietly trusted. Carbon belongs on a **reference-air** line, never in series with the sample — it would strip the analyte (§3.6, §6.3). |
 
 **Future:** v1.1 — battery/USB-PD, fan tach, higher-flow option · v2.0 —
 manifold switching / multi-compartment robotics sampling, valued reference-air
@@ -1048,6 +1100,7 @@ path for automatic zero/baseline calibration.
 | I | 2026-10-16 | **Schematic emitted from the model, and wireless telemetry adopted.** `electrical/gen_schematic.py` builds `smell_monitor_v1_1.kicad_sch` straight from `electrical/board.py`; KiCad **ERC is clean (0 violations)** and a new gate `tools/verify_netlist.py` re-exports the netlist with `kicad-cli` and proves it matches the model pin-for-pin, so schematic and model cannot drift. Board-model fix: **U3 CH340C now runs from 5 V** with V3 decoupled to GND (it is a `power_out`; tying it to +3V3 collided with the AMS1117 VO), and decoupling follows. §7 comms now emit **one JSON record over three transports** — USB serial (wired default), **Wi-Fi 2.4 GHz** (MQTT + HTTP/WebSocket), and **Bluetooth LE** (GATT notify + credential provisioning) — all on the pre-certified ESP32-WROOM-32E radio with **no BOM change**. Wrote the v1.1 firmware (`firmware/esp32/smell_monitor/`, arduino-cli): 4 analog + 4 digital + SHT31 acquisition, three-phase cycle, OLED/LED/buzzer, and all three transports — **compiles clean** (1.73 MB, 54% of a `huge_app` partition), and `tools/verify_firmware_pins.py` pins the firmware pin map to `interface.PINMAP` so it cannot drift. Header H→I. |
 | J | 2026-10-17 | **PCB placed, routed and DRC-clean; chamber stack-up fixed; flow order corrected.** Added `electrical/gen_pcb.py` (placement only, `--force`-guarded), `electrical/route_pcb.py` (DSN → FreeRouting `-mp 12` → SES, refuses to save with any unconnected net) and `tools/export_fab.py`, wiring the board to the sky so the routed copper is *reproducible* rather than hand-drawn; `tools/verify_pcb.py` gates it. Netclass track width 0.15 → **0.30 mm** because FreeRouting necks to 75/50 % of nominal, which is what produced the earlier 109 `track_width` DRC errors; DRC is now **0 violations / 0 unconnected**, and `fab/` carries only the layers a board shop can use (16 cosmetic layers and a 5 MB STEP dropped). Mechanical fix: `PCB_Z` was `CAV_Z1 − 1.6` = 58.4 mm, i.e. the board sat in the cavity *ceiling* and physically **blocked all three Ø6 intakes** — it is now `FLOOR − PCB_T`, seated in a shell rebate with its top face flush with the cavity floor, which is the only way §4.6's "baffle 37 mm above board / 29 mm module allowance / 8 mm recess" (12+37=49, 12+29=41, 49−41=8) adds up. Nostril axis 58 → 55 mm so the full bore opens into the 11 mm lane. Flow order corrected: the **digital row is now upstream and the analog/MOX row downstream** — the 4 MOX heaters ≈ 3.6 W, MOX consumes reducing gas and desorbs during purge, so nothing should sit behind that row; this also makes §4.3's "U5 upstream of the MOX array" true (it was not) and puts the small cards ahead of the wide ones. Added a **reference port** in the baffle over U5 (`SHT_*`) — the soldered SHT31 was otherwise sealed behind a solid plate. Filter moved from a floating 90 × 12 slab to a **series element spanning the full 106 × 11 mm lane** behind the nostrils (a bypassable filter is not a filter); its area spec forces a pleated pack. Documented the module envelope + insertion orientation in §4.6. Header I→J. |
 | K | 2026-10-17 | **Module envelope audited against real breakouts; §4.5/§4.6 rewritten.** Added `mechanical/modules.py` (per-module form, outline, connector class, sensing-element geometry — each with a source) and gate `tools/verify_module_fit.py` (reports by default so the suite stays green; `--strict` is what CI runs once the sample is measured). Findings that remove hidden assumptions: the MQ-135 is sold on 32×20, 32×22, 36×24 *or* 40×21 mm boards, so "worst case 22 × 35 × 23" was a vendor lottery presented as a datasheet fact; MQ breakouts ship as `VCC GND AO DO` *and* `VCC GND DO AO`, so §4.2's pin order is a convention, not a standard, and a swapped module puts its 0–5 V AO on an unprotected 3.3 V GPIO (`DO0..DO3`); the ZE03 is a Ø23.5 × 24.5 mm can, not a card; MH-Z19C-PC is 38.8 × 19.7 × 8.6 mm with a 1.5 mm JST-ZH connector; MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts (MICS-6814 has three analog outputs against one AO per slot). §4.6 corrections: the "connector edge toward the front" insertion rule sent a 35 mm analog card through the rear wall, so the rule is now "card body into the free depth" (26/42/32 mm per lane), and the analog pitch derivation is corrected to card 1.6 + Ø19×23 can = 24.6 mm across in a 26 mm pitch. `tools/verify_pcb.py` placement checks are now measured from the board's own outline, so moving the board in the KiCad sheet (centring it) is safe — proven by re-running the gate on a board translated by (+60, +25) mm. Header J→K. |
+| L | 2026-10-18 | **The module standard is defined, and the slot stops being two banks.** Added `docs/module-standard.md` (OpenSmell Module Standard v1, OSM-1) + `mechanical/standard.py` (the same rules as data) and extended `tools/verify_module_fit.py` to check the chamber, the socket contract and the module database against it and print the remaining gap as OPEN. **Decision:** one slot design repeated — every slot carries a keyed 2.54 mm 1×6 gas-cell socket (**`+5V GND AO DO 3V3 ID`**, the `ID` pin being a 1-Wire EEPROM carrying pinout + calibration + exposure history) *and* a 3.3 V Qwiic/STEMMA QT port (adopting the mainstream I²C standard rather than inventing one; Grove/Gravity via adapter), over its own 20 × 20 mm window; 8 slots as two rows of four at a uniform 24 mm pitch. Cartridges mount **flat** (right-angle header in a vertical socket, sensing face up, element centred in a 20 × 20 mm zone 16 mm downstream of the connector face) which points a MOX can's end-face inlet at its window and turns the standing pose's 40–48 mm height (against 37 mm available) into ≈25 mm. Uniformity costs no size: 4 × 24 = 96 mm fits the existing 106 mm cavity, so this is the same 122 mm shell built from one repeat unit. Wetted-material bans (no silicone anywhere in the gas path — silicone vapour permanently poisons SnO₂), a class-wise calibration blob, a module-maker conformance checklist and the cost (<$0.30 base overhead per slot) are recorded. Added §15 (design decision record: each invariant, the alternative considered, why it was rejected, and the evidence status of every claim). **Corrected:** no carbon in series with the sample (it strips the analyte we are measuring; carbon belongs on a reference-air line, §6.3/§13 — a risk row was added for silicone poisoning), and this document's own header revision brought back in step with the table (J→L). Header K→L. |
 
 **Open items (need measurement or decision):**
 - Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
@@ -1055,37 +1108,38 @@ path for automatic zero/baseline calibration.
   (0 violations / 0 unconnected / 0 footprint errors) → fab package exported.
   `tools/verify_pcb.py` now holds that line. The v0 schematic is retained only as
   a pin-name source for `board.py`.
-- **Module envelope: MEASURE the module (top mechanical item)** — §4.5/§4.6 no
-  longer assume "22 × 35 × 23". `mechanical/modules.py` + `tools/verify_module_fit.py`
-  show that a 32–40 mm MQ breakout standing on its connector edge needs 40.5–48.5 mm
-  of height where 37 mm exists, i.e. it would pass through the baffle plate. Three
-  caliper measurements decide it: (1) which card edge carries the 2.54 mm header,
-  (2) the card's height above the board once plugged in, (3) the distance from the
-  header to the sensing element along the card. Until then the module envelope is a
-  requirement, and the gate runs non-strict (it exits 0 and prints OPEN; CI should
-  run `--strict` once the numbers are in).
-- **Connector classes are not standardised, and the documented order is the
-  transposed one** — the common 32 × 20 MQ-135 board documents `VCC GND DO AO`
-  against §4.2's `+5V GND AO DO 3V3`, so the slot's order is one vendor's
-  convention rather than a standard. `tools/verify_module_fit.py` now compares
-  module and socket orders by *role*, so this cannot drift back into silence.
-  A swapped module is harmless on the AO pin (10k/10k divider, §5.3) but puts its
-  0–5 V analog output straight on a 3.3 V ESP32 GPIO on the DO pin (`board.py`
-  connects `DO0..DO3` unmodified). Cheap fix: a 10 kΩ series resistor per DO pin
-  (limits the clamp current to ~170 µA and survives the swap), plus a documented
-  pin order and a polarising key. Decide before the next board revision; the
-  module pose may change anyway (§4.5), which re-routes the board.
+- **Module standard: the decision is made, the board is not yet built to it (top
+  item).** §4.9 fixes the socket — flat cartridges, uniform 24 mm pitch, 8 slots,
+  keyed 1×6 gas cell with an `ID` pin, a Qwiic port at every slot. Target
+  revision L is therefore a re-derive, not a decision: mechanical (constants →
+  CAD → windows at the +16 mm offset → PTFE insert), electrical (6-pin socket,
+  Qwiic per slot, **10 kΩ in series with every `DO`**, the 1-Wire net, the second
+  ADS1115 for 8 analog channels) and then a re-route. `tools/verify_module_fit.py`
+  prints every remaining gap as OPEN and exits 0; `--strict` is what CI runs once
+  revision L is built.
+- **What the standard retires.** The pin-order hazard: the socket is keyed, the
+  module's `ID` announces what it is, and a 10 kΩ series resistor on every `DO`
+  clamps a wrongly-inserted 0–5 V output to ≈170 µA instead of into a 3.3 V GPIO
+  (`board.py` connects `DO0..DO3` unmodified today). The pose lottery too: modules
+  no longer have to be measured for the chamber to be safe, because the base is
+  built to a published envelope, and the Rev K caliper numbers become a *module
+  maker's* conformance check rather than a design blocker.
 - **Carrier boards** — MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts, and
-  MICS-6814 has three analog outputs against one AO per slot. The §4.4 pack needs
-  a named carrier (or a different part) before it is orderable. The carrier the
-  audit could measure, Sensirion's own SEK-SCD41 board, is 28 × 24 × 8 mm: standing
-  it leaves 0.5 mm of the sensor recess, and flat its 24 mm width exceeds what the
-  21 mm digital pitch accepts (a route to 26 mm exists — 3 × 26 + 24 = 102 ≤ 106).
+  MICS-6814 has three analog outputs against one AO per slot. A cabled I²C module
+  now needs no envelope at all (§2.2), so only gas-cell carriers matter: one
+  shared OpenSmell carrier accepts a TO-5 can, a Ø23.5 Winsen can or a bare SMD
+  part and presents the standard socket, pinout and sensor zone (§4).
 - Mechanical: OS-003 (PCB floor plan) and OS-004 (pneumatic schematic) sheets (§12).
-- **Module mounting key** — the slot orientation is a *rule* (§4.6), not yet a
-  feature: the rule now positions the analog card body in the 42 mm inter-row gap
-  and the digital card body rearward, and the baffle apertures must be placed from
-  that same pose (§4.5). Worth adding an actual key so a module cannot be reversed.
+- **Module mounting key** — §4.9 defines it (pin-1 chamfer plus a polarising slot
+  in the socket wall) but no footprint carries it yet: revision L adds it to the
+  socket and to the cartridge outline, together with the aperture positions
+  derived from the flat pose (each window centred 16 mm downstream of its socket
+  line).
+- **Service access (success criterion U1)** — a flat cartridge lifts straight up
+  but its top sits ~4 mm under the baffle plate, so the plate is the lid: the
+  enclosure must let a user open the chamber and lift the plate without tools, or
+  U1's "≤ 60 s, no tools" cannot be met. A slide-out cartridge is not available
+  as an answer — a 40 mm cartridge has nowhere to pull it in a two-row cavity.
 - **PTFE insert floor + the user-facing openings (top mechanical item)** — §6.3
   already requires a separate PTFE insert, but the volume model has none, so today
   the board's whole top face (106 cm² of FR4 + solder mask, plus every component)
@@ -1097,15 +1151,66 @@ path for automatic zero/baseline calibration.
 - **Reference pocket** — U5 sees the sample through a 16 × 12 mm port, but its
   pocket below the baffle is ~35 mm deep (a deep cavity in a boundary layer can
   go stagnant). Verify with the smoke-ribbon test (NF2); if it lags, raise U5 on a
-  short carrier. A digital module's card can also overhang ~2 mm of that port.
+  short carrier. A cartridge can also overhang ~2 mm of that port.
 - Pneumatic: NF1 filter ΔP bench + **pleated media vendor** (a flat 106 × 11 face
   is only 11.7 cm², so the ≥70 cm² spec forces a folded pack); fan P/N.
-- CFD: one optional `simpleFoam` pass at 15 and 150 L/min (§8.3), including the
-  parallel path through the 8 wells + reference port into the shared sub-baffle
-  volume (NF5 well-washout), and the front-row question: the modules stand *below*
-  the plate in one shared volume, so the digital row cannot obstruct the 11 mm
-  lane itself — what it can do is perturb the exchange between the upstream
-  apertures and the analog ones, which is exactly what the solve must answer.
+- CFD: one `simpleFoam` pass at 15 and 150 L/min (§8.3) with the revision-L
+  geometry — the 8 wells and the reference port feeding the shared sub-baffle
+  volume, i.e. NF5 well-washout. Three numbers it must produce, because §4.9
+  fixes the hardware and the solve fixes these: (1) each window's exchange time,
+  which sets the 20 × 20 mm window and the 24 mm pitch; (2) the cascade between
+  the upstream and downstream rows (how much of the sample the first row removes
+  before the second sees it); (3) whether a filled slot's cartridge, lying flat
+  under its window, perturbs its neighbours' exchange.
 - Mass: MQ module mass from a physical sample.
 
-*Changes to a locked section require a revision bump and a row in this table.*
+---
+
+## 15. Design Decision Record
+
+Why each hard-to-vary choice is what it is, the alternative that was considered,
+and why it was rejected. **Parameters** are deliberately not recorded here — slot
+pitch, window size, slot count, cartridge envelope and cycle timings are set by
+`mechanical/constants.py` and the calculations in §3–§6, and change without a
+revision. **Invariants** (the socket contract, the physics layer, identity on the
+module, the record shape) change only through §14.
+
+| # | Decision | Alternative considered | Rejected because |
+|---|----------|------------------------|------------------|
+| 1 | The platform's job is the **controlled sample**, not the sensor list | support every module on the market | There is one socket (2.54 mm) and a size zoo: the same MQ-135 is sold as 32×20, 32×22, 36×24 and 40×21 mm boards in two different pin orders (`mechanical/modules.py`). |
+| 2 | **8 identical slots**, two rows of four | a row per electrical kind; a single row of eight | One row of eight needs 8 × 24 = 192 mm of the 106 mm cavity. Splitting by kind makes the bank a user decision and retires the analog advantage: 9 of 17 analytes are analog-only, the analog pool spans 7.93 independent dimensions against digital's 3.43, and a digital-only bank captures 50 % (`tools/verify_orthogonality.py`). |
+| 3 | **Both interfaces at every slot** (5 V gas cell + 3.3 V I²C) | one bank per interface | A wrong-bank insertion becomes an unsupported failure mode, and a 5 V I²C sensor has nowhere to go. Both connectors together cost ≈ $0.30 per slot. |
+| 4 | **Qwiic / STEMMA QT** for the I²C side | design a connector; Grove-first | Qwiic is what the sensor vendors ship. Grove and Gravity carry the same four signals and bridge with an adapter cable, so nothing is excluded. |
+| 5 | Keyed **1×6** gas cell (`+5V GND AO DO 3V3 ID`) | the 4-pin vendor order; an 8-pin universal header | A common MQ breakout (`VCC GND DO AO`) puts a 0–5 V output on a 3.3 V GPIO; an 8-pin header is wider than the slot it serves and still has no identity pin. |
+| 6 | **Identity EEPROM on the cartridge** | identity on the base; an ID resistor | A resistor identifies a part number, not a specimen. Per-cell calibration and exposure hours are what let drift and poisoning be handled in software (§4.9). |
+| 7 | **Flat cartridges**, right-angle header in a vertical socket | standing cards; cable everything | A MOX can's inlet is its end face, so a standing card aims it at its neighbour; and a standing 32–40 mm card needs 40.5–48.5 mm where 37 mm exists (§4.5). Cable-only would need an adapter for every bare MQ card. |
+| 8 | **Board is the chamber floor**, with a PTFE insert over its top face | board outside the chamber; bare FR4 wetted | FR4, solder mask and component plastics sorb and re-release VOC — that is carryover — and the 0603 dividers run ≈ 10 K above ambient so their tempco reaches the readings (§6.3). |
+| 9 | Filter is a **full-lane series element, no carbon** | an inline filter; a carbon scrubber | A bypassable filter is not a filter (§3.6), and carbon removes the analyte along with the interferent (§6.3). |
+| 10 | **MOX row last** in the flow | MOX first, at the freshest gas | Four MOX heaters ≈ 3.6 W are the largest heat load, MOX is a net sink for reducing gases, and it desorbs during purge (§4). |
+| 11 | The chamber is a **cascade, and every record says where the slot is** | treat the slots as independent | Gas independence degrades with upstream uptake. Reporting slot index and flow position lets the host model it (§4.9). |
+| 12 | **Driven three-phase cycle** | continuous streaming | Passive sampling injects uncontrolled ambient variability; comparability is the product (§2). |
+| 13 | Hand calculation plus gates first, **CFD once** | CFD before freezing the interface | The interface is what blocks hardware; the CFD tunes parameters, not invariants (§8.3). |
+
+### 15.1 Evidence status
+
+Proven means a gate re-derives it and fails the build if it stops being true.
+A gate is not a measurement.
+
+| Claim | Checked by | Status |
+|-------|-----------|--------|
+| Netlist ≡ schematic ≡ firmware pin map | `tools/verify_netlist.py` (ERC 0/0/0), `tools/verify_firmware_pins.py` | proven, machine-checked |
+| Routed board on the chamber contract, DRC-clean | `tools/verify_pcb.py` | proven, machine-checked |
+| Chamber, shell, baffle and drawings derive from one constants file | `tools/verify_cad.py` | proven, machine-checked |
+| Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
+| Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
+| Window exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated, not simulated — §8.3 |
+| System ΔP ≈ 1.9 Pa, fan point 35–60 L/min at 20–30 % PWM | hand calculation against datasheet anchors | calculated — NF1 bench not run |
+| Purge completeness ≥ 99 %, carryover ≤ 5 % | NF4 / §8.2 acceptance tests | not tested — no hardware built |
+| PTFE insert and user-facing openings | not modelled | not done — §14 |
+| Absolute concentration accuracy | — | not claimed (§0.5) |
+
+---
+
+*Changes to a locked section require a revision bump and a row in the revision
+table (§14).*
+

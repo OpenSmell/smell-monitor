@@ -16,6 +16,11 @@ module puts its gas port, and the real envelope of the carriers) can only be
 settled with calipers on a sample. Those show up as MEASURE, and blueprint 14
 lists them as the top open mechanical item. `--strict` is what CI should run
 once they are measured.
+
+It also checks the as-built chamber and socket contract against the OpenSmell
+Module Standard v1 (`docs/module-standard.md`, data in `mechanical/standard.py`)
+and prints every remaining gap as an OPEN item, so the standard and the hardware
+cannot drift apart quietly.
 """
 import os
 import sys
@@ -90,6 +95,57 @@ for key, m in M.MODULES.items():
                                                else IF.SLOT_DIGITAL)))
 check("published module pin orders match the socket order", not transposed,
       "; ".join("%s is [%s] vs slot [%s]" % t for t in transposed))
+
+# ------------------------- the module standard (OSM-1) ----------------------
+# docs/module-standard.md is prose; mechanical/standard.py is the same rules as
+# data. These checks are what keep the document and the hardware honest.
+import standard as S                                                # noqa: E402
+
+std_pins = S.CARTRIDGE["pins"]
+check("the gas-cell socket implements the standard pinout",
+      list(IF.SLOT_ANALOG) == std_pins,
+      "as-built [%s] vs standard [%s] - the ID pin is target revision L"
+      % (" ".join(IF.SLOT_ANALOG), " ".join(std_pins)))
+
+_win = {}
+for _bank, _x0, _sx, _sy in (("analog", "A_X", "A_SX", "A_SY"),
+                             ("digital", "D_X", "D_SX", "D_SY")):
+    _xs = CONST[_x0]
+    _win[_bank] = dict(pitch=_xs[1] - _xs[0], win=(CONST[_sx], CONST[_sy]))
+
+_lowp = {k: v["pitch"] for k, v in _win.items() if v["pitch"] < S.SLOTS["pitch"]}
+check("every row's pitch meets the %.0f mm standard" % S.SLOTS["pitch"],
+      not _lowp, "rows below standard: %s (uniform pitch is revision L)" % _lowp)
+
+_small = {k: v["win"] for k, v in _win.items()
+          if min(v["win"]) < min(S.SLOTS["window"])}
+check("every window meets the %gx%g mm standard" % S.SLOTS["window"],
+      not _small, "windows below standard: %s" % _small)
+
+_nslots = IF.N_ANALOG + IF.N_DIGITAL
+check("the base carries the standard's %d slots" % S.SLOTS["reference_count"],
+      _nslots == S.SLOTS["reference_count"], "%d slots as built" % _nslots)
+
+_ch = S.SLOTS["channels"]
+check("8 uniform slots close on the existing I2C topology",
+      "TCA9548A" in IF.I2C and _ch["mux"] <= 8
+      and (_ch["adc"] <= 1 or "ADS1115.2" in IF.I2C_EXPANSION),
+      "%d mux channels / %d ADC(s) need only the planned second ADS1115"
+      % (_ch["mux"], _ch["adc"]))
+
+# every *gas-cell* card must also fit the cartridge envelope; a cabled I2C
+# module has no envelope, which is the point of the port in 2.2
+_env = S.CARTRIDGE["envelope"]
+_badenv = []
+for _k, _m in M.MODULES.items():
+    if _m["lane"] != "analog" or _m["form"] != "card":
+        continue
+    _l, _w = _m["card"]
+    _across, _along = min(_l, _w), max(_l, _w)
+    if _across > _env["across"] or _along > _env["along"]:
+        _badenv.append("%s is %g across / %g along" % (_k, _across, _along))
+check("gas-cell cards fit the %gx%g mm cartridge envelope"
+      % (_env["across"], _env["along"]), not _badenv, "; ".join(_badenv))
 
 for key in M.STARTER_PACK:
     verdict, notes = RESULTS[key]

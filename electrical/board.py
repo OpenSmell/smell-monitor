@@ -26,7 +26,6 @@ import interface as IF  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, ".."))
-V0_SCH = os.path.join(HERE, "smell_monitor_v0", "smell_monitor_v0.kicad_sch")
 KICAD_SYM = r"C:\Program Files\KiCad\10.0\share\kicad\symbols"
 
 # ---------------------------------------------------------------------------
@@ -132,37 +131,9 @@ def _load_kicad_pins(lib_id):
     return out
 
 
-def _load_v0_pins(lib_id):
-    """Pins from the v0 schematic's embedded (already flattened) library."""
-    if lib_id in _PIN_CACHE:
-        return _PIN_CACHE[lib_id]
-    from kiutils.schematic import Schematic
-    s = Schematic.from_file(V0_SCH)
-    out = []
-    for ls in s.libSymbols:
-        if ls.libId != lib_id:
-            continue
-        def rec(x):
-            for p in getattr(x, "pins", None) or []:
-                out.append((str(p.number), p.name))
-            for u in getattr(x, "units", None) or []:
-                rec(u)
-        rec(ls)
-    if not out:
-        raise KeyError("v0 has no symbol %s" % lib_id)
-    _PIN_CACHE[lib_id] = out
-    _PIN_MIRROR[lib_id] = {}
-    for num, nm in out:
-        _PIN_MIRROR[lib_id].setdefault(nm, []).append(num)
-    return out
-
-
 def pin_numbers(lib_id):
-    """All pins of a library symbol, preferring the official KiCad library."""
-    try:
-        return _load_kicad_pins(lib_id)
-    except Exception:
-        return _load_v0_pins(lib_id)
+    """All pins of a library symbol, from the installed KiCad library."""
+    return _load_kicad_pins(lib_id)
 
 
 def pin_numbers_for(ref):

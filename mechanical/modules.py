@@ -24,6 +24,14 @@ So "one slot that fits everything" is not achievable. What *is* achievable is a
 documented slot standard plus carriers, and a gate that proves a named module
 fits the actual chamber. This file feeds `tools/verify_module_fit.py`.
 
+SETTLED POSE (docs/module-standard.md, OpenSmell Module Standard v1): cards are
+mounted **flat** on a right-angle header in a vertical socket - sensing face up,
+directly under the window, removed upward - and the socket is repeated on every
+slot. The vertical pose modelled below is the *as-built* revision that predates
+the standard; it is kept because its measurements are what settled the question
+(a standing 32-40 mm card needs 40-48 mm where only 37 mm exists). Both poses
+are reported, so the gate shows the closed case and the open one side by side.
+
 MOUNTED POSE (blueprint 4.5): the receptacle is a vertical strip, so a module's
 connector edge is horizontal and its card stands up like a card, plane parallel
 to the flow (header line along Y). Read in that pose:

@@ -1,6 +1,6 @@
 # Smell Monitor — Open-Source Digital Olfaction Hardware
 
-**Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced.
+**Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced. The module interface is fixed by **`docs/module-standard.md`** (OpenSmell Module Standard v1, OSM-1, blueprint §4.9); the board in the tree is still the revision that predates it, and `tools/verify_module_fit.py` prints every remaining gap as an open item.
 
 The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$50–150 BOM), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
 
@@ -19,7 +19,7 @@ We're not competing on certified precision. We're building the *Arduino of noses
 
 ## Key features
 
-- **8 sensor slots, sensor-agnostic:** 4 analog (5-pin: 5 V + GND + AO + DO + 3V3) + 4 digital (6-pin, 3.3 V I2C). MOX, MEMS, NDIR, electrochemical, piezo, QCM — if the electrical contract fits, it works.
+- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md); rewiring the current board to it is revision L.
 - **Repeatable measurements:** active three-phase cycle (intake → hold → purge), cavity-recessed sensors, PTFE/glass gas-contacting chamber.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
 - **Open:** KiCad source, BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. (Part numbers: `electrical/bom.csv` is designator/value/footprint/qty; supplier PNs are still an open item.)
@@ -29,8 +29,11 @@ We're not competing on certified precision. We're building the *Arduino of noses
 ```
 smell-monitor/
 ├── docs/
-│   └── blueprint.md         # ← THE single source of truth: objective, design,
-│                            #   verification, BOM, assembly, manual, drawings
+│   ├── blueprint.md         # ← THE single source of truth: objective, design,
+│   │                        #   verification, BOM, assembly, manual, drawings,
+│   │                        #   decision record (§15)
+│   └── module-standard.md   # OpenSmell Module Standard v1 (OSM-1): the slot,
+│                            #   pinouts, cartridge envelope, ID EEPROM, materials
 ├── electrical/
 │   ├── interface.py         # the frozen slot contract (schematic+PCB+firmware)
 │   ├── board.py             # parts + nets (netlist source of truth)
@@ -41,6 +44,8 @@ smell-monitor/
 │   └── smell_monitor_v1_1/  # KiCad project + routed board + fab/ export
 ├── mechanical/
 │   ├── constants.py         # locked parametric dimensions (single source)
+│   ├── standard.py          # the OSM-1 module rules as data (gates read this)
+│   ├── modules.py           # what the market actually sells, with sources
 │   ├── freecad/             # parametric 3D model (build + style scripts)
 │   └── drawings/            # DXF/PDF sheet generation
 ├── firmware/esp32/smell_monitor/   # ESP32 firmware (arduino-cli, sketch.yaml)
@@ -60,13 +65,15 @@ hand-verified numbers:
 | `tools/verify_sensor_matrix.py` | starter pack covers every persona |
 | `tools/verify_orthogonality.py` | response-matrix rank / slot-count trade study |
 | `tools/verify_firmware_pins.py` | firmware pin map == `interface.PINMAP` |
+| `tools/verify_module_fit.py` | real plug-in modules vs the chamber, and the chamber vs the OSM-1 module standard |
 
 ## Quick links
 
 1. **Read the blueprint:** `docs/blueprint.md` — objective & success criteria (§0), design (§1–7), verification (§8)
-2. **Build one:** `docs/blueprint.md` §9 (BOM) → §10 (assembly)
-3. **Use one:** `docs/blueprint.md` §11 (user manual)
-4. **Order a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
+2. **Design a module:** `docs/module-standard.md` — the slot, pinouts, cartridge envelope, identity EEPROM, conformance checklist
+3. **Build one:** `docs/blueprint.md` §9 (BOM) → §10 (assembly)
+4. **Use one:** `docs/blueprint.md` §11 (user manual)
+5. **Order a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
 
 ## Project status
 
