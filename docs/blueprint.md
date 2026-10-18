@@ -408,18 +408,22 @@ five facts that the earlier "worst-case 22 × 35 × 23" assumption hid:
 1. **The same sensor ships on different boards.** The MQ-135 today is a 32 × 20,
    32 × 22, 36 × 24 *or* 40 × 21 mm board depending on vendor. "Worst case 35"
    was a single vendor's number presented as a datasheet fact.
-2. **The same breakout ships with a different pin order.** MQ-135 breakouts are
-   sold as `VCC GND AO DO` *and* as `VCC GND DO AO`. A passive 2.54 mm receptacle
-   cannot promise which signal lands on which pin (§4.2's `+5V GND AO DO 3V3`
-   order is one vendor's convention, not a standard).
+2. **The same breakout ships with a different pin order, and the published order
+   is the *other* one.** MQ-135 breakouts are sold as `VCC GND AO DO` *and* as
+   `VCC GND DO AO`; the widely-copied 32 × 20 board documents `VCC GND DO AO`,
+   i.e. the reverse of §4.2's `+5V GND AO DO 3V3`. `tools/verify_module_fit.py`
+   compares the two orders as *roles* on every module, so this can't drift back
+   into silence: with the documented order the module's **analog output lands on
+   the slot's DO pin**, which `board.py` wires to an unprotected 3.3 V GPIO.
 3. **Several recommended parts are not plug-in modules at all.** MICS-6814,
    SCD40/41, SGP4x and BME688 are SMD packages; they are only pluggable because
    somebody else's *carrier board* exists, and carriers vary in size.
 4. **MICS-6814 has three analog outputs**, while one analog slot reads one AO.
-5. **Not every module uses a 2.54 mm header.** MH-Z19C-PC is a 38.8 mm flat
-   module with a 1.5 mm JST-ZH connector; Adafruit STEMMA QT boards use 1.0 mm
-   JST-SH (their unpopulated 0.1 in holes make them 2.54-compatible). The ZE03
-   is not a card at all but a Ø23.5 × 24.5 mm can.
+5. **Not every module uses a 2.54 mm header.** MH-Z19C is a 38.8 mm flat module
+   with a 1.5 mm JST-ZH connector; DFRobot's Gravity modules use a 3-pin
+   JST-PH 2.0; Adafruit STEMMA QT boards use 1.0 mm JST-SH (their unpopulated
+   0.1 in holes make them 2.54-compatible); Figaro's TGS parts are bare TO-5 cans.
+   The ZE03 is not a card at all but a Ø23.5 × 24.5 mm can.
 
 So the slot is a **standard, not a universal socket**:
 
@@ -435,11 +439,14 @@ Verified numbers (mm). `FITS` is the gate's verdict against the geometry in
 
 | Module | Form | Outline | Bank | Verdict | Note |
 |--------|------|---------|------|---------|------|
-| MQ-135/136 class | card | 32 × 20 … 40 × 21 × 1.6 | Analog | **MEASURE** | 40.5–48.5 mm tall in the standing pose ⇒ **hits the plate** (37 mm clear). Resolved by the connector-edge measurement below. |
+| MQ-135/136 class | card | 32 × 20 … 40 × 21 × 1.6 | Analog | **MEASURE** | 40.5–48.5 mm tall in the standing pose ⇒ **hits the plate** (37 mm clear). Pins are `VCC GND DO AO` ⇒ AO/DO transposed against §4.2. |
 | Winsen ZE03 (EC) | can | Ø23.5 × 24.5 | Analog | FITS | 33 mm tall ⇒ only a 4 mm recess (spec 8); Ø23.5 in a 26 mm pitch = 2.5 mm gap |
-| MH-Z19C-PC (NDIR) | flat | 38.8 × 19.7 × 8.6 | Analog | **carrier** | JST-ZH 1.5 mm, not 2.54 — pigtail or carrier |
-| Adafruit STEMMA QT | card | 25.4 × 17.8 × 4.6 | Digital | FITS | needs its 0.1 in header soldered |
-| SCD40/41, SGP4x, BME688, MICS-6814 | SMD | 2.45² … 10.1² | both | **carrier** | MICS-6814 also needs 3 AO channels |
+| Winsen MH-Z19C (NDIR) | flat | 38.8 × 19.7 × 8.6 | Analog | **carrier** | 1.5 mm JST-ZH, not 2.54 — pigtail or carrier |
+| Figaro TGS2600 | TO-5 can | Ø9.2 | Analog | **carrier** | bare 4-lead can: needs the load resistor + heater drive on a carrier |
+| DFRobot Gravity MQ-2 | card | 33 × 22 | Analog | **carrier** | Gravity 3-pin JST-PH 2.0, no 2.54 header |
+| Sensirion SEK-SCD41 board | card | 28 × 24 × 8 | Digital | **MEASURE** | standing on its 24 mm edge it leaves 0.5 mm of the recess; flat, its 24 mm width needs a 26 mm pitch |
+| Adafruit SCD-40 / STEMMA QT class | card | 25.4 × 17.8 × 4.6 | Digital | FITS | 0.1 in holes must be soldered; flat-mounted its 17.8 mm width still fits a 21 mm pitch |
+| SCD40/41, SGP4x, BME688, MICS-6814 | SMD | 2.45² … 10.1² | both | **carrier** | MICS-6814 also needs 3 AO channels for 1 slot |
 
 The two facts that decide the analog-row envelope are still open, and they are
 one caliper measurement each:
@@ -465,7 +472,7 @@ result: the pose must be fixed first, then the aperture placed from it.
 | Rule | Value | Derivation |
 |------|-------|-----------|
 | Analog in-row pitch | **26 mm** | the module is 24.6 mm across when its Ø19 can points sideways (card 1.6 + can 23) → 1.4 mm gap |
-| Digital in-row pitch | **21 mm** | worst 17.6–22.8 mm + ≥ 3 mm gap |
+| Digital in-row pitch | **21 mm** | worst 17.6–22.8 mm + ≥ 3 mm gap; a module standing on an edge is only ~8 mm across, but **flat-mounted** only a ≤19 mm-wide board fits — Sensirion's own SCD41 board is 24 mm wide, so it needs 26 mm |
 | Analog row span (4) | 3×26 + 24.6 = **102.6 mm** | with every can pointing the same way; the end cans must face inward or the chain exits the cavity (x −2.6 … 124.6 in a 114 mm shell) |
 | Digital row span (4) | 3×21 + 5 = **68 mm** | no cans |
 | Free depth per row | 26 / 42 / 32 mm | ahead of the digital row / between the rows / behind the analog row |
@@ -1057,17 +1064,23 @@ path for automatic zero/baseline calibration.
   header to the sensing element along the card. Until then the module envelope is a
   requirement, and the gate runs non-strict (it exits 0 and prints OPEN; CI should
   run `--strict` once the numbers are in).
-- **Connector classes are not standardised** — MQ breakouts exist as both
-  `VCC GND AO DO` and `VCC GND DO AO`, so the slot's pin order is one vendor's
-  convention. Today a swapped module is harmless on the AO pin (10k/10k divider,
-  §5.3) but puts its 0–5 V analog output straight on a 3.3 V ESP32 GPIO on the DO
-  pin (`board.py` connects `DO0..DO3` unmodified). Cheap fix: a 10 kΩ series
-  resistor per DO pin (limits the clamp current to ~170 µA and survives the swap),
-  plus a documented pin order and a polarising key. Decide before the next board
-  revision; the module pose may change anyway (§4.5), which re-routes the board.
+- **Connector classes are not standardised, and the documented order is the
+  transposed one** — the common 32 × 20 MQ-135 board documents `VCC GND DO AO`
+  against §4.2's `+5V GND AO DO 3V3`, so the slot's order is one vendor's
+  convention rather than a standard. `tools/verify_module_fit.py` now compares
+  module and socket orders by *role*, so this cannot drift back into silence.
+  A swapped module is harmless on the AO pin (10k/10k divider, §5.3) but puts its
+  0–5 V analog output straight on a 3.3 V ESP32 GPIO on the DO pin (`board.py`
+  connects `DO0..DO3` unmodified). Cheap fix: a 10 kΩ series resistor per DO pin
+  (limits the clamp current to ~170 µA and survives the swap), plus a documented
+  pin order and a polarising key. Decide before the next board revision; the
+  module pose may change anyway (§4.5), which re-routes the board.
 - **Carrier boards** — MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts, and
   MICS-6814 has three analog outputs against one AO per slot. The §4.4 pack needs
-  a named carrier (or a different part) before it is orderable.
+  a named carrier (or a different part) before it is orderable. The carrier the
+  audit could measure, Sensirion's own SEK-SCD41 board, is 28 × 24 × 8 mm: standing
+  it leaves 0.5 mm of the sensor recess, and flat its 24 mm width exceeds what the
+  21 mm digital pitch accepts (a route to 26 mm exists — 3 × 26 + 24 = 102 ≤ 106).
 - Mechanical: OS-003 (PCB floor plan) and OS-004 (pneumatic schematic) sheets (§12).
 - **Module mounting key** — the slot orientation is a *rule* (§4.6), not yet a
   feature: the rule now positions the analog card body in the 42 mm inter-row gap

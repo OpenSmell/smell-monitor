@@ -56,10 +56,12 @@ MIN_LATERAL_GAP = 2.0    # clearance we want between a can and the next card
 WALL_GAP = 2.0           # clearance between the end of a row and the cavity wall
 
 
-def _mq(name, card, src):
-    """An MQ-family breakout: silver can, 4-pin 2.54 mm header on one edge."""
+def _mq(name, card, src, pins="VCC GND DO AO"):
+    """An MQ-family breakout: silver can, 4-pin 2.54 mm header on one edge.
+    `pins` is the module's OWN order, quoted from the vendor: it matters,
+    because the slot order in interface.py is `+5V GND AO DO 3V3`."""
     return dict(name=name, lane="analog", form="card", card=card, t=1.6,
-                edge="short", conn=("2.54 hdr", 4), ao=1,
+                edge="short", conn=("2.54 hdr", 4), ao=1, pins=pins,
                 can=(19.0, 23.0), can_off=16.0, basis="vendor", src=src,
                 unverified=["edge", "can_off"])
 
@@ -85,12 +87,7 @@ MODULES = {
                  src="winsen ZE03 page: d23.5 x 24.5 mm, 3V UART + Vout",
                  unverified=[]),
     # ---- NDIR --------------------------------------------------------------
-    "MH-Z19C-PC": dict(name="MH-Z19C-PC (NDIR)", lane="analog", form="flat",
-                       card=(38.8, 19.7), t=8.6, edge="flat", ao=1, can=None,
-                       conn=("JST ZH 1.5 mm", 6), can_off=None,
-                       basis="vendor",
-                       src="reichelt 297318: 38.8x19.7x8.6 mm, JST ZH 6p",
-                       unverified=["can_off"]),
+    # (the MH-Z19C flat module is listed with the vendor breakouts below)
     # ---- SMD parts: pluggable only as somebody's carrier -------------------
     "SCD40": dict(name="Sensirion SCD40/41 (SMD)", lane="digital", form="smd",
                   card=(10.1, 10.1), t=6.5, edge=None, conn=("SMD", 0), ao=0,
@@ -110,13 +107,40 @@ MODULES = {
                       basis="vendor",
                       src="SGX 1143 rev 8: cavity 5.5x7.5x2.55 mm, 10 terminals",
                       unverified=[]),
+    # ---- carrier boards: what the SMD parts actually arrive on ------------
+    "SCD41-dev": dict(name="Sensirion SEK-SCD41 board", lane="digital",
+                      form="card", card=(28.0, 24.0), t=8.0, edge="short", ao=0,
+                      conn=("0.1 in (2.54) holes", 4), can=None, can_off=None,
+                      basis="vendor", unverified=["edge"],
+                      src="sensirion SEK-SCD41 tech description: 28 x 24 x 8 mm"),
+    "SCD40-adafruit": dict(name="Adafruit SCD-40 / STEMMA QT class", lane="digital",
+                           form="card", card=(25.4, 17.8), t=4.6, edge="long",
+                           ao=0,
+                           conn=("0.1 in (2.54) holes + JST SH 1.0 mm", 4),
+                           can=None, can_off=None, basis="vendor",
+                           unverified=["edge"],
+                           src="adafruit 5187: STEMMA QT form factor, 1.0 x 0.7 in"),
+    "TGS2600": dict(name="Figaro TGS2600 (bare TO-5)", lane="analog", form="smd",
+                    card=(9.2, 9.2), t=9.0, edge=None, conn=("TO-5, 4 leads", 4),
+                    ao=1, can=None, can_off=None, basis="vendor",
+                    unverified=["card"],
+                    src="figaro/arrow: TGS2600 is a 4-lead TO-5 can - needs a "
+                        "carrier with the load resistor and heater drive"),
+    "DFRobot-Gravity": dict(name="DFRobot Gravity MQ-2 (SEN0127)", lane="analog",
+                            form="card", card=(33.0, 22.0), t=1.6, edge="long",
+                            ao=1, pins="VCC GND AOUT",
+                            conn=("JST-PH 2.0 Gravity, 3-pin", 3),
+                            can=(19.0, 23.0), can_off=None, basis="vendor",
+                            unverified=["card", "edge", "can_off"],
+                            src="dfrobot SEN0127: Gravity 3-pin (JST-PH 2.0) "
+                                "interface, no 2.54 header"),
     # ---- vendor breakouts whose shape is published -------------------------
-    "STEMMA-QT": dict(name="Adafruit STEMMA QT board", lane="digital",
-                      form="card", card=(25.4, 17.8), t=4.6, edge="long", ao=0,
-                      conn=("0.1 in (2.54) holes + JST SH 1.0 mm", 4), can=None,
-                      can_off=None, basis="vendor",
-                      src="adafruit: 1.0 x 0.7 in board, STEMMA QT + 0.1in holes",
-                      unverified=["edge", "can_off"]),
+    "MH-Z19C": dict(name="Winsen MH-Z19C (NDIR)", lane="analog", form="flat",
+                    card=(38.8, 19.7), t=8.6, edge="flat", ao=1,
+                    conn=("JST ZH 1.5 mm", 6), can=None, can_off=None,
+                    basis="vendor", unverified=["can_off"],
+                    src="winsen MH-Z19C manual / reichelt 297318: 38.8 x 19.7 x "
+                        "8.6 mm, 6-pin 1.5 mm JST-ZH"),
 }
 
 # The modules blueprint 4.4 actually promises. The gate is strict about these.

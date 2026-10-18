@@ -59,6 +59,38 @@ check("the database records a source for every module",
       all(m.get("src") for m in M.MODULES.values()),
       str([k for k, m in M.MODULES.items() if not m.get("src")]), hard=True)
 
+# ------------------------- socket vs module pin order -----------------------
+# A passive 2.54 mm receptacle has no idea what is plugged into it. Where a
+# vendor publishes the module's own pin order, compare the two as *roles* and
+# report a transposition: an analog output landing on the slot's DO pin is a
+# 0-5 V signal on a 3.3 V ESP32 GPIO.
+import interface as IF                                              # noqa: E402
+
+ROLE = {"VCC": "PWR", "VDD": "PWR", "VIN": "PWR", "+5V": "PWR", "5V": "PWR",
+        "3V3": "PWR", "VSS": "GND", "AO": "AO", "AOUT": "AO", "VOUT": "AO",
+        "DO": "DO", "DOUT": "DO"}
+
+
+def roles(pins):
+    out = []
+    for p in pins:
+        out.append(ROLE.get(p, p))
+    return out
+
+
+SLOT = {"analog": roles(IF.SLOT_ANALOG), "digital": roles(IF.SLOT_DIGITAL)}
+transposed = []
+for key, m in M.MODULES.items():
+    pins = m.get("pins")
+    if not pins:
+        continue
+    if roles(pins.split()) != SLOT[m["lane"]][:len(pins.split())]:
+        transposed.append((key, pins, " ".join(IF.SLOT_ANALOG
+                                               if m["lane"] == "analog"
+                                               else IF.SLOT_DIGITAL)))
+check("published module pin orders match the socket order", not transposed,
+      "; ".join("%s is [%s] vs slot [%s]" % t for t in transposed))
+
 for key in M.STARTER_PACK:
     verdict, notes = RESULTS[key]
     ok = verdict == "FITS"
