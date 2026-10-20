@@ -2,6 +2,11 @@
 
 **Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced. The module interface is fixed by **`docs/module-standard.md`** (OpenSmell Module Standard v1, OSM-1, blueprint §4.9); the board in the tree is still the revision that predates it, and `tools/verify_module_fit.py` prints every remaining gap as an open item.
 
+**One blocking mechanical defect is open:** the shell is modelled as a sealed box
+— 30 mm of material over the chamber, no lid and no service opening — so it
+cannot be printed, assembled or serviced as drawn. Blueprint §14 records the
+measurement, the cause and the fix.
+
 The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$50–150 BOM), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
 
 **You** choose the sensors. **It** supplies the repeatable pneumatic environment, clean power, 16-bit acquisition, and logged temperature/humidity to make their outputs comparable.
@@ -23,6 +28,38 @@ We're not competing on certified precision. We're building the *Arduino of noses
 - **Repeatable measurements:** active three-phase cycle (intake → hold → purge), cavity-recessed sensors, PTFE/glass gas-contacting chamber.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
 - **Open:** KiCad source, BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. (Part numbers: `electrical/bom.csv` is designator/value/footprint/qty; supplier PNs are still an open item.)
+
+## How it works, in one paragraph
+
+Air is pulled through three Ø6 nostrils, through a filter that spans the full
+width of the duct, along an 11 mm lane, and down through eight 20 × 20 mm
+windows — one per slot — into the sealed volume under the baffle plate, then out
+through a 40 mm fan. Each window sits over one module's sensing face, so every
+sensor sees the same sample at the same time, at a known flow position (digital
+row upstream, the hot MOX row last). The board is the chamber floor and a PTFE
+insert covers all of it except the eight sensor windows and the reference port,
+so the air touches PTFE, borosilicate and 316 stainless only. Readings stay
+comparable because the cycle is driven (intake → hold → purge) and every record
+carries slot index, flow position, temperature, humidity, and the module's
+identity and calibration from its 1-Wire EEPROM.
+
+## What it costs
+
+Indicative one-off prices in USD (Oct 2026). The gates check geometry and nets,
+not prices.
+
+| Item | ~ |
+|---|---|
+| PCB, 114 × 105 mm, 2-layer, 5 pcs | $3 |
+| Board parts: ESP32-WROOM, ADC, I²C mux, LDO, passives, connectors | $16 |
+| 8 × keyed 1×6 gas-cell sockets + 8 × Qwiic ports | $4 |
+| SHT31 reference module | $4 |
+| 40 mm 5 V PWM fan | $6 |
+| Filter media (pleated pack) | $4 |
+| PETG + PTFE stock | $8 |
+| M3 thumb screws + heat-set inserts | $3 |
+| **Base, no sensors** | **≈ $48** |
+| Starter pack: MQ-135, MQ-136, MICS-6814 carrier, ZE03-C2H4, SCD40 | $60–110 |
 
 ## Repository layout
 

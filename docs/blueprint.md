@@ -1020,8 +1020,8 @@ plotted **PDF** for the record — per ASME Y14.100 / ISO 5457 practice.
 | Sheet | Content | Status |
 |-------|---------|--------|
 | OS-000 | Assembly — exploded isometric (assembly order + balloons) + isometric general arrangement + BOM | **produced** |
-| OS-001 | Shell — front / plan / section B-B + iso, fully dimensioned | **produced** |
-| OS-002 | Baffle — plan (8 wells + reference port) / section A-A + iso, fully dimensioned | **produced** |
+| OS-001 | Shell — front / section C-C (horizontal, through the exhaust bore) / section B-B / isometric cutaway, fully dimensioned | **produced** |
+| OS-002 | Baffle — plan at **1:1** (8 wells + reference port, print-and-check template) / section A-A at 2:1 + iso, fully dimensioned | **produced** |
 | OS-003 | PCB mechanical floor plan — board 114×105, header rows | planned |
 | OS-004 | Pneumatic schematic — flow path, ΔP, fan operating point | planned |
 
@@ -1030,6 +1030,22 @@ returns true visible/hidden edges measured off the solid), so the views are
 faithful, not schematic boxes. Sheet format: A3 landscape, ISO 7200 title block,
 first-angle projection. The sheets are emitted as an editable **DXF** source and
 a plotted vector **PDF** in `mechanical/drawings/sheets/`.
+
+**Sections are cut, not drawn.** Each section view is the solid cut by a half
+space, and the builder extracts the planar faces that cut created (outer wire
+first, then islands) and ships them as `cuts` in the HLR record. The sheet
+generator hatches exactly those polygons with ANSI31 and draws their boundary as
+a heavy line, so the fill cannot drift off the part and a section can never
+silently become a wireframe. `tools/verify_cad.py` requires HATCH entities on
+both part sheets.
+
+**A plan view is not a section.** The shell plan was replaced by a horizontal
+section at z = 35: in a plan, the cavity, the board pocket and the plate ledge
+all project onto each other as hidden lines and the view reads as a hatched
+mess. The cut shows the same walls, the exhaust bore and the floor pocket as
+real material. Isometric views are rotated by −30° so the model +Z is vertical —
+TechDraw's projector puts +Y vertical, which makes an unrotated isometric lie on
+its back and hides the fact that the parts are stacked in Z.
 
 **Dimensioning.** Dimensions are true DIMENSION entities (`dimlfac = 1/s`, so the
 displayed value is the model millimetre size) and they are attached to the real
@@ -1151,11 +1167,35 @@ path for automatic zero/baseline calibration.
   socket and to the cartridge outline, together with the aperture positions
   derived from the flat pose (each window centred 16 mm downstream of its socket
   line).
+- **BLOCKER — the shell as modelled is a sealed solid (found while re-drawing
+  it).** Measured from `mechanical/freecad/smell_monitor_shell.STEP`: volume
+  714 427 mm³ against a 122 × 114 × 90 = 1 251 720 mm³ envelope (57 % solid), and
+  `isInside((61, 57, 75))` is true, i.e. 30 mm of material closes the top of the
+  chamber. There is no lid in the BOM and no opening anywhere except the three
+  Ø6 intakes and the Ø40 exhaust. Consequences, in order of severity: the part
+  **cannot be FDM-printed** (a sealed internal cavity), **cannot be assembled**
+  (the baffle plate and the eight cartridges have no way in), and **cannot be
+  serviced**. A nicer drawing cannot fix this; the geometry has to change.
+- **The board and the enclosure disagree about orientation (same review).** The
+  board's own placement reads as a *vertical front panel*: USB-C `J1` at (10, 6),
+  buttons `SW1..SW3` at (74–92, 12), buzzer `BZ1` (12, 93), LED `LED1` (40, 94)
+  and the ESP32 `U1` (68, 94.4) all sit along the two long edges. The model mounts
+  that board *horizontally* as the chamber floor, so its top face — and therefore
+  the USB-C, all three buttons, the buzzer and the LED — is inside the sealed
+  sample chamber. Moving the openings is not enough: the three buttons would sit
+  12 mm behind a wall.
 - **Service access (success criterion U1)** — a flat cartridge lifts straight up
   but its top sits ~4 mm under the baffle plate, so the plate is the lid: the
   enclosure must let a user open the chamber and lift the plate without tools, or
   U1's "≤ 60 s, no tools" cannot be met. A slide-out cartridge is not available
   as an answer — a 40 mm cartridge has nowhere to pull it in a two-row cavity.
+  **Proposed fix (one decision, then a re-derive):** body 0–60 mm open at the top;
+  lid 60–70 mm held by four M3 thumb screws into heat-set inserts, with four posts
+  that press the baffle plate onto its corner brackets (so the plate comes out
+  with the lid, no tool); the envelope becomes **122 × 114 × 70**, removing the
+  30 mm of dead material above the chamber. The UI goes on a small front-panel
+  board (OLED + three buttons + one Qwiic link) on the front face, which is the
+  only place a display can face the user on a horizontal main board.
 - **PTFE insert floor + the user-facing openings (top mechanical item)** — §6.3
   already requires a separate PTFE insert, but the volume model has none, so today
   the board's whole top face (106 cm² of FR4 + solder mask, plus every component)
@@ -1206,6 +1246,11 @@ module, the record shape) change only through §14.
 | 11 | The chamber is a **cascade, and every record says where the slot is** | treat the slots as independent | Gas independence degrades with upstream uptake. Reporting slot index and flow position lets the host model it (§4.9). |
 | 12 | **Driven three-phase cycle** | continuous streaming | Passive sampling injects uncontrolled ambient variability; comparability is the product (§2). |
 | 13 | Hand calculation plus gates first, **CFD once** | CFD before freezing the interface | The interface is what blocks hardware; the CFD tunes parameters, not invariants (§8.3). |
+| 14 | **No pH on the base** — pH is a different instrument, not another slot | a pH slot in the array | A glass electrode is a wet-storage consumable (it must sit in KCl and be re-calibrated), its output is ~−59 mV/pH at hundreds of MΩ, and it measures an aqueous phase, while every other slot measures headspace gas. A pH probe belongs on an external port or on a cartridge that brings its own buffer and storage cap; putting it in the gas chamber would dry it out and poison the array's reference. |
+| 15 | **No battery on the base** — USB-C 5 V in, plus a 2-pin 5 V aux header | LiPo + charger + fuel gauge | A cell adds cost, a lithium shipping/compliance burden and a heat source next to four MOX heaters, and it makes the enclosure a battery compartment. A $10 power bank on the aux header gives hours of runtime with zero design, zero certification and zero thermal risk. |
+| 16 | **UI on a small front-panel board**, not on the chamber-floor board | OLED + buttons on the main board | The main board's top face *is* the chamber floor: anything on it is either in the sample air (sorbing, heating, corroding) or behind a wall. The front face is the only surface a display can face the user from, and one Qwiic cable is cheaper than a windowed lid plus a re-laid main board. |
+| 17 | **Reference sensor is a socketed module** (Qwiic), not a soldered part | SHT31 soldered to the main board | A soldered SHT31 makes the whole board a consumable when the sensor drifts, and it cannot be swapped for a calibrated one. A Qwiic reference module costs ~$4 and is field-replaceable, which is what "serviceable" has to mean for the one part that sees the air directly. |
+| 18 | **Acrylic or PU conformal coat**, never silicone | silicone coat; parylene | Silicone vapour poisons SnO₂ permanently (§13), so a silicone-coated board is a slow array killer. Acrylic/PU protects the copper and the dividers at ~$0 and can be masked off the sensor windows and connectors; parylene is better but needs a vacuum house and cannot be touched up. |
 
 ### 15.1 Evidence status
 
