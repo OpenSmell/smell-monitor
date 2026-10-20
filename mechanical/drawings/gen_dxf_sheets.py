@@ -546,8 +546,8 @@ def sheet_assembly(doc):
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    ex = View(psp, "assembly", "EXPLODED", -30, 0.44, 104, 72, hidden=False)
-    caption(psp, ex.centre[0], 64, "EXPLODED \u2013 assembly order  (NTS)")
+    ex = View(psp, "assembly", "EXPLODED", -30, 0.40, 104, 66, hidden=False)
+    caption(psp, ex.centre[0], 58, "EXPLODED \u2013 assembly order  (NTS)")
     off = HLR["explode"]
     # Balloons sit on the part they name, in its exploded position: the offsets
     # travel from the model, so the leader cannot point at where a part used to
@@ -640,9 +640,9 @@ def sheet_shell(doc):
                  2 * CONST["FAN_R"], CONST["FAN_Z"]))
 
     # ---- ISO: cutaway on the same plane as B-B, so the inside is visible --
-    iso = View(psp, "shell", "ISO", -30, 0.34, 300, 92, hidden=False, hatch=1.4)
-    caption(psp, iso.centre[0], 84,
-            "ISO \u2013 cutaway at x=%d (inside visible)  (NTS)" % MIDX)
+    iso = View(psp, "shell", "ISO", -30, 0.38, 300, 100, hidden=False)
+    caption(psp, iso.centre[0], 96,
+            "ISO \u2013 shell as printed  (NTS)")
 
     notes_block(psp, 16, 78, [
         "MATERIAL: PETG FDM, 0.2 mm LAYER, 4 PERIMETERS; SEAL WETTED FACES.",
@@ -708,7 +708,7 @@ def sheet_baffle(doc):
                (A_X[3] + CONST["A_SX"] / 2, 0, BZ),
                (CX1, 0, BZ)], 8)                              # 3/22/4/22...
     a.dim_x((CX0, 0, BZ), (CX1, 0, BZ), 16)                   # 106
-    a.dim_y((CX0, 0, BZ - BT), (CX0, 0, BZ), 12, "left")      # 2
+    a.dim_y((CX1, 0, BZ - BT), (CX1, 0, BZ), 10, "right")     # 2, in open space
 
     iso = View(psp, "baffle", "ISO", -30, 0.45, 268, 150, hidden=False)
     caption(psp, iso.centre[0], 144, "ISO \u2013 open-bottom wells  (NTS)")

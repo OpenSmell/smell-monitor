@@ -331,7 +331,7 @@ for _s, _v in ((baffle.Shape, EXPLODE["baffle"]),
 VIEW_REQUESTS = [
     ("shell", "FRONT", shell.Shape, (0, -1, 0)),
     ("shell", "SECTION_CC", sec_cc, (0, 0, 1)),    ("shell", "SECTION_BB", sec_bb, (1, 0, 0)),
-    ("shell", "ISO", sec_bb, (1, -1, 1)),
+    ("shell", "ISO", shell.Shape, (1, -1, 1)),
     ("baffle", "PLAN", baffle.Shape, (0, 0, 1)),
     ("baffle", "SECTION_AA", sec_aa, (0, 1, 0)),
     ("baffle", "ISO", baffle.Shape, (1, -1, 1)),
@@ -343,7 +343,6 @@ out = {"explode": {k: list(v) for k, v in EXPLODE.items()}}
 CUTS = {
     ("shell", "SECTION_BB"): cut_faces(sec_bb, 0, MIDX),
     ("shell", "SECTION_CC"): cut_faces(sec_cc, 2, CONST["FAN_Z"] + 5.0),
-    ("shell", "ISO"): cut_faces(sec_bb, 0, MIDX),
     ("baffle", "SECTION_AA"): cut_faces(
         sec_aa, 1, CONST["A_Y0"] + CONST["A_SY"] / 2.0),
 }
