@@ -64,7 +64,6 @@ LAYERS = {
     "HATCH": (34, "CONTINUOUS", 13),
     "TXT":   (7, "CONTINUOUS", 25),
     "BOM":   (7, "CONTINUOUS", 25),
-    "SEC":   (1, "CONTINUOUS", 50),
 }
 _ALIGN = {"l": TextEntityAlignment.LEFT, "c": TextEntityAlignment.MIDDLE_CENTER,
           "r": TextEntityAlignment.RIGHT, "tc": TextEntityAlignment.TOP_CENTER,
@@ -77,9 +76,11 @@ def new_doc():
     doc.header["$INSUNITS"] = 4       # millimetres
     doc.header["$LUNITS"] = 2
     if "DASHED" not in doc.linetypes:
-        doc.linetypes.add("DASHED", pattern=[1.0, 0.6, -0.4])
+        # Paper-space patterns: a hidden line has to read as dashes at 150 dpi,
+        # and a 0.6 mm dash at 1:2 prints as a dotted smear.
+        doc.linetypes.add("DASHED", pattern=[3.0, 2.0, -1.0])
     if "CENTER" not in doc.linetypes:
-        doc.linetypes.add("CENTER", pattern=[2.0, 0.6, -0.4, 0.6, -0.4])
+        doc.linetypes.add("CENTER", pattern=[4.0, 2.6, -0.7, 0.7, -0.7])
     for name, (col, lt, lw) in LAYERS.items():
         if name not in doc.layers:
             lay = doc.layers.add(name, color=col, linetype=lt)
@@ -97,13 +98,17 @@ def new_doc():
 
 
 def _rot(x, y, mode):
-    if mode == 90:
-        return (-y, x)
-    if mode == 180:
-        return (-x, -y)
-    if mode == 270:
-        return (y, -x)
-    return (x, y)
+    """Rotate a projection point by `mode` degrees CCW (paper orientation).
+
+    Views are normally placed in 90-degree steps, but an isometric projection
+    only reads correctly when the model +Z ends up vertical: TechDraw's
+    projector puts +Y vertical, so an isometric needs -30 degrees, not 0.
+    """
+    if not mode:
+        return (x, y)
+    a = math.radians(mode)
+    c, s = math.cos(a), math.sin(a)
+    return (x * c - y * s, x * s + y * c)
 
 
 def _ent_pts(e):
@@ -141,7 +146,8 @@ class View:
     `ax` is measured by the FreeCAD builder, never assumed (see its docstring).
     """
 
-    def __init__(self, psp, part, view, orient, s, left, bottom, hidden=True):
+    def __init__(self, psp, part, view, orient, s, left, bottom, hidden=True,
+                 hatch=None):
         self.psp = psp
         self.rec = HLR[part][view]
         self.ax = self.rec["axes"]
@@ -149,6 +155,7 @@ class View:
         self.s = float(s)
         self.left, self.bottom = float(left), float(bottom)
         self.hidden = hidden
+        self.hatch_scale = hatch
         x0, y0, x1, y1 = self._raw_ext()
         corners = [_rot(x, y, orient) for x in (x0, x1) for y in (y0, y1)]
         us = [c[0] for c in corners]
@@ -190,6 +197,8 @@ class View:
 
     def draw(self):
         psp = self.psp
+        if self.hatch_scale is not None:
+            self.hatch(self.hatch_scale)
         for grp, layer in (("visible", "VIS"), ("hidden", "HID")):
             if grp == "hidden" and not self.hidden:
                 continue
@@ -210,6 +219,60 @@ class View:
                     psp.add_lwpolyline([self._T(p) for p in e["pts"]],
                                        dxfattribs={"layer": layer})
 
+    def hatch(self, scale):
+        """Fill the faces the cutting plane passes through (a real section).
+
+        `cuts` is measured geometry: the planar faces the section cut created,
+        outer boundary first, then islands.  Hatching from the same faces that
+        produced the outlines means the fill can never drift off the part - the
+        difference between a section and a wireframe box.
+        """
+        for face in self.rec.get("cuts") or []:
+            poly = [[self.P(*p) for p in w] for w in face]
+            poly = [p for p in poly if len(p) >= 3]
+            if not poly:
+                continue
+            h = self.psp.add_hatch(dxfattribs={"layer": "HATCH"})
+            h.set_pattern_fill("ANSI31", scale=scale, angle=0.0)
+            for i, pts in enumerate(poly):
+                h.paths.add_polyline_path(pts, is_closed=True,
+                                          flags=1 if i == 0 else 0)
+                # the cut boundary is a heavy line: that is what tells a reader
+                # "this is where the part was sawn", not a thin outline
+                self.psp.add_lwpolyline(pts, close=True,
+                                        dxfattribs={"layer": "THK"})
+
+    def cross(self, model_pt, size=2.6, layer="CEN"):
+        """Centre mark on a model point shown as a circle."""
+        c = self.P(*model_pt)
+        self.psp.add_line((c[0] - size, c[1]), (c[0] + size, c[1]),
+                          dxfattribs={"layer": layer})
+        self.psp.add_line((c[0], c[1] - size), (c[0], c[1] + size),
+                          dxfattribs={"layer": layer})
+
+    def cut_line(self, x, label, over=3.0, both=True):
+        """Cutting-plane trace for a section on a plane of constant model x.
+
+        Drawn across the view that shows the plane edge-on (here: FRONT), with
+        the sight direction as arrows and the section letter at both ends.  The
+        lower flag is dropped (`both=False`) when a dimension row is in the way:
+        a half-flagged cutting line is honest, a flag sitting on a dimension is
+        not.
+        """
+        b = self.box
+        px = self.P(x, 0, 0)[0]
+        hi, lo = b[3] + over, b[1] - over
+        self.psp.add_line((px, lo if both else b[1]), (px, hi),
+                          dxfattribs={"layer": "CEN"})
+        ends = ((hi, 0.0), (lo, 180.0)) if both else ((hi, 0.0),)
+        for yy, ang in ends:
+            self.psp.add_line((px - 3.2, yy), (px + 3.2, yy),
+                              dxfattribs={"layer": "THK"})
+            _arrow(self.psp, (px + 3.2, yy), ang, size=2.2, layer="THK")
+            self.psp.add_text(label, height=3.4,
+                              dxfattribs={"layer": "TXT"}).set_placement(
+                (px + 5.4, yy - 1.2), align=_ALIGN["l"])
+
     # ---- dimensions (features named in model mm) --------------------------
     def _dec(self, measure):
         return 0 if abs(measure - round(measure)) < 0.01 else 1
@@ -228,11 +291,21 @@ class View:
                                 override=self._ovr(m),
                                 dxfattribs={"layer": layer}).render()
 
-    def dim_y(self, a, b, off, side="left", layer="DIM"):
-        """Vertical dimension between two model points, `off` mm to one side."""
+    def dim_y(self, a, b, off, side="left", layer="DIM", from_box=False):
+        """Vertical dimension between two model points, `off` mm to one side.
+
+        `from_box` measures the offset from the view outline instead of from the
+        features: needed when both points lie on one edge of the view (the two
+        ends of a height chain), where a feature-relative offset would drop the
+        dimension line inside the part.
+        """
         A, B = self.P(*a), self.P(*b)
         m = abs(B[1] - A[1]) / self.s
-        x = (min(A[0], B[0]) - off) if side == "left" else (max(A[0], B[0]) + off)
+        if from_box:
+            bb = self.box
+            x = (bb[0] - off) if side == "left" else (bb[2] + off)
+        else:
+            x = (min(A[0], B[0]) - off) if side == "left" else (max(A[0], B[0]) + off)
         self.psp.add_linear_dim(base=(x, A[1]), p1=A, p2=B, angle=90,
                                 override=self._ovr(m),
                                 dxfattribs={"layer": layer}).render()
@@ -402,15 +475,6 @@ def notes_block(psp, x, y, lines, size=2.5, lead=3.6):
             (x, y - lead * (i + 1)))
 
 
-def section_marker(psp, x, y, label, size=3.0):
-    """A section flag: a filled triangle with the section letter."""
-    psp.add_solid([(x, y), (x - 3.2, y - 5.0), (x + 3.2, y - 5.0), (x, y)],
-                  dxfattribs={"layer": "SEC"})
-    psp.add_text(label, height=size,
-                 dxfattribs={"layer": "TXT"}).set_placement((x, y + 1.2),
-                                                            align=_ALIGN["c"])
-
-
 def bom(psp, x0, y0):
     n_wells = len(CONST["A_X"]) + len(CONST["D_X"])
     rows = [
@@ -482,21 +546,21 @@ def sheet_assembly(doc):
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    ex = View(psp, "assembly", "EXPLODED", 0, 0.42, 152, 92, hidden=False)
-    caption(psp, ex.centre[0], 84, "EXPLODED \u2013 assembly order  (NTS)")
+    ex = View(psp, "assembly", "EXPLODED", -30, 0.44, 104, 72, hidden=False)
+    caption(psp, ex.centre[0], 64, "EXPLODED \u2013 assembly order  (NTS)")
     off = HLR["explode"]
-    ex.balloon((MIDX, CONST["SW"] / 2, CONST["SHH"] - 8), -46, 30, 1)
-    ex.balloon((CX0 + CONST["CX"] / 2, CY0 + CONST["CY"] / 2,
-                BZ + BT / 2 + off["baffle"][2]), -40, -26, 2)
-    ex.balloon((MIDX, CONST["FILT_Y0"] + CONST["FILT_T"] / 2,
-                (BZ + CONST["FLOOR"] + CONST["CH"]) / 2 + off["filter"][2]),
-               6, 44, 3)
-    ex.balloon((MIDX, CONST["SW"] / 2,
-                CONST["PCB_Z"] + CONST["PCB_T"] / 2 + off["pcb"][2]), -46, -8, 4)
-    ex.balloon((CONST["FAN_X"], CONST["FAN_Y"] + CONST["FAN_T"] / 2,
-                CONST["FAN_Z"] + off["fan"][2]), 40, 8, 5)
+    # Balloons sit on the part they name, in its exploded position: the offsets
+    # travel from the model, so the leader cannot point at where a part used to
+    # be.  One balloon per BOM item, all keyed to the same numbering.
+    ex.balloon((0, 0, CONST["SHH"]), -34, 24, 1)
+    ex.balloon((CX1, CY1, BZ + off["baffle"][2]), 36, 8, 2)
+    ex.balloon((CX1, CONST["FILT_Y0"], CONST["FLOOR"] + CONST["CH"]
+                + off["filter"][2]), 36, 10, 3)
+    ex.balloon((0, 0, CONST["PCB_Z"] + off["pcb"][2]), -34, -12, 4)
+    ex.balloon((CONST["FAN_X"] + 24, CONST["FAN_Y"] + off["fan"][1],
+                CONST["FAN_Z"] + off["fan"][2]), 36, 0, 5)
 
-    ga = View(psp, "assembly", "ISO", 0, 0.26, 262, 132, hidden=True)
+    ga = View(psp, "assembly", "ISO", -30, 0.26, 262, 132, hidden=True)
     caption(psp, ga.centre[0], 126, "ISO \u2013 general arrangement  (NTS)")
 
     bom(psp, 20.0, 232.0)
@@ -523,61 +587,76 @@ def sheet_shell(doc):
     psp.add_text("SHELL \u2013 main body  (OS-001)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
+    psp.add_text("PETG FDM, printed as one part; the PCB is the sealed chamber "
+                 "floor and the baffle plate seats on the ledge at z=%d" %
+                 CONST["BAFFLE_Z"], height=3,
+                 dxfattribs={"layer": "TXT"}).set_placement(
+        (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    # ---- FRONT: X (horizontal) x Z (vertical), 1:2 ----------------------
-    v = View(psp, "shell", "FRONT", 270, 0.5, 74, 206)
-    caption(psp, v.centre[0], 184, "FRONT (intake face)  1:2")
-    v.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 16)                     # 122
-    v.chain_x([(MIDX - 26, 0, 0), (MIDX, 0, 0), (MIDX + 26, 0, 0)], 8)  # 26/26
-    v.dim_y((0, 0, 0), (0, 0, CONST["SHH"]), 13, "left")             # 90
+    # ---- FRONT: the intake face, X (horizontal) x Z (vertical), 1:2 -------
+    v = View(psp, "shell", "FRONT", 270, 0.5, 40, 200, hidden=False)
+    caption(psp, v.centre[0], 258, "FRONT \u2013 intake face  1:2")
+    v.chain_x([(0, 0, 0), (MIDX - 26, 0, 0), (MIDX, 0, 0), (MIDX + 26, 0, 0),
+               (CONST["SH"], 0, 0)], 8)                       # 35 / 26 / 26 / 35
+    v.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 18)              # 122
     v.chain_y([(CONST["SH"], 0, 0), (CONST["SH"], 0, CONST["FLOOR"]),
-               (CONST["SH"], 0, CONST["NO_Z"])], 13, "right")        # 12 / 43
-    v.leader((MIDX, 0, CONST["NO_Z"]), 30, 20,
-             "3 \u00d7 DIA%d through, bore axis z=%d" % (
-                 2 * CONST["NO_R"], CONST["NO_Z"]))
-    section_marker(psp, 74 + MIDX * 0.5, 256, "B")
+               (CONST["SH"], 0, CONST["NO_Z"])], 10, "right")  # 12 / 43
+    v.dim_y((CONST["SH"], 0, 0), (CONST["SH"], 0, CONST["SHH"]), 20, "right")
+    for dx in (-26, 0, 26):
+        v.cross((MIDX + dx, 0, CONST["NO_Z"]), size=2.0)
+    v.leader((MIDX, 0, CONST["NO_Z"]), 0, -16, "3 \u00d7 DIA%d THRU" %
+             (2 * CONST["NO_R"]))
+    v.cut_line(MIDX, "B", both=False)
 
-    # ---- PLAN: X (horizontal) x Y (vertical), 1:2 ------------------------
-    p = View(psp, "shell", "PLAN", 0, 0.5, 74, 104)
-    caption(psp, p.centre[0], 82, "PLAN (PCB seat not fitted)  1:2")
+    # ---- SECTION C-C: horizontal cut through the exhaust bore, 1:2 ------
+    # The plan was replaced by this section: hidden lines for the cavity, the
+    # board pocket and the plate ledge land on top of each other in a plan, so
+    # it read as a hatched mess.  A cut above the fan axis shows the same walls,
+    # the bore and the floor pocket as real, hatched material.
+    p = View(psp, "shell", "SECTION_CC", 0, 0.5, 40, 105, hidden=False,
+             hatch=1.4)
+    caption(psp, p.centre[0], 167, "SECTION C-C \u2013 z=%d  1:2" %
+            (CONST["FAN_Z"] + 5.0))
     p.chain_x([(0, 0, 0), (CX0, 0, 0), (CX1, 0, 0), (CONST["SH"], 0, 0)], 8)
-    p.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 16)
+    p.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 18)               # 8 / 106 / 8
     p.chain_y([(CONST["SH"], 0, 0), (CONST["SH"], CY0, 0),
                (CONST["SH"], CY1, 0), (CONST["SH"], CONST["SW"], 0)],
-              8, "right")
-    p.dim_y((CONST["SH"], 0, 0), (CONST["SH"], CONST["SW"], 0), 16, "right")
-    p.leader((CX0, CY0 + CONST["CY"] / 2, CONST["FLOOR"]), -26, -46,
-             "cavity %d \u00d7 %d \u00d7 %d" % (
-                 CONST["CX"], CONST["CY"], CONST["CH"]))
+              10, "right")                                     # 7 / 100 / 7
+    p.dim_y((CONST["SH"], 0, 0), (CONST["SH"], CONST["SW"], 0), 20, "right")
 
-    # ---- SECTION B-B through x=61: Y (horizontal) x Z (vertical), 1:2 ----
-    s = View(psp, "shell", "SECTION_BB", 90, 0.5, 232, 206)
-    caption(psp, s.centre[0], 184, "SECTION B-B (x=%d)  1:2" % MIDX)
-    s.dim_x((0, 0, 0), (0, CONST["SW"], 0), 16)                      # 114
+    # ---- SECTION B-B on x=61: Y (horizontal) x Z (vertical), 1:2 --------
+    # Hidden lines are suppressed and the cut faces are hatched from the
+    # measured section geometry, so this reads as a section, not a wireframe.
+    s = View(psp, "shell", "SECTION_BB", 90, 0.5, 250, 200, hidden=False,
+             hatch=1.4)
+    caption(psp, s.centre[0], 258, "SECTION B-B \u2013 x=%d  1:2" % MIDX)
+    s.dim_x((0, 0, 0), (0, CONST["SW"], 0), 18)               # 114
     s.chain_y([(0, 0, 0), (0, 0, CONST["FLOOR"]), (0, 0, BZ),
                (0, 0, CONST["FLOOR"] + CONST["CH"]), (0, 0, CONST["SHH"])],
-              11, "left")                                            # 12/37/11/30
-    s.dim_y((0, 0, 0), (0, 0, CONST["SHH"]), 11, "right")            # 90
-    s.leader((0, CONST["FAN_Y"], CONST["FAN_Z"]), -30, -26,
+              11, "left")                                      # 12 / 37 / 11 / 30
+    s.dim_y((0, 0, 0), (0, 0, CONST["SHH"]), 12, "right", from_box=True)
+    s.leader((0, CONST["FAN_Y"], CONST["FAN_Z"]), -24, -22,
              "DIA%d exhaust, axis z=%d" % (
                  2 * CONST["FAN_R"], CONST["FAN_Z"]))
-    s.leader((0, CONST["FILT_Y0"], CONST["FLOOR"] + 3), 48, -26,
-             "filter plane y=%d\u2013%d (pack not shown)" % (
-                 CONST["FILT_Y0"], CONST["FILT_Y0"] + CONST["FILT_T"]))
 
-    iso = View(psp, "shell", "ISO", 0, 0.30, 314, 96, hidden=False)
-    caption(psp, iso.centre[0], 90, "ISO \u2013 shell, cavity and baffle plane"
-            "  (NTS)")
+    # ---- ISO: cutaway on the same plane as B-B, so the inside is visible --
+    iso = View(psp, "shell", "ISO", -30, 0.34, 300, 92, hidden=False, hatch=1.4)
+    caption(psp, iso.centre[0], 84,
+            "ISO \u2013 cutaway at x=%d (inside visible)  (NTS)" % MIDX)
 
-    notes_block(psp, 170, 128, [
+    notes_block(psp, 16, 78, [
         "MATERIAL: PETG FDM, 0.2 mm LAYER, 4 PERIMETERS; SEAL WETTED FACES.",
-        "PCB SEAT REBATE 1.6 DEEP: THE BOARD IS THE SEALED CHAMBER FLOOR "
-        "(z=%d)." % CONST["FLOOR"],
+        "THE PCB IS THE CHAMBER FLOOR: SEAT POCKET 1.6 DEEP, BOARD TOP z=%d."
+        % CONST["FLOOR"],
         "BAFFLE PLANE z=%d (%d ABOVE THE FLOOR). MODULE ALLOWANCE %d, "
         "RECESS %d." % (BZ, BZ - CONST["FLOOR"],
                         CONST["BAFFLE_Z"] - CONST["FLOOR"] - 8, 8),
-        "ALL OPENINGS DEBURRED; NO SILICONE, PVC OR FOAM IN THE GAS PATH.",
-        "DIMS IN mm; DATUM = FRONT-LOWER-LEFT OUTER CORNER.",
+        "FLOW: 3 \u00d7 DIA%d INTAKE (z=%d) \u2192 FILTER (y=%d) \u2192 11 mm "
+        "LANE \u2192 8 WELLS \u2192 DUCT \u2192 DIA%d FAN." % (
+            2 * CONST["NO_R"], CONST["NO_Z"], CONST["FILT_Y0"],
+            2 * CONST["FAN_R"]),
+        "ALL OPENINGS DEBURRED; NO SILICONE, PVC, PAPER OR FOAM IN THE GAS PATH.",
+        "DIMS IN mm. DATUM: FRONT-LOWER-LEFT OUTER CORNER (0, 0, 0).",
     ])
     title_block(psp, dict(COMMON, title="SHELL \u2013 main body", no="OS-001",
                           sheet="2", sheets="3", scale="1:2",
@@ -593,54 +672,58 @@ def sheet_baffle(doc):
     psp.add_text("BAFFLE \u2013 well plate  (OS-002)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
+    psp.add_text("PTFE plate that closes the chamber; every well is open-bottom, "
+                 "so each cell reads the volume under it", height=3,
+                 dxfattribs={"layer": "TXT"}).set_placement(
+        (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    # ---- PLAN: X (horizontal) x Y (vertical), 1:2 ------------------------
-    p = View(psp, "baffle", "PLAN", 0, 0.5, 66, 202)
-    caption(psp, p.centre[0], 188,
-            "PLAN (%d wells + reference port)  1:2" % (len(A_X) + len(D_X)))
+    # ---- PLAN at 1:1: this sheet doubles as a print-and-check template ----
+    p = View(psp, "baffle", "PLAN", 0, 1.0, 30, 150, hidden=False)
+    caption(psp, p.centre[0], 126,
+            "PLAN (%d wells + reference port)  1:1 \u2013 PRINT AT 100%%"
+            % (len(A_X) + len(D_X)))
     p.chain_x([(CX0, CY0, 0)] + [(x, CY0, 0) for x in A_X] + [(CX1, CY0, 0)], 8)
-    p.dim_x((CX0, CY0, 0), (CX1, CY0, 0), 16)                        # 106
+    p.dim_x((CX0, CY0, 0), (CX1, CY0, 0), 16)                 # 106
     p.chain_x([(CX0, CY1, 0)] + [(x, CY1, 0) for x in D_X] + [(CX1, CY1, 0)],
-              8, above=True)
-    p.dim_y((CX1, CY0, 0), (CX1, CY1, 0), 16, "right")                # 100
-    p.dim_y((CX1, CONST["D_Y0"], 0), (CX1, CONST["D_Y0"] + CONST["D_SY"], 0),
-            8, "right")
+              8, above=True)                                  # digital row
+    p.dim_y((CX1, CY0, 0), (CX1, CY1, 0), 16, "right")        # 100
     p.dim_y((CX1, CONST["A_Y0"], 0), (CX1, CONST["A_Y0"] + CONST["A_SY"], 0),
+            8, "right")
+    p.dim_y((CX1, CONST["D_Y0"], 0), (CX1, CONST["D_Y0"] + CONST["D_SY"], 0),
             8, "right")
     p.dim_y((CX1, CONST["SHT_Y0"], 0),
             (CX1, CONST["SHT_Y0"] + CONST["SHT_SY"], 0), 8, "right")
-    p.leader((A_X[0], CONST["A_Y0"] + CONST["A_SY"] / 2, BZ), -20, 34,
-             "4 \u00d7 %d \u00d7 %d analog wells" % (CONST["A_SX"], CONST["A_SY"]))
-    p.leader((D_X[0], CONST["D_Y0"] + CONST["D_SY"] / 2, BZ), -20, 34,
-             "4 \u00d7 %d \u00d7 %d digital wells" % (
-                 CONST["D_SX"], CONST["D_SY"]))
-    p.leader((CONST["SHT_X"], CONST["SHT_Y0"] + CONST["SHT_SY"] / 2, BZ),
-             -26, -16, "U5 port %d \u00d7 %d" % (
-                 CONST["SHT_SX"], CONST["SHT_SY"]))
 
-    # ---- SECTION A-A through an analog well row: X x Z, 1:1 --------------
-    a = View(psp, "baffle", "SECTION_AA", 270, 1.0, 66, 150, hidden=False)
-    caption(psp, a.centre[0], 136, "SECTION A-A (analog well row)  1:1")
-    a.dim_x((CX0, 0, BZ), (CX1, 0, BZ), 8)                           # 106
-    a.chain_x([(A_X[0] - CONST["A_SX"] / 2, 0, BZ),
-               (A_X[0] + CONST["A_SX"] / 2, 0, BZ)], 8)              # 22
-    a.chain_x([(A_X[0] + CONST["A_SX"] / 2, 0, BZ),
-               (A_X[1] - CONST["A_SX"] / 2, 0, BZ)], 8)              # 4 rib
-    a.chain_y([(0, 0, BZ - BT), (0, 0, BZ)], 16)                     # 2
-    a.leader((A_X[0], 0, BZ - BT / 2), 26, -22,
-             "well open-bottom (through plate)")
+    # ---- SECTION A-A through the analog row, 2:1: wells and ribs --------
+    a = View(psp, "baffle", "SECTION_AA", 270, 2.0, 30, 96, hidden=False,
+             hatch=0.9)
+    caption(psp, a.centre[0], 72, "SECTION A-A \u2013 analog well row  2:1")
+    a.chain_x([(CX0, 0, BZ), (A_X[0] - CONST["A_SX"] / 2, 0, BZ),
+               (A_X[0] + CONST["A_SX"] / 2, 0, BZ),
+               (A_X[1] - CONST["A_SX"] / 2, 0, BZ),
+               (A_X[1] + CONST["A_SX"] / 2, 0, BZ),
+               (A_X[2] - CONST["A_SX"] / 2, 0, BZ),
+               (A_X[2] + CONST["A_SX"] / 2, 0, BZ),
+               (A_X[3] - CONST["A_SX"] / 2, 0, BZ),
+               (A_X[3] + CONST["A_SX"] / 2, 0, BZ),
+               (CX1, 0, BZ)], 8)                              # 3/22/4/22...
+    a.dim_x((CX0, 0, BZ), (CX1, 0, BZ), 16)                   # 106
+    a.dim_y((CX0, 0, BZ - BT), (CX0, 0, BZ), 12, "left")      # 2
 
-    iso = View(psp, "baffle", "ISO", 0, 0.50, 296, 158, hidden=False)
-    caption(psp, iso.centre[0], 152, "ISO \u2013 wells open-bottom  (NTS)")
+    iso = View(psp, "baffle", "ISO", -30, 0.45, 268, 150, hidden=False)
+    caption(psp, iso.centre[0], 144, "ISO \u2013 open-bottom wells  (NTS)")
 
-    notes_block(psp, 264, 258, [
+    notes_block(psp, 162, 266, [
         "MATERIAL: PTFE, MACHINED. SUBSTITUTE: PVDF OR BOROSILICATE.",
         "PLATE %d \u00d7 %d \u00d7 %d, SEATS ON THE SHELL LEDGE AT z=%d." % (
             CONST["CX"], CONST["CY"], BT, BZ - BT),
         "WELL ORDER IS FLOW ORDER: DIGITAL UPSTREAM, ANALOG DOWNSTREAM.",
         "EVERY WELL IS OPEN-BOTTOM: THE CELL READS THE SUB-BAFFLE VOLUME.",
-        "ANALOG WELLS %d \u00d7 %d, DIGITAL WELLS %d \u00d7 %d (4 EACH)." % (
-            CONST["A_SX"], CONST["A_SY"], CONST["D_SX"], CONST["D_SY"]),
+        "ANALOG WELLS %d \u00d7 %d (A1\u2013A4), DIGITAL WELLS %d \u00d7 %d "
+        "(D1\u2013D4)." % (CONST["A_SX"], CONST["A_SY"], CONST["D_SX"],
+                          CONST["D_SY"]),
+        "U5 REFERENCE PORT %d \u00d7 %d AT (%d, %d): SHT31 SEES THE SAME AIR." % (
+            CONST["SHT_SX"], CONST["SHT_SY"], CONST["SHT_X"], CONST["SHT_Y0"]),
         "GENERAL TOLERANCE ISO 2768-mK; WETTED FACES FREE OF RESIDUE.",
     ])
     title_block(psp, dict(COMMON, title="BAFFLE \u2013 well plate", no="OS-002",

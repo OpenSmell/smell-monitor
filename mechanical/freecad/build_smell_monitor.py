@@ -250,9 +250,52 @@ def half_space_cut(shape, axis, coord, keep_less=True):
     return shape.cut(cutter)
 
 
+def cut_faces(shape, axis, coord, tol=1e-3):
+    """The faces the cut created, as ordered 3D polygons (outer wire first).
+
+    A section without hatching is a wireframe, not a section: the reader has to
+    be told which material the cutting plane passes through.  These are exactly
+    the planar faces that lie on the cutting plane, so the sheet can hatch them
+    from real geometry instead of guessing outlines.  Inner wires are returned
+    after the outer one as islands (a wall section is a ring, not a rectangle).
+    """
+    out = []
+    for f in shape.Faces:
+        try:
+            if f.Surface.__class__.__name__ != "Plane":
+                continue
+            n = f.normalAt(0, 0)
+        except Exception:
+            continue
+        if abs(abs(n[axis]) - 1.0) > 1e-6:
+            continue
+        if abs(f.CenterOfMass[axis] - coord) > tol:
+            continue
+        # FreeCAD 1.x has no Face.outerWire(); the outer boundary is simply the
+        # wire that encloses the most area on this planar face.
+        try:
+            wires = sorted(list(f.Wires), key=lambda w: -Part.Face(w).Area)
+        except Exception:
+            wires = list(f.Wires)
+        polys = []
+        for w in wires:
+            try:
+                pts = [(p.x, p.y, p.z) for p in w.discretize(Deflection=0.05)]
+            except Exception:
+                pts = [(v.Point.x, v.Point.y, v.Point.z) for v in w.Vertexes]
+            if len(pts) >= 3:
+                polys.append(pts)
+        if polys:
+            out.append(polys)
+    return out
+
+
 assembly = shell.Shape.fuse(baffle.Shape).fuse(pcb.Shape).fuse(
     ns).fuse(filt.Shape).fuse(fan.Shape)
 sec_bb = half_space_cut(shell.Shape, 0, MIDX, keep_less=True)
+# Cut 5 mm above the fan axis: on the axis itself the bore's chord is zero
+# wide, so the section would show a solid rear wall with a pinprick notch.
+sec_cc = half_space_cut(shell.Shape, 2, CONST["FAN_Z"] + 5.0, keep_less=True)
 sec_aa = half_space_cut(baffle.Shape, 1, CONST["A_Y0"] + CONST["A_SY"] / 2.0,
                         keep_less=True)
 
@@ -273,10 +316,10 @@ def moved(shape, v):
 # they stay with it.  The offsets travel to the drawing as data, so the balloon
 # leaders always point at the real exploded positions.
 EXPLODE = {
-    "baffle": (0, 0, 46),
-    "filter": (0, 0, 56),
-    "pcb": (0, 0, 78),
-    "fan": (0, 34, 60),
+    "pcb": (0, 0, -55),
+    "baffle": (0, 0, 110),
+    "filter": (0, 0, 150),
+    "fan": (0, 60, 105),
 }
 exploded = shell.Shape
 for _s, _v in ((baffle.Shape, EXPLODE["baffle"]),
@@ -287,9 +330,8 @@ for _s, _v in ((baffle.Shape, EXPLODE["baffle"]),
 
 VIEW_REQUESTS = [
     ("shell", "FRONT", shell.Shape, (0, -1, 0)),
-    ("shell", "PLAN", shell.Shape, (0, 0, 1)),
-    ("shell", "SECTION_BB", sec_bb, (1, 0, 0)),
-    ("shell", "ISO", shell.Shape, (1, -1, 1)),
+    ("shell", "SECTION_CC", sec_cc, (0, 0, 1)),    ("shell", "SECTION_BB", sec_bb, (1, 0, 0)),
+    ("shell", "ISO", sec_bb, (1, -1, 1)),
     ("baffle", "PLAN", baffle.Shape, (0, 0, 1)),
     ("baffle", "SECTION_AA", sec_aa, (0, 1, 0)),
     ("baffle", "ISO", baffle.Shape, (1, -1, 1)),
@@ -298,9 +340,18 @@ VIEW_REQUESTS = [
 ]
 
 out = {"explode": {k: list(v) for k, v in EXPLODE.items()}}
+CUTS = {
+    ("shell", "SECTION_BB"): cut_faces(sec_bb, 0, MIDX),
+    ("shell", "SECTION_CC"): cut_faces(sec_cc, 2, CONST["FAN_Z"] + 5.0),
+    ("shell", "ISO"): cut_faces(sec_bb, 0, MIDX),
+    ("baffle", "SECTION_AA"): cut_faces(
+        sec_aa, 1, CONST["A_Y0"] + CONST["A_SY"] / 2.0),
+}
 for part, view, shp, direction in VIEW_REQUESTS:
     rec = hlr_view(shp, direction)
     rec["axes"] = axis_vectors(direction)
+    if (part, view) in CUTS:
+        rec["cuts"] = CUTS[(part, view)]
     out.setdefault(part, {})[view] = rec
 
 with open(OUT_JSON, "w", encoding="utf-8") as fh:

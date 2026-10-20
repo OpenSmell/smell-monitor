@@ -127,10 +127,11 @@ check("SHT31 port clears both module rows and stays in-cavity",
       f"y {CONST['SHT_Y0']}..{CONST['SHT_Y0']+CONST['SHT_SY']} "
       f"x {CONST['SHT_X']-CONST['SHT_SX']/2}..{CONST['SHT_X']+CONST['SHT_SX']/2}")
 
-sl = ents("shell", "PLAN", "visible")
-sx0, _, sx1, _ = extent(sl)
-check(f"shell PLAN width {CONST['SH']:.0f}",
-      near(sx1 - sx0, CONST["SH"], 1e-3), f"{sx1-sx0:.1f}")
+sl = ents("shell", "SECTION_CC", "visible")
+sx0, sy0, sx1, sy1 = extent(sl)
+check(f"shell SECTION C-C extent {CONST['SH']:.0f} x {CONST['SW']:.0f}",
+      near(sx1 - sx0, CONST["SH"], 1e-3) and near(sy1 - sy0, CONST["SW"], 1e-3),
+      f"{sx1-sx0:.1f} x {sy1-sy0:.1f}")
 
 # ------------------------------- 3D model -----------------------------------
 for f in ("smell_monitor.FCStd", "smell_monitor.STEP"):
@@ -188,7 +189,7 @@ SHEET_MIN_DIMS = {"OS-000": 0, "OS-001": 15, "OS-002": 12}
 SHEET_TOKENS = {
     "OS-000": ("ASSEMBLY", "EXPLODED", "BILL OF MATERIALS", "PETG", "PTFE",
                "OpenSmell"),
-    "OS-001": ("SHELL", "FRONT", "PLAN", "SECTION B-B", "MATERIAL"),
+    "OS-001": ("SHELL", "FRONT", "SECTION C-C", "SECTION B-B", "MATERIAL"),
     "OS-002": ("BAFFLE", "PLAN", "SECTION A-A", "MATERIAL"),
 }
 for name, want in SHEET_DIMS.items():
@@ -208,6 +209,13 @@ for name, want in SHEET_DIMS.items():
     check(f"sheet {name} is dimensioned (>= {SHEET_MIN_DIMS[name]} dims)",
           len(lay.query("DIMENSION")) >= SHEET_MIN_DIMS[name],
           f"{len(lay.query('DIMENSION'))} dims")
+    # A section without hatching is a wireframe: the reader cannot tell which
+    # material the cutting plane passed through.  OS-001/002 each carry a cut
+    # view, so each must carry real HATCH entities (filled from the measured
+    # cut faces, not drawn by hand).
+    if name in ("OS-001", "OS-002"):
+        check(f"sheet {name} sections are hatched", len(lay.query("HATCH")) >= 1,
+              f"{len(lay.query('HATCH'))} hatches")
     txt = " ".join((t.dxf.text or "") for t in lay.query("TEXT"))
     for tok in SHEET_TOKENS[name]:
         check(f"sheet {name} text contains '{tok}'", tok in txt)

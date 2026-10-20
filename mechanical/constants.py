@@ -77,8 +77,7 @@ PROCESS = {
     "baffle": {
         "primary": "PTFE, machined (inert, non-porous, hydrophobic)",
         "substitute": "PVDF (Kynar) or borosilicate glass (3.0 mm)",
-        "finish": "deburr; 8 open-bottom wells (4 x 22x18 analog, 4 x 18x16 "
-                  "digital) + the 16x12 U5 reference port",
+        "finish": "deburr; 9 openings, edges broken 0.2",
     },
     "tolerance_general": "ISO 2768-mK",
     "tolerance_critical": "0.05",
