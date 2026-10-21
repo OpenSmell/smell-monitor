@@ -108,19 +108,21 @@ check("the gas-cell socket implements the standard pinout",
       % (" ".join(IF.SLOT_ANALOG), " ".join(std_pins)))
 
 _win = {}
-for _bank, _x0, _sx, _sy in (("analog", "A_X", "A_SX", "A_SY"),
-                             ("digital", "D_X", "D_SX", "D_SY")):
+for _bank, _x0 in (("analog", "A_X"), ("digital", "D_X")):
     _xs = CONST[_x0]
-    _win[_bank] = dict(pitch=_xs[1] - _xs[0], win=(CONST[_sx], CONST[_sy]))
+    _win[_bank] = dict(pitch=_xs[1] - _xs[0], win=(_xs[1] - _xs[0] - 2.0,
+                                                   S.SLOTS["reach"]))
 
-_lowp = {k: v["pitch"] for k, v in _win.items() if v["pitch"] < S.SLOTS["pitch"]}
-check("every row's pitch meets the %.0f mm standard" % S.SLOTS["pitch"],
-      not _lowp, "rows below standard: %s (uniform pitch is revision L)" % _lowp)
+_lowp = {k: v["pitch"] for k, v in _win.items()
+         if v["pitch"] < S.SLOTS["pitch_min"]}
+check("every row's pitch >= %.0f mm (max module width + gap)"
+      % S.SLOTS["pitch_min"],
+      not _lowp, "rows below the standard: %s" % _lowp)
 
 _small = {k: v["win"] for k, v in _win.items()
-          if min(v["win"]) < min(S.SLOTS["window"])}
-check("every window meets the %gx%g mm standard" % S.SLOTS["window"],
-      not _small, "windows below standard: %s" % _small)
+          if v["win"][0] < S.SLOTS["max_width"]}
+check("every slot can carry a %.0f mm wide cartridge" % S.SLOTS["max_width"],
+      not _small, "slots too narrow: %s" % _small)
 
 _nslots = IF.N_ANALOG + IF.N_DIGITAL
 check("the base carries the standard's %d slots" % S.SLOTS["reference_count"],

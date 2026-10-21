@@ -25,8 +25,8 @@ Everything below serves those three. No specific sensor appears here on purpose.
 
 ## 2. There is one slot, and it is repeated
 
-A slot is not "analog" or "digital". Every slot carries **both** interfaces over
-the same window in the plate:
+A slot is not "analog" or "digital". Every slot carries **both** interfaces, side
+by side on the same footprint:
 
 | Interface | Serves | Connector | Rail |
 |-----------|--------|-----------|------|
@@ -143,36 +143,36 @@ than silently trusted.
 ## 4. Mechanical envelope
 
 The cell is mounted **flat**: the card lies parallel to the board, sensing face
-up, directly under its window, and comes out upward. Flat is not cosmetic:
+up, and comes out upward. Flat is not cosmetic:
 
 * a MOX can's gas inlet is its **end face**, not its barrel. Standing a card in
-  a socket points the inlet sideways at its neighbour instead of at the window;
-* standing cards needed 40–48 mm of height where only 37 mm exists under the
-  plate, so a 32–40 mm MQ card passed straight through the baffle. Flat, the
-  same card is 25 mm tall and fits with room to spare.
+  a socket points the inlet sideways at its neighbour instead of into the flow;
+* standing cards needed 40–48 mm of height where the chamber gives 34.4 mm above
+  the board, so a 32–40 mm MQ card did not fit at all. Flat, the same card is
+  25 mm tall and fits with room to spare.
 
 | Quantity | Value |
 |----------|-------|
-| Cartridge outline | ≤ **22 mm** across the row × ≤ **40 mm** along the flow |
+| Cartridge outline | ≤ **20 mm** across the row × ≤ **32 mm** along the flow |
 | Cartridge height (its own board plus the tallest cell) | ≤ **26 mm** |
-| On the socket | the cartridge sits ≈8.5 mm up, so its top lands ≈33 mm above the chamber floor — about **4 mm under the plate** at 37 mm |
-| Sensing element | centred in a **20 × 20 mm** zone, **16 mm downstream of the connector face**, on the slot centre line |
-| Slot pitch | **24 mm** (cartridge 22 mm + 2 mm) |
-| Window in the plate | **20 × 20 mm**, i.e. exactly the sensor zone |
+| On the socket | the cartridge sits ≈8.5 mm up, so its top lands ≈34 mm above the board, under a lid at 43 mm |
+| Sensing element | anywhere on the card, on the slot centre line; it only needs clear air above it |
+| Slot pitch | a **base parameter** (26 / 21 mm as built); a cartridge must be ≤ 20 mm wide so it clears a 22 mm pitch |
 | Keying | pin-1 chamfer plus a polarising slot in the socket wall |
 
 The base socket is a **vertical 2.54 mm receptacle**; the cartridge carries a
 **right-angle male header** on its edge. The cartridge therefore lies flat and
-comes out straight up. **That makes the baffle plate the service lid**: with the
-cartridge ~4 mm under it, a swap is an open-lid operation — remove the plate,
-lift the cartridge. There is no in-plane room for a slide-out cartridge in a
-two-row layout (a 40 mm cartridge would need 40 mm of pull room it does not
-have), so the enclosure, not the socket, is what has to make a swap tool-free to
-satisfy U1 of the blueprint.
+comes out straight up. There is no in-plane room for a slide-out cartridge in a
+two-row layout (a 32 mm cartridge would need 32 mm of pull room it does not
+have), so the enclosure, not the socket, is what makes a swap tool-free: four M3
+screws, lid off, lift the cartridge.
 
-Fixing the sensor zone at 16 mm downstream of the connector face is what makes
-one window position work for every cartridge. The window **is** that zone: a
-20 × 20 mm opening in the plate, centred 16 mm downstream of the socket line.
+**There is no window.** An earlier revision required each cartridge's sensing
+element to sit in a 20 × 20 mm opening 16 mm downstream of its socket, in a plate
+37 mm above the board. That plate has been removed. A cartridge plugged into its
+socket already has unobstructed air over its sensing face, and the plate only
+added a part, a liner and a recess. The standard therefore constrains the
+cartridge's outline, height and connector — not the position of its element.
 
 A bare MQ-135 card (32 × 20 mm, can Ø19, element 16 mm from its header) *is* a
 conforming cartridge once its header is re-pinned to §2.1. Anything that is not
@@ -217,15 +217,15 @@ in three ways that do not cost sensitivity:
 | Quantity | Reference base |
 |----------|----------------|
 | Slots | **8** — two rows of four, upstream row first |
-| Slot pitch | 24 mm |
+| Slot pitch | 26 mm analog / 21 mm digital (a base parameter) |
 | Interfaces per slot | keyed 5 V gas-cell socket + 3.3 V Qwiic port |
-| Windows | 8 × 20 × 20 mm, one per slot |
+| Chamber | 116 × 108 × 40, board top as the floor, lid as the ceiling |
 | Mux / ADC / 1-Wire channels | 8 / 2 / 1 |
 
-Four slots at a 24 mm pitch span 96 mm inside the existing 106 mm cavity, so
-uniformity costs **no size at all**: the same box, built from one repeat unit
-instead of two different ones. That is also what makes it cheap to manufacture —
-one socket, one window, one pocket, repeated eight times.
+Four slots at these pitches span 82 / 63 mm inside the 116 mm cavity, so there
+is room for the flow to spread at both ends. That is also what makes it cheap to
+manufacture: one socket, one standoff, one repeat unit, eight times, with no
+machined parts and no windows to align.
 
 Scaling is a constant, not a redesign:
 
@@ -246,9 +246,9 @@ same schema.
 ## 7. Conformance checklist (for a module maker)
 
 1. 2.54 mm keyed 1×6 header, pinout §2.1, right-angle on the card edge.
-2. Outline ≤ 22 × 40 mm, ≤ 26 mm tall in the flat pose (§4).
-3. Sensing element centred inside the 20 × 20 mm zone 16 mm downstream of the
-   connector face.
+2. Outline ≤ 20 × 32 mm, ≤ 26 mm tall in the flat pose (§4).
+3. Sensing element anywhere on the card, on the slot centre line, with clear air
+   above it.
 4. EEPROM per §3.1, checksum valid, `kind` and `class` correct.
 5. Output: 0–5 V analog on `AO`, or TTL serial 9600 8N1 on `DO`.
 6. Power: ≤ 150 mA at 5 V, ≤ 50 mA at 3.3 V, inrush ≤ 300 mA.
@@ -280,8 +280,7 @@ are the target revision L work, in this order:
 |-----|----------|----------|
 | `ID` pin on the gas-cell socket | 5 pins, no ID | 6 pins, §2.1 |
 | Qwiic port at every slot | digital row only, 0.1 in headers | one JST-SH port per slot |
-| Slot pitch | 26 mm analog / 21 mm digital | uniform 24 mm |
-| Window | 22 × 18 and 18 × 16 mm | 20 × 20 mm at +16 mm offset |
 | Mounting pose | vertical card sockets | right-angle headers, flat cartridges |
 | Series protection on `DO` | direct to the GPIO | 10 kΩ in series |
 | Analog inputs | one 4-channel ADC | two (8 slots) |
+| Board outline | plain 114 × 105 rectangle | four r = 5 corner notches for the lid bosses; USB-C at the front edge |

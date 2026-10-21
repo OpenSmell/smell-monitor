@@ -111,8 +111,8 @@ PCB_W, PCB_D, PCB_T = CONST["PCB_X"], CONST["PCB_Y"], CONST["PCB_T"]
 PCB_X0 = (CONST["SH"] - PCB_W) / 2.0            # centred in the shell
 PCB_Y0 = (CONST["SW"] - PCB_D) / 2.0
 
-ANALOG_ROW_Y = CONST["A_Y0"] + CONST["A_SY"] / 2.0     # shell frame, downstream
-DIGITAL_ROW_Y = CONST["D_Y0"] + CONST["D_SY"] / 2.0    # shell frame, upstream
+ANALOG_ROW_Y = CONST["A_Y0"]                              # shell frame, downstream
+DIGITAL_ROW_Y = CONST["D_Y0"]                             # shell frame, upstream
 
 
 def board_xy(shell_x, shell_y):

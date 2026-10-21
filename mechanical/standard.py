@@ -11,8 +11,8 @@ the flat-mounted pose (blueprint 4.5).
 THE ONE IDEA
 ------------
 There is a single slot design, repeated. A slot is not "analog" or "digital":
-it carries a keyed 5 V gas-cell socket *and* a 3.3 V Qwiic port, over its own
-window in the plate. The user fills the slots with whatever chemistry the job
+it carries a keyed 5 V gas-cell socket *and* a 3.3 V Qwiic port on the same
+footprint. The user fills the slots with whatever chemistry the job
 needs; the module's own identity decides how the base talks to it. That is what
 removes the 4-analog / 4-digital split, the wrong-row mistake and the "which
 sensor can I not use" ceiling at the same time.
@@ -25,18 +25,19 @@ DOC = "docs/module-standard.md"
 
 # --- the cartridge: a 5 V gas cell on the user's side of the socket ----------
 # Flat because a MOX can's gas inlet is its END FACE, not its barrel: standing
-# a card in a socket points the inlet sideways at its neighbour instead of at
-# the window. Flat also removes the 40-48 mm standing height that collided with
-# the baffle plate.
+# a card in a socket points the inlet sideways at its neighbour instead of into
+# the flow. Flat also removes the 40-48 mm standing height that did not fit the
+# 34.4 mm the chamber gives above the board.
 CARTRIDGE = {
     "conn": "2.54 mm keyed 1x6, right-angle male header on the card edge",
     "pins": ["+5V", "GND", "AO", "DO", "3V3", "ID"],
     "pose": "flat: card parallel to the board, sensing face up, removed upward",
-    # Height is the cartridge's own, not the distance to the plate: on a
-    # vertical socket it rides ~8.5 mm up, so its top ends ~4 mm under the
-    # 37 mm plate and the plate is the service lid (docs/module-standard.md 4).
-    "envelope": {"across": 22.0, "along": 40.0, "height": 26.0},
-    "sensor_zone": {"size": (20.0, 20.0), "offset_from_face": 16.0},
+    # Height is the cartridge's own, not the distance to a plate: on a vertical
+    # socket it rides ~8.5 mm up and its top ends ~34 mm above the board, under
+    # a lid at 43 mm. There is no plate and no window: the sensing face only
+    # needs clear air above it (docs/module-standard.md 4).
+    "envelope": {"across": 20.0, "along": 32.0, "height": 26.0},
+    "sensor_zone": None,        # no window to align to; element is free on the card
     "rail_mA": {"5V": 150, "3V3": 50},
     "source_mV": 5000,          # AO may swing to 5 V; the base divides it 10k/10k
     "protocols": ["analog 0-5 V on AO", "TTL serial 9600 8N1 on DO"],
@@ -101,15 +102,17 @@ MATERIALS = {
 }
 
 # --- the base: one slot design, repeated ------------------------------------
-# The reference base keeps today's 122 mm shell. Four slots at a 24 mm pitch
-# span 96 mm inside a 106 mm cavity, so uniformity costs no size at all - it is
-# the same box with one repeat unit instead of two different ones.
+# The reference base keeps today's 122 mm shell. Pitch is a base parameter, not
+# a module rule: the rows are 26 / 21 mm as built, and a cartridge only has to
+# be <= 20 mm wide and stop within 32 mm of its pin line.
 SLOTS = {
     "reference_count": 8,
     "rows": 2,
     "per_row": 4,
-    "pitch": 24.0,              # >= envelope.across (22) + 2 mm
-    "window": (20.0, 20.0),     # equals CARTRIDGE.sensor_zone.size
+    "pitch": 24.0,              # nominal; the base's real pitch is a parameter
+    "pitch_min": 22.0,          # >= envelope.across (20) + 2 mm gap
+    "max_width": 20.0,          # a cartridge is at most this wide
+    "reach": 32.0,              # from its pin line to its far edge
     "ports_per_slot": ["gas cell socket", "Qwiic port"],
     "channels": {"mux": 8, "adc": 2, "onewire": 1},
     "growth": "slot count is a constant: more slots is a wider base, or an "
@@ -130,9 +133,8 @@ def checklist():
         "flat outline <= %.0f across x %.0f along x %.0f high"
         % (c["envelope"]["across"], c["envelope"]["along"],
            c["envelope"]["height"]),
-        "sensing element centred %.0f mm downstream of the connector face, "
-        "inside a %gx%g mm zone"
-        % (c["sensor_zone"]["offset_from_face"], *c["sensor_zone"]["size"]),
+        "sensing element anywhere on the card, on the slot centre line, with "
+        "clear air above it",
         "EEPROM per ID_EEPROM.map, checksum valid",
         "output analog 0-5 V on AO, or TTL serial 9600 8N1 on DO",
         "power <= %.0f mA at 5 V and <= %.0f mA at 3.3 V"
@@ -151,9 +153,9 @@ if __name__ == "__main__":
     print("doc:", DOC)
     print("cartridge:", CARTRIDGE["conn"])
     print("port:     ", PORT["conn"])
-    print("slots:     %d = %d rows of %d at a %.0f mm pitch"
-          % (SLOTS["reference_count"], SLOTS["rows"], SLOTS["per_row"],
-             SLOTS["pitch"]))
+    print("slots:     %d = %d rows of %d, pitch is a base parameter "
+          "(>= %.0f mm)" % (SLOTS["reference_count"], SLOTS["rows"],
+                            SLOTS["per_row"], SLOTS["pitch_min"]))
     print()
     for line in checklist():
         print("  ", line)

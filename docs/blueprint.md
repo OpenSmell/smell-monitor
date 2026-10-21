@@ -114,7 +114,7 @@ via active flow) · no certified ppm output (qualitative/relative instrument).
 ## 1. System Overview
 
 Three-phase, fan-driven, active sampling. A 40 mm axial fan pulls sample air
-through 3×Ø6 bellmouth nostrils, through a PTFE filter, across a baffled array
+through 3×Ø6 nostrils, through a replaceable filter, across the two module rows
 of interchangeable sensors, and out the rear.
 
 ```mermaid
@@ -122,7 +122,7 @@ flowchart LR
     S[Sample / headspace] --> N["3x Ø6 bellmouth nostrils"]
     N --> F[PTFE filter pack]
     F --> C["Sensing chamber<br/>106 x 100 x 48 mm"]
-    C --> B["Baffled sensor array<br/>8 uniform slots"]
+    C --> B["Two module rows<br/>8 identical sockets"]
     B --> X["40 mm PWM fan (rear)"]
     X --> E[Exhaust]
     ENV["SHT31 (T/RH)<br/>upstream of sensors"] -.-> C
@@ -171,6 +171,16 @@ three-phase structure is fixed. Full cycle ≈ 40 s (meets **G2 ≤ 60 s**).
 ---
 
 ## 3. Pneumatic Design
+
+> **Geometry note.** The element-loss table below was derived for the earlier
+> closed-lane chamber (106 × 11 mm lane, eight wells, plate). The chamber is now
+> the open tray of §6.1 (116 × 108 × 40, no lane, no wells), so the *distribution*
+> of those losses has changed while the sizing conclusions have not: the filter
+> and fan are still sized by the same flow and the same total ΔP, and the open
+> chamber has strictly less restriction than the lane it replaces. NF1 (filter
+> ΔP bench) and the CFD pass in §8.3 are what confirm the current numbers; treat
+> the per-element split below as the derivation, not as a prediction for the new
+> part.
 
 Method: hand-calculation system model (pipe-flow / orifice / duct theory) against
 datasheet-anchored fan and media figures, plus a validation plan. CFD is not
@@ -494,8 +504,8 @@ result: the pose must be fixed first, then the aperture placed from it.
 | Module height allowance | **≤ 29 mm**, i.e. 8 mm of recess under the plate | 8.5 socket + card + 8 must stay ≤ 37 mm; **open** — the real card height is §4.5's measurement |
 | Module envelope along flow | analog **≤ 35 mm**, digital **≤ 26 mm** | a *requirement on the module* (§4.5), not a market fact |
 | Insertion orientation | card body into the free depth, silkscreen arrow | a 35 mm analog card only fits extending **forward** into the 42 mm inter-row gap; a digital card extends **rearward**, stopping ≥ 7 mm short of the analog apertures |
-| Baffle plane | **37 mm** above board | sensor recess 8 mm below flow |
-| Cavity inner height | **48 mm** | 37 baffle + 11 mm air lane |
+| Clear height | **34.4 mm** above the board | to the lid underside at 43 mm |
+| Cavity inner height | **40 mm** | board top 8.6 to lid 43 |
 
 > **Mounting is not free, and the previous rule was backwards.** A module hangs
 > off its connector by its card length. "Connector edge toward the front" put a
@@ -622,7 +632,7 @@ socket contract (2.54 mm) and a size zoo (see `mechanical/modules.py`), so
 chasing footprints and define the socket:
 
 **One slot design, repeated.** Every slot carries a keyed 5 V gas-cell socket
-(1×6) *and* a 3.3 V Qwiic/STEMMA QT port, over its own 20 × 20 mm window. There
+(1×6) *and* a 3.3 V Qwiic/STEMMA QT port on the same footprint. There
 is no analog row and digital row for the user to get wrong; the module's own
 identity tells the base how to talk to it. The full rules — pinouts, the
 identity EEPROM and its memory map, the flat cartridge envelope, the wetted
@@ -648,7 +658,8 @@ pass in §8.3 must quantify — §4.9 fixes the hardware, the solve fixes the
 numbers.
 
 Service access follows from the flat pose and is an enclosure requirement, not a
-socket one: the cartridge comes out upward, so the baffle plate is the lid (§14).
+socket one: the cartridge comes out upward, and the flat screwed lid is the only
+thing above it (§6.1).
 
 ---
 
@@ -752,50 +763,71 @@ and `python tools/verify_sensor_matrix.py` (pack draw).
 
 ### 6.1 Envelope & layout
 
-Shell **122 × 114 × 90 mm** (8 mm walls + feet + Ø40 rear fan grille + inlet
-plenum). Board **114 × 105 mm**, carrying all 64 parts. The **PCB is the seal and
-the chamber floor**: it drops into a 1.6 mm rebate so its top face *is* the cavity
-floor, the chamber walls seal down onto it, and the 8 sensor headers stand up
-inside the chamber (§4). The fan exhausts through the rear wall.
+Shell (tray) **122 × 114 × 43 mm**, lid **122 × 114 × 6 mm**, assembled
+**122 × 114 × 49 mm** (128 mm deep with the rear fan). 3 mm walls, 3 mm floor.
+Board **114 × 105 mm** on four Ø6 standoffs, component side up, its top face at
+z = 8.6 mm. The eight 1×6 sockets stand 8.5 mm above it and the modules plug
+straight in. Service is four M3 screws.
 
-Keeping electronics heat and electronics surfaces *out* of the sensing cavity is
-the dominant drift lever, and that is what §6.3's separate **PTFE insert** is for:
-a 2 mm PTFE floor sheet over the board with 9 clearance holes, one per socket plus
-U5, so the sockets poke through, the modules stand on their sockets above it, and
-the rest of the board is behind a sealed inert surface.
+The architecture is deliberately the one a builder can hold in their head:
 
-> **Not in the volume model yet — read §14 before believing the gas path.**
-> The FreeCAD model as it stands is the chamber + envelope study: it has no PTFE
-> insert, no service compartment, no USB-C cutout, no OLED window and no button
-> or buzzer openings. Without the insert the whole board top face — 106 cm² of
-> FR4 and solder mask, the ESP32, the USB-C receptacle, the OLED — is wetted, and
-> the electronics share the sensors' air: FR4 and component plastics sorb and
-> re-release VOC (carryover, exactly what this design is trying to avoid), and the
-> 0603 analog dividers sit ~10 K above ambient so their tempco lands on the
-> readings. Until the insert and the openings are modelled, build with the liner
-> and burn the board in before any baseline run.
+```
+tray  ->  board on four standoffs  ->  modules into the eight headers
+      ->  filter pad drops into the front  ->  flat lid, four M3 screws
+```
+
+There is **no baffle plate, no plenum, no flow lane, no well and no window**.
+An earlier revision put a 2 mm plate 37 mm above the board with eight 20 × 20 mm
+openings over the modules. It was dropped: it doubled the part count, made the
+chamber 90 mm tall, required a machined PTFE insert to stay inert, and forced
+every cartridge into a recess so the sensing face sat below the plate. None of
+that was needed. A cartridge plugged into its socket looks straight into the
+moving sample; the only thing it needs is unobstructed air above its sensing
+face.
+
+| Part | Size | Process |
+|------|------|---------|
+| Shell (open tray) | 122 × 114 × 43 | PETG FDM, or AL 6061-T6 |
+| Lid (flat plate) | 122 × 114 × 6 | PETG FDM, same spool |
+| Filter pad | 110 × 4 × 23 | non-woven or PTFE felt, consumable |
+| Fan | Ø40 × 10 | any 5 V axial, mounted on the rear plate |
+| Screws | M3 × 12, 4 off | into heat-set inserts |
+
+The fan sits **outside** the rear face on a 4 mm plate, so motor heat never
+enters the sample and the fan can be changed without opening the box. Its four
+screws are blind: 6 mm of thread in plate + wall, and no hole into the chamber.
+
+v1 is **headless**. There is no display window, no button hole and no buzzer
+hole: those parts live on the board inside, reachable with the lid off, and the
+UI is Osmograph. This removes the separate front-panel board, the ribbon, and
+the entire class of "the panel does not line up with the chamber" defects.
+
+> **Board re-lay is the next electrical task.** The enclosure is now the
+> contract: the board must match it, not the other way round. Two changes are
+> needed — four corner notches (r = 5) for the lid bosses, and the USB-C moved to
+> the front edge. Nothing else moves.
 
 ### 6.2 Chamber geometry (locked)
 
 | Parameter | Value |
 |-----------|-------|
-| Cavity inner (L×W×H) | 106 × 100 × 48 mm (≈ 0.51 L) |
-| Inlet aperture | 3 × Ø6 mm bellmouthed |
-| Outlet | Ø40 mm into fan (48→10 taper) |
-| Baffle plane | 37 mm above board; recess 8 mm |
-| Header pitch | 26 mm analog / 21 mm digital |
-| PCB floor | 114 × 105 × 1.6 mm, top face flush with the cavity floor (z = 12 mm) |
-| Filter | pleated pack spanning the 106 × 11 mm lane, 14 mm behind the nostrils |
-| Reference port | 16 × 12 mm opening in the baffle over U5 (SHT31) |
+| Cavity inner (L×W×H) | 116 × 108 × 40 mm (≈ 0.50 L) |
+| Floor | 3 mm printed, under the board |
+| Board top (chamber floor) | z = 8.6 mm |
+| Lid underside (chamber ceiling) | z = 43 mm |
+| Clear height above the board | 34.4 mm |
+| Inlet | 3 × Ø6 through the front wall at z = 30, pitch 26 |
+| Outlet | Ø38 bore at z = 23, into a Ø40 fan |
+| Socket rows | analog y = 75, digital y = 33 (as-built PCB positions) |
+| Row spacing | 42 mm, so a 32 mm cartridge cannot reach the next row |
+| Header pitch | 26 mm analog / 21 mm digital (a base parameter, not a module rule) |
+| Filter | 110 × 4 × 23 pad in a front drawer, held down by the lid |
+| USB-C | Ø12 bulkhead hole at x = 14, z = 10 |
 
-The datum matters: the board's **top face is z = 12 mm**, the same plane the
-cavity floor sits on, which is what makes "baffle 37 mm above board"
-(12 + 37 = 49 mm), the "29 mm module allowance" and the "8 mm sensor recess"
-(49 − 41 = 8) mutually consistent. The board is also 8 mm wider and 5 mm longer
-than the cavity (114 × 105 vs 106 × 100), which is exactly why it needs the
-rebate rather than an interference fit. The 2 mm PTFE insert floor sits on the
-board and does not move the datum: the modules stand in their sockets, above it
-(§6.1).
+Flow is horizontal, front to rear: nostrils → filter pad → over the digital row
+→ over the analog row → rear bore → fan. The nostrils sit 11 mm above the
+module plane so the inlet jet spreads before it reaches the first row instead of
+blasting one cartridge.
 
 ### 6.3 Materials & sample-memory control
 
@@ -804,15 +836,18 @@ gas-contacting surface either adsorbs/outgasses VOCs or it does not.
 
 | Surface | Allowed | Forbidden (why) |
 |---------|---------|-----------------|
-| Chamber walls | PTFE insert, borosilicate glass, PTFE-lined Al | PLA/ABS/PETG/TPU prints (outgas + adsorb) |
-| Outer structure | Aluminium, or rigid plastic if fully lined | — |
-| Tubing | PTFE, PFA, stainless | Silicone, PVC, Tygon (adsorb VOCs) |
-| Filter→sensor path | Nothing adsorbing | Porous carbon pre-filters (bias every sample) |
-| Gaskets | PTFE-coated / FKM (Viton) | Natural rubber, EPDM (outgas) |
+| Chamber walls | PETG, sealed; optional PTFE liner sheet | silicone, PVC, bare zinc, paper, foam (adsorb/outgas) |
+| Tubing | PTFE, PFA, stainless | silicone, PVC, Tygon (adsorb VOCs) |
+| Filter→sensor path | mechanical media only | porous carbon in series (strips the analyte; carbon belongs on a reference-air line) |
+| Gaskets | none in v1 | natural rubber, EPDM (outgas) |
+| Conformal coat | acrylic or polyurethane | silicone (its vapour poisons SnO₂) |
 
-**Manufacturing consequence:** the cavity is machined PTFE, glass, or PTFE-lined
-Al — never a plain print. Cost mitigation: the chamber is a **separate insert**
-dropping into a cheap cosmetic shell. The insert is where quality lives.
+**Manufacturing consequence:** the tray and lid are printed PETG, and the wetted
+faces are sealed. That is a deliberate change from the earlier "machined PTFE
+insert" plan: an open chamber with a small wetted area and no dead volumes
+carries far less memory than a closed plate-and-liner assembly, at a fraction of
+the cost. A PTFE liner remains an optional upgrade for trace-level work, not a
+requirement for the base.
 
 ### 6.4 Mass estimate
 
@@ -821,12 +856,9 @@ dropping into a cheap cosmetic shell. The insert is where quality lives.
 | PCB 114×105×1.6 FR4 | 1 | 36 g |
 | MQ breakout | 4 | 36 g |
 | MEMS/NDIR breakout | 4 | 9 g |
-| Shell (PETG ~3 mm) | 1 | 200 g |
-| Fan + OLED/buzzer/hardware | — | 55 g |
-| **Total (worst case)** | | **≈ 340 g** |
-
-Enclosure dominates ⇒ 2 mm shell or lightweight PETG/aluminium cuts 80–150 g.
-Stationary desktop device; mass is a UX non-issue but still optimised.
+| Shell + lid (PETG, 3 mm) | 1 | 130 g |
+| Fan + hardware | — | 25 g |
+| **Total (worst case)** | | **≈ 240 g** |
 
 ---
 
@@ -898,7 +930,7 @@ firmware pin map against `interface.PINMAP`.
 - **Purge completeness:** after strong odor, one full cycle returns all sensors to
   ≥ 95% baseline.
 - **Fan-speed invariance:** fixed exposure at 40/70/100% PWM; response must not
-  shift (validates the recessed baffle).
+  shift (validates the open chamber).
 - Plus NF1–NF5 (§3.8).
 
 ### 8.3 CFD (optional, once)
@@ -953,11 +985,9 @@ soldered) → U2/U4/U5 → OLED/LED/buzzer → connectors (USB-C, JST, 8 headers
 I²C scan expects `0x48, 0x44, 0x70, 0x3C` · flash firmware, confirm
 self-test screen.
 
-**Chamber assembly:** PTFE liner into the shell → PCB into the 1.6 mm rebate
-(top face flush with the cavity floor) → seat the 8 sensor breakouts from above,
-connector edge toward the front, connector line along the flow → baffle plate
-over the sensor area (wells over the slots, reference port over U5) → pleated
-filter pack into its retainer spanning the lane immediately behind the nostrils
+**Chamber assembly:** PCB onto the four standoffs (component side up, top face is
+the chamber floor) → eight sensor cartridges into their headers, flat, connector
+toward the front → filter pad down into the front drawer → lid on, four M3 screws
 → fan in the service bay (exhaust out the rear) → seal, close the hatch.
 
 **Final integration:** power-on self-test `OK` · purge sanity (3 clean cycles,
@@ -1006,7 +1036,7 @@ bay while powered, keep from liquids, not for explosive atmospheres.
 **Specifications.** Power USB-C 5 V (3 A source assumed; ≥ 1.5 A needed) · idle < 1 W, ≈ 5 W loaded with four
 MOX modules (their heaters dominate — see §5.8) · 4+4 sensor ports · cycle
 ≈ 40 s · airflow 15 L/min design purge (> 100 L/min flush) · intake filter
-replaceable PTFE · 122 × 114 × 90 mm · ≈ 340 g · 5–40 °C, 20–80% RH · USB-C
+replaceable non-woven · 122 × 128 × 49 mm including the rear fan · ≈ 240 g · 5–40 °C, 20–80% RH · USB-C
 serial 115200 baud · Wi-Fi 2.4 GHz + Bluetooth LE (same data).
 
 ---
@@ -1019,10 +1049,10 @@ plotted **PDF** for the record — per ASME Y14.100 / ISO 5457 practice.
 
 | Sheet | Content | Status |
 |-------|---------|--------|
-| OS-000 | Assembly — exploded isometric (assembly order + balloons) + isometric general arrangement + BOM | **produced** |
-| OS-001 | Shell — front / section C-C (horizontal, through the exhaust bore) / section B-B / isometric cutaway, fully dimensioned | **produced** |
-| OS-002 | Baffle — plan at **1:1** (8 wells + reference port, print-and-check template) / section A-A at 2:1 + iso, fully dimensioned | **produced** |
-| OS-003 | PCB mechanical floor plan — board 114×105, header rows | planned |
+| OS-000 | Assembly — exploded isometric with balloons + BOM + **section B-B** (the full stack at x = 61: lid, board, sockets, filter, fan) + isometric | **produced** |
+| OS-001 | Shell — **front** (intake face) / **section A-A** at x = 61 / isometric, fully dimensioned | **produced** |
+| OS-002 | Lid — **plan at 1:1** (hole pattern, print-and-check template) / **section C-C** at 1.5:1 through the counterbores / isometric | **produced** |
+| OS-003 | PCB mechanical floor plan — board 114×105, header rows, corner notches | planned |
 | OS-004 | Pneumatic schematic — flow path, ΔP, fan operating point | planned |
 
 Projection is performed by the CAD kernel's hidden-line-removal (`TechDraw.projectEx`
@@ -1030,6 +1060,10 @@ returns true visible/hidden edges measured off the solid), so the views are
 faithful, not schematic boxes. Sheet format: A3 landscape, ISO 7200 title block,
 first-angle projection. The sheets are emitted as an editable **DXF** source and
 a plotted vector **PDF** in `mechanical/drawings/sheets/`.
+
+The set covers three parts and nothing else. There is no baffle sheet, because
+there is no baffle; OS-002 is the lid, which is a plate with four counterbored
+holes and is drawn at 1:1 so it can be printed and laid on the real part.
 
 **Sections are cut, not drawn.** Each section view is the solid cut by a half
 space, and the builder extracts the planar faces that cut created (outer wire
@@ -1039,11 +1073,12 @@ a heavy line, so the fill cannot drift off the part and a section can never
 silently become a wireframe. `tools/verify_cad.py` requires HATCH entities on
 both part sheets.
 
-**A plan view is not a section.** The shell plan was replaced by a horizontal
-section at z = 35: in a plan, the cavity, the board pocket and the plate ledge
-all project onto each other as hidden lines and the view reads as a hatched
-mess. The cut shows the same walls, the exhaust bore and the floor pocket as
-real material. Isometric views are rotated by −30° so the model +Z is vertical —
+**A plan view is not a section.** Where a plan would project the cavity, the
+board and the bosses onto each other as hidden lines, the sheet uses a real cut:
+OS-001's section A-A is a vertical cut at x = 61 (through an intake, the filter
+seat and the exhaust bore) and OS-000's section B-B is the same plane through
+the whole assembly, so it proves the stack — lid, board, sockets, filter pad,
+rear wall, fan. Isometric views are rotated by −30° so the model +Z is vertical —
 TechDraw's projector puts +Y vertical, which makes an unrotated isometric lie on
 its back and hides the fact that the parts are stacked in Z.
 
@@ -1086,7 +1121,7 @@ never be silently destroyed or faked:
 - `electrical/gen_schematic.py` → `smell_monitor_v1_1.kicad_sch` (ERC-clean).
 - `electrical/gen_pcb.py` — placement only: outline, footprints, netclasses.
   The 8 sensing headers are placed on `interface.ANALOG_HEADERS` /
-  `DIGITAL_HEADERS`, exactly the chamber wells.
+  `DIGITAL_HEADERS`, exactly the eight socket rows.
 - `electrical/route_pcb.py` — export Specctra DSN → FreeRouting (`java -jar`,
   `-mp 12`) → import SES. Refuses to save unless 0 unconnected remain. The
   autorouter is multi-threaded and not bit-reproducible; the *outcome* is
@@ -1103,9 +1138,9 @@ never be silently destroyed or faked:
 
 | Risk | Mitigation |
 |------|------------|
-| PTFE insert cost | Only the insert is PTFE; shell is cheap cosmetic plastic |
+| Wetted-material cost | Plain PETG tray + lid; a PTFE liner is an optional upgrade |
 | Most slots unfilled at first | v1 proves the interface; packs modelled later |
-| Fan speed affects MOX temperature | Recessed baffle; validated by §8.2 |
+| Fan speed affects MOX temperature | Fan outside the chamber; validated by §8.2 |
 | Sensor drift over months | Swappable sockets + SHT31 data + shared open dataset |
 | USB-C current limits | 5 V/3 A source assumed; §5.8 |
 | MOX cross-sensitivity | Cannot be fixed in hardware; platform removes confounders only |
@@ -1134,6 +1169,8 @@ path for automatic zero/baseline calibration.
 | K | 2026-10-17 | **Module envelope audited against real breakouts; §4.5/§4.6 rewritten.** Added `mechanical/modules.py` (per-module form, outline, connector class, sensing-element geometry — each with a source) and gate `tools/verify_module_fit.py` (reports by default so the suite stays green; `--strict` is what CI runs once the sample is measured). Findings that remove hidden assumptions: the MQ-135 is sold on 32×20, 32×22, 36×24 *or* 40×21 mm boards, so "worst case 22 × 35 × 23" was a vendor lottery presented as a datasheet fact; MQ breakouts ship as `VCC GND AO DO` *and* `VCC GND DO AO`, so §4.2's pin order is a convention, not a standard, and a swapped module puts its 0–5 V AO on an unprotected 3.3 V GPIO (`DO0..DO3`); the ZE03 is a Ø23.5 × 24.5 mm can, not a card; MH-Z19C-PC is 38.8 × 19.7 × 8.6 mm with a 1.5 mm JST-ZH connector; MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts (MICS-6814 has three analog outputs against one AO per slot). §4.6 corrections: the "connector edge toward the front" insertion rule sent a 35 mm analog card through the rear wall, so the rule is now "card body into the free depth" (26/42/32 mm per lane), and the analog pitch derivation is corrected to card 1.6 + Ø19×23 can = 24.6 mm across in a 26 mm pitch. `tools/verify_pcb.py` placement checks are now measured from the board's own outline, so moving the board in the KiCad sheet (centring it) is safe — proven by re-running the gate on a board translated by (+60, +25) mm. Header J→K. |
 | L | 2026-10-18 | **The module standard is defined, and the slot stops being two banks.** Added `docs/module-standard.md` (OpenSmell Module Standard v1, OSM-1) + `mechanical/standard.py` (the same rules as data) and extended `tools/verify_module_fit.py` to check the chamber, the socket contract and the module database against it and print the remaining gap as OPEN. **Decision:** one slot design repeated — every slot carries a keyed 2.54 mm 1×6 gas-cell socket (**`+5V GND AO DO 3V3 ID`**, the `ID` pin being a 1-Wire EEPROM carrying pinout + calibration + exposure history) *and* a 3.3 V Qwiic/STEMMA QT port (adopting the mainstream I²C standard rather than inventing one; Grove/Gravity via adapter), over its own 20 × 20 mm window; 8 slots as two rows of four at a uniform 24 mm pitch. Cartridges mount **flat** (right-angle header in a vertical socket, sensing face up, element centred in a 20 × 20 mm zone 16 mm downstream of the connector face) which points a MOX can's end-face inlet at its window and turns the standing pose's 40–48 mm height (against 37 mm available) into ≈25 mm. Uniformity costs no size: 4 × 24 = 96 mm fits the existing 106 mm cavity, so this is the same 122 mm shell built from one repeat unit. Wetted-material bans (no silicone anywhere in the gas path — silicone vapour permanently poisons SnO₂), a class-wise calibration blob, a module-maker conformance checklist and the cost (<$0.30 base overhead per slot) are recorded. Added §15 (design decision record: each invariant, the alternative considered, why it was rejected, and the evidence status of every claim). **Corrected:** no carbon in series with the sample (it strips the analyte we are measuring; carbon belongs on a reference-air line, §6.3/§13 — a risk row was added for silicone poisoning), and this document's own header revision brought back in step with the table (J→L). **Drawing set in the same revision:** every part sheet is now dimensioned against the real solid — the builder measures the projection's (u, v) axis vectors per view (`TechDraw.projectEx` aimed at a 100 mm reference line on each global axis) and stores them as `axes`, so the sheet generator inverts the projection exactly and a dimension cannot be attached to a guessed coordinate; OS-000 gained an **exploded assembly view** (parts offset along the assembly axis, offsets stored with the geometry) with item balloons keyed to the BOM; `tools/verify_cad.py` now rejects a view with no measured axes, checks the dimension *values* against `constants.py`, requires a minimum dimension count per part sheet, and fails any text that would print past the border. Header K→L. |
 
+| M | 2026-10-21 | **The enclosure is rebuilt as the simple thing it should have been, and the drawings follow.** The shell was a sealed solid: 30 mm of material over the chamber, no lid, no service opening, so it could not be printed, assembled or serviced. Measured volume 714 427 mm³ against a 1 251 720 mm³ envelope, `isInside((61, 57, 75))` true. The cause was architectural, not cosmetic: a baffle plate 37 mm above the board, eight wells, a PTFE liner and a vertical front panel that was modelled as a horizontal chamber floor. **Replaced** by an open tray (122 × 114 × 43, 3 mm walls, 3 mm floor) + a flat 6 mm lid on four M3 screws into heat-set inserts; the board sits on four Ø6 standoffs with its top face as the chamber floor at z = 8.6; modules plug straight into the eight 1×6 sockets; a 110 × 4 × 23 filter pad drops into a front drawer and is held down by the lid; a Ø40 fan mounts outside a 4 mm rear plate through a Ø38 bore with blind screws. **Retired:** the baffle, the plenum, the 11 mm lane, the 20 × 20 mm windows, the PTFE insert, the reference port, the front-panel board and the OLED window. **Kept:** the flat cartridge pose, the two rows (digital upstream, MOX downstream), the as-built header positions (analog y = 75, digital y = 33, 26/21 mm pitch), the wetted-material bans and the OSM-1 socket contract. Slot pitch is now explicitly a base *parameter* (`standard.SLOTS.pitch_min` = 22, `max_width` = 20, `reach` = 32), not a module rule. The drawing set is rebuilt from the new solid: OS-000 exploded + section B-B through the whole stack, OS-001 tray (front + section A-A + iso), OS-002 lid (1:1 plan + 1.5:1 counterbore section + iso); sections are hatched from real cut faces and every dimension is on a measured feature. Gates: `verify_cad` now checks section extents and the lid hole pattern against `constants.py`; `verify_module_fit`, `verify_electrical` and `interface.py` no longer reference the retired constants. Header L→M. |
+
 **Open items (need measurement or decision):**
 - Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
   schematic → placed + routed PCB (847 segments / 102 vias) → **DRC clean**
@@ -1141,83 +1178,55 @@ path for automatic zero/baseline calibration.
   `tools/verify_pcb.py` now holds that line. The v0 schematic is retained only as
   a pin-name source for `board.py`.
 - **Module standard: the decision is made, the board is not yet built to it (top
-  item).** §4.9 fixes the socket — flat cartridges, uniform 24 mm pitch, 8 slots,
-  keyed 1×6 gas cell with an `ID` pin, a Qwiic port at every slot. Target
-  revision L is therefore a re-derive, not a decision: mechanical (constants →
-  CAD → windows at the +16 mm offset → PTFE insert), electrical (6-pin socket,
-  Qwiic per slot, **10 kΩ in series with every `DO`**, the 1-Wire net, the second
-  ADS1115 for 8 analog channels) and then a re-route. `tools/verify_module_fit.py`
-  prints every remaining gap as OPEN and exits 0; `--strict` is what CI runs once
-  revision L is built.
-- **What the standard retires.** The pin-order hazard: the socket is keyed, the
-  module's `ID` announces what it is, and a 10 kΩ series resistor on every `DO`
-  clamps a wrongly-inserted 0–5 V output to ≈170 µA instead of into a 3.3 V GPIO
-  (`board.py` connects `DO0..DO3` unmodified today). The pose lottery too: modules
-  no longer have to be measured for the chamber to be safe, because the base is
-  built to a published envelope, and the Rev K caliper numbers become a *module
-  maker's* conformance check rather than a design blocker.
+  item).** §4.9 fixes the socket — flat cartridges, 8 slots, keyed 1×6 gas cell
+  with an `ID` pin, a Qwiic port at every slot. Target revision L is therefore a
+  re-derive, not a decision: electrical (6-pin socket, Qwiic per slot, **10 kΩ in
+  series with every `DO`**, the 1-Wire net, the second ADS1115 for 8 analog
+  channels) and then a re-route. `tools/verify_module_fit.py` prints every
+  remaining gap as OPEN and exits 0; `--strict` is what CI runs once revision L
+  is built. The slot pitch is a base parameter (26 / 21 mm as built), not a
+  module rule — a cartridge only has to fit the socket, be ≤ 20 mm wide and stop
+  within 32 mm of its pin line.
+- **Board re-lay to the enclosure (next mechanical/electrical task).** The
+  enclosure is the contract now (§6.1). Two changes: four r = 5 mm corner notches
+  for the lid bosses, and `J1` USB-C moved to the front edge so its face lands
+  behind the Ø12 bulkhead hole. `SW1..SW3`, `BZ1` and `LED1` stay on the board
+  inside the chamber (headless v1, §6.1); `U6` (OLED) is not fitted.
 - **Carrier boards** — MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts, and
-  MICS-6814 has three analog outputs against one AO per slot. A cabled I²C module
-  now needs no envelope at all (§2.2), so only gas-cell carriers matter: one
-  shared OpenSmell carrier accepts a TO-5 can, a Ø23.5 Winsen can or a bare SMD
-  part and presents the standard socket, pinout and sensor zone (§4).
+  MICS-6814 has three analog outputs against one AO per slot. One shared
+  OpenSmell carrier accepts a TO-5 can, a Ø23.5 Winsen can or a bare SMD part and
+  presents the standard socket, pinout and sensor zone (§4).
 - Mechanical: OS-003 (PCB floor plan) and OS-004 (pneumatic schematic) sheets (§12).
 - **Module mounting key** — §4.9 defines it (pin-1 chamfer plus a polarising slot
   in the socket wall) but no footprint carries it yet: revision L adds it to the
-  socket and to the cartridge outline, together with the aperture positions
-  derived from the flat pose (each window centred 16 mm downstream of its socket
-  line).
-- **BLOCKER — the shell as modelled is a sealed solid (found while re-drawing
-  it).** Measured from `mechanical/freecad/smell_monitor_shell.STEP`: volume
-  714 427 mm³ against a 122 × 114 × 90 = 1 251 720 mm³ envelope (57 % solid), and
-  `isInside((61, 57, 75))` is true, i.e. 30 mm of material closes the top of the
-  chamber. There is no lid in the BOM and no opening anywhere except the three
-  Ø6 intakes and the Ø40 exhaust. Consequences, in order of severity: the part
-  **cannot be FDM-printed** (a sealed internal cavity), **cannot be assembled**
-  (the baffle plate and the eight cartridges have no way in), and **cannot be
-  serviced**. A nicer drawing cannot fix this; the geometry has to change.
-- **The board and the enclosure disagree about orientation (same review).** The
-  board's own placement reads as a *vertical front panel*: USB-C `J1` at (10, 6),
-  buttons `SW1..SW3` at (74–92, 12), buzzer `BZ1` (12, 93), LED `LED1` (40, 94)
-  and the ESP32 `U1` (68, 94.4) all sit along the two long edges. The model mounts
-  that board *horizontally* as the chamber floor, so its top face — and therefore
-  the USB-C, all three buttons, the buzzer and the LED — is inside the sealed
-  sample chamber. Moving the openings is not enough: the three buttons would sit
-  12 mm behind a wall.
-- **Service access (success criterion U1)** — a flat cartridge lifts straight up
-  but its top sits ~4 mm under the baffle plate, so the plate is the lid: the
-  enclosure must let a user open the chamber and lift the plate without tools, or
-  U1's "≤ 60 s, no tools" cannot be met. A slide-out cartridge is not available
-  as an answer — a 40 mm cartridge has nowhere to pull it in a two-row cavity.
-  **Proposed fix (one decision, then a re-derive):** body 0–60 mm open at the top;
-  lid 60–70 mm held by four M3 thumb screws into heat-set inserts, with four posts
-  that press the baffle plate onto its corner brackets (so the plate comes out
-  with the lid, no tool); the envelope becomes **122 × 114 × 70**, removing the
-  30 mm of dead material above the chamber. The UI goes on a small front-panel
-  board (OLED + three buttons + one Qwiic link) on the front face, which is the
-  only place a display can face the user on a horizontal main board.
-- **PTFE insert floor + the user-facing openings (top mechanical item)** — §6.3
-  already requires a separate PTFE insert, but the volume model has none, so today
-  the board's whole top face (106 cm² of FR4 + solder mask, plus every component)
-  is gas-wetted and the electronics share the sensors' air (§6.1). Needs: the 2 mm
-  insert floor with 9 clearance holes (one per socket + U5), and the shell
-  openings the product needs anyway — USB-C, OLED window, three buttons, buzzer,
-  LED — none of which exist in the model. An enclosure revision, not a parameter
-  edit.
-- **Reference pocket** — U5 sees the sample through a 16 × 12 mm port, but its
-  pocket below the baffle is ~35 mm deep (a deep cavity in a boundary layer can
-  go stagnant). Verify with the smoke-ribbon test (NF2); if it lags, raise U5 on a
-  short carrier. A cartridge can also overhang ~2 mm of that port.
-- Pneumatic: NF1 filter ΔP bench + **pleated media vendor** (a flat 106 × 11 face
-  is only 11.7 cm², so the ≥70 cm² spec forces a folded pack); fan P/N.
-- CFD: one `simpleFoam` pass at 15 and 150 L/min (§8.3) with the revision-L
-  geometry — the 8 wells and the reference port feeding the shared sub-baffle
-  volume, i.e. NF5 well-washout. Three numbers it must produce, because §4.9
-  fixes the hardware and the solve fixes these: (1) each window's exchange time,
-  which sets the 20 × 20 mm window and the 24 mm pitch; (2) the cascade between
-  the upstream and downstream rows (how much of the sample the first row removes
-  before the second sees it); (3) whether a filled slot's cartridge, lying flat
-  under its window, perturbs its neighbours' exchange.
+  socket and to the cartridge outline.
+- **Closed this revision — the sealed shell.** The shell was a solid block with
+  30 mm of material over the chamber: not printable, not assemblable, not
+  serviceable. It is now an open tray (122 × 114 × 43) with a flat 6 mm screwed lid,
+  measured from the rebuilt STEP, and `tools/verify_cad.py` checks the section
+  extents and the lid hole pattern against `constants.py` so the same defect
+  cannot return silently.
+- **Closed this revision — the board/enclosure orientation mismatch.** The board
+  is a horizontal chamber floor by design, and the enclosure now says so: USB-C
+  reaches the front bulkhead hole, the buttons and buzzer are inside and
+  reachable with the lid off, and no panel opening is drawn that the board cannot
+  meet. Headless v1 removes the front-panel board entirely.
+- **Closed this revision — service access (success criterion U1).** Four M3
+  screws, lid off, modules lift straight out of their headers. No baffle to
+  remove, no tool beyond a 2.5 mm hex key, well inside 60 s.
+- **Closed this revision — the PTFE insert and the reference pocket.** With no
+  plate there is no 35 mm pocket over U5 and no liner to fit: U5 sits on the
+  board in the chamber air, and the wetted area is the tray walls, the lid and
+  the board, all sealed (§6.3). A PTFE liner sheet stays an optional upgrade.
+- Pneumatic: NF1 filter ΔP bench + media vendor (a flat 110 × 23 face is
+  25 cm²; a 4 mm non-woven at ≈0.6 m/s drops only a few Pa, so the pleated-pack
+  requirement is retired), fan P/N.
+- CFD: one `simpleFoam` pass at 15 and 150 L/min (§8.3) on the current geometry.
+  Three numbers it must produce: (1) the exchange time over each row, which sets
+  the 34.4 mm clear height and the 42 mm row spacing; (2) the cascade between the
+  upstream and downstream rows (how much of the sample the first row removes
+  before the second sees it); (3) whether a filled slot's cartridge perturbs its
+  neighbours' exchange.
 - Mass: MQ module mass from a physical sample.
 
 ---
@@ -1251,6 +1260,9 @@ module, the record shape) change only through §14.
 | 16 | **UI on a small front-panel board**, not on the chamber-floor board | OLED + buttons on the main board | The main board's top face *is* the chamber floor: anything on it is either in the sample air (sorbing, heating, corroding) or behind a wall. The front face is the only surface a display can face the user from, and one Qwiic cable is cheaper than a windowed lid plus a re-laid main board. |
 | 17 | **Reference sensor is a socketed module** (Qwiic), not a soldered part | SHT31 soldered to the main board | A soldered SHT31 makes the whole board a consumable when the sensor drifts, and it cannot be swapped for a calibrated one. A Qwiic reference module costs ~$4 and is field-replaceable, which is what "serviceable" has to mean for the one part that sees the air directly. |
 | 18 | **Acrylic or PU conformal coat**, never silicone | silicone coat; parylene | Silicone vapour poisons SnO₂ permanently (§13), so a silicone-coated board is a slow array killer. Acrylic/PU protects the copper and the dividers at ~$0 and can be masked off the sensor windows and connectors; parylene is better but needs a vacuum house and cannot be touched up. |
+| 19 | **Open tray, board on four standoffs, flat screwed lid** — no baffle, no plenum, no flow lane, no well, no window | the plate-with-eight-openings + machined PTFE insert | It doubles the part count and the envelope (90 mm tall, 1.25 L), needs a machined PTFE insert to stay inert, and forces every cartridge into an 8 mm recess so its sensing face sits *below* the plate. The plate bought nothing a plugged-in cartridge does not already have: unobstructed air over its sensing face. The tray prints on any FDM machine, needs no liner, and comes apart with four screws. |
+| 20 | **Fan outside the rear face**, on a 4 mm printed plate | fan inside the chamber on the rear wall | The fan's motor and plastics would sit in the sample, adding heat and sorption right where the gas leaves the array, and its 40 × 40 × 10 body would cut through the board's rear edge. Outside, it is downstream of everything, keeps its heat out of the box, and is serviceable without opening the lid. Its four screws are blind, so no hole enters the chamber. |
+| 21 | **Headless v1** — no display window, no panel buttons, no buzzer hole; UI is Osmograph | a small front-panel board (OLED + 3 buttons + Qwiic link) | A second board, a ribbon and a sealed feedthrough cost more than they return, and they create the whole class of defects where the panel and the chamber disagree about where the board is. The buttons, LED and buzzer stay on the board inside, reachable with the lid off; day-to-day use is a phone. |
 
 ### 15.1 Evidence status
 
@@ -1267,7 +1279,6 @@ A gate is not a measurement.
 | Window exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated, not simulated — §8.3 |
 | System ΔP ≈ 1.9 Pa, fan point 35–60 L/min at 20–30 % PWM | hand calculation against datasheet anchors | calculated — NF1 bench not run |
 | Purge completeness ≥ 99 %, carryover ≤ 5 % | NF4 / §8.2 acceptance tests | not tested — no hardware built |
-| PTFE insert and user-facing openings | not modelled | not done — §14 |
 | Absolute concentration accuracy | — | not claimed (§0.5) |
 
 ---

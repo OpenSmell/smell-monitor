@@ -476,22 +476,18 @@ def notes_block(psp, x, y, lines, size=2.5, lead=3.6):
 
 
 def bom(psp, x0, y0):
-    n_wells = len(CONST["A_X"]) + len(CONST["D_X"])
     rows = [
-        ("1", "Shell  %d\u00d7%d\u00d7%d, cavity %d\u00d7%d\u00d7%d" % (
-            CONST["SH"], CONST["SW"], CONST["SHH"],
-            CONST["CX"], CONST["CY"], CONST["CH"]), "1",
-         "PETG FDM (or AL 6061-T6)", "make"),
-        ("2", "Baffle plate  %d\u00d7%d\u00d7%d, %d wells + ref port" % (
-            CONST["CX"], CONST["CY"], CONST["BAFFLE_T"], n_wells), "1",
-         "PTFE machined (or PVDF)", "make"),
-        ("3", "Filter pack, full-lane series element",
-         "1", "pleated PTFE, \u226570 cm\u00b2 media", "buy"),
-        ("4", "Main PCB  %d\u00d7%d, sealed chamber floor" % (
-            CONST["PCB_X"], CONST["PCB_Y"]), "1",
-         "FR4 1.6 mm + build (OS-003)", "make"),
-        ("5", "Axial fan  DIA40 \u00d7 t10, 5 V", "1",
-         "off-the-shelf (any 40 mm)", "buy"),
+        ("1", "Shell \u2013 open tray  %d \u00d7 %d \u00d7 %d"
+         % (SH, SW, CONST["CAV_Z1"]),
+         "1", "PETG FDM (or AL 6061-T6)", "make"),
+        ("2", "Lid \u2013 flat plate  %d \u00d7 %d \u00d7 %d" % (SH, SW, LID_T),
+         "1", "PETG FDM, same spool", "make"),
+        ("3", "Filter pad  %d \u00d7 %d \u00d7 %d" % (FILT_W, FILT_T, FILT_H),
+         "1", "non-woven or PTFE felt", "buy"),
+        ("4", "Main PCB  %d \u00d7 %d, 8 sockets" % (PCB_X, PCB_Y),
+         "1", "FR4 1.6 mm + build (OS-003)", "make"),
+        ("5", "Fan  DIA40 \u00d7 t10, 5 V", "1", "any 40 mm axial", "buy"),
+        ("6", "Screw  M3 \u00d7 12, socket head", "4", "A2 stainless", "buy"),
     ]
     colw = [12, 92, 10, 74, 14]
     psp.add_text("BILL OF MATERIALS", height=3.4,
@@ -515,9 +511,6 @@ def bom(psp, x0, y0):
         psp.add_line((x0, y), (x0 + sum(colw), y), dxfattribs={"layer": "DIM"})
     psp.add_lwpolyline([(x0, y), (x0 + sum(colw), y), (x0 + sum(colw), y0 - 4),
                         (x0, y0 - 4)], close=True, dxfattribs={"layer": "DIM"})
-    psp.add_text("geometry from real HLR of the v1.1 solid; all dims mm; "
-                 "per blueprint.md 0.4", height=2.4,
-                 dxfattribs={"layer": "TXT"}).set_placement((x0, y - 6))
 
 
 # ===========================================================================
@@ -527,10 +520,15 @@ COMMON = dict(project=PROJECT, notes="all dims mm; deburr/de-flash; "
               "seal wetted faces; print thin parts 0.2 mm layer")
 
 A_X, D_X = CONST["A_X"], CONST["D_X"]
-CX0, CY0 = CONST["WSIDE"], CONST["WFB"]
-CX1, CY1 = CX0 + CONST["CX"], CY0 + CONST["CY"]
-BZ, BT = CONST["BAFFLE_Z"], CONST["BAFFLE_T"]
-MIDX = CONST["SH"] / 2.0
+CX0, CY0 = CONST["CX0"], CONST["CY0"]
+CX1, CY1 = CONST["CX1"], CONST["CY1"]
+SH, SW, SHH = CONST["SH"], CONST["SW"], CONST["SHH"]
+LID_T = CONST["LID_T"]
+PCB_X, PCB_Y = CONST["PCB_X"], CONST["PCB_Y"]
+FILT_T = CONST["FILT_T"]
+FILT_W = CONST["CX"] - 2 * CONST["RAIL_W"]
+FILT_H = CONST["CAV_Z1"] - CONST["FILT_Z0"]
+MIDX = SH / 2.0
 
 
 def sheet_assembly(doc):
@@ -540,42 +538,53 @@ def sheet_assembly(doc):
     psp.add_text("ASSEMBLY \u2013 OpenSmell v1.1 sensing platform", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    psp.add_text("exploded isometric (parts separated along the assembly axis) "
-                 "+ general arrangement \u2013 shell, baffle plate, filter pack, "
-                 "PCB chamber floor, DIA40 exhaust fan", height=3,
+    psp.add_text("four screws out, lid off, modules in, lid back.  That is the "
+                 "entire service procedure.", height=3,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    ex = View(psp, "assembly", "EXPLODED", -30, 0.40, 104, 66, hidden=False)
-    caption(psp, ex.centre[0], 58, "EXPLODED \u2013 assembly order  (NTS)")
+    ex = View(psp, "assembly", "EXPLODED", -30, 0.42, 26, 118, hidden=False)
+    caption(psp, ex.centre[0], 112, "EXPLODED \u2013 assembly order  (NTS)")
     off = HLR["explode"]
-    # Balloons sit on the part they name, in its exploded position: the offsets
-    # travel from the model, so the leader cannot point at where a part used to
-    # be.  One balloon per BOM item, all keyed to the same numbering.
-    ex.balloon((0, 0, CONST["SHH"]), -34, 24, 1)
-    ex.balloon((CX1, CY1, BZ + off["baffle"][2]), 36, 8, 2)
-    ex.balloon((CX1, CONST["FILT_Y0"], CONST["FLOOR"] + CONST["CH"]
-                + off["filter"][2]), 36, 10, 3)
-    ex.balloon((0, 0, CONST["PCB_Z"] + off["pcb"][2]), -34, -12, 4)
-    ex.balloon((CONST["FAN_X"] + 24, CONST["FAN_Y"] + off["fan"][1],
-                CONST["FAN_Z"] + off["fan"][2]), 36, 0, 5)
+    ex.balloon((0, 0, SHH), -30, 20, 1)
+    ex.balloon((CX1, CY1, CONST["LID_Z0"] + off["lid"][2]), 26, 10, 2)
+    ex.balloon((CX0, CY0, CONST["FILT_Z0"] + off["filter"][2]), -34, -14, 3)
+    ex.balloon((0, 0, CONST["PCB_Z"] + off["pcb"][2]), -30, -10, 4)
+    ex.balloon((CONST["FAN_X"] + 20, CONST["SW"] + CONST["FAN_PLATE_T"]
+                + off["fan"][1], CONST["FAN_Z"]), 34, 16, 5)
+    ex.balloon((CONST["BOSS_INSET"], CONST["BOSS_INSET"],
+                CONST["LID_Z1"] + off["screws"][2]), -20, 14, 6)
 
-    ga = View(psp, "assembly", "ISO", -30, 0.26, 262, 132, hidden=True)
-    caption(psp, ga.centre[0], 126, "ISO \u2013 general arrangement  (NTS)")
+    s = View(psp, "assembly", "SECTION_B", 90, 1.25, 205, 205, hidden=False,
+             hatch=1.1)
+    caption(psp, s.centre[0], 180,
+            "SECTION B-B \u2013 x=%d, the whole stack  1.25:1" % MIDX)
+    s.dim_x((0, 0, 0), (0, CONST["SW"] + CONST["FAN_PLATE_T"]
+                        + CONST["FAN_T"], 0), 8)
+    s.dim_x((0, CONST["WALL"], 0), (0, CONST["CY1"], 0), 18)
+    s.dim_y((0, 0, 0), (0, 0, CONST["PCB_TOP"]), 10, "left")
+    s.dim_y((0, 0, CONST["CAV_Z1"]), (0, 0, SHH), 10, "left")
+    s.dim_y((0, 0, 0), (0, 0, SHH), 22, "left", from_box=True)
+    s.leader((0, 1.5, CONST["NO_Z"]), 14, 10, "DIA6 INTAKE")
+    s.leader((0, 5.0, 30.0), 16, -8, "FILTER PAD")
+    s.leader((0, 30.0, CONST["PCB_TOP"] - 0.8), 24, 10, "PCB 1.6")
+    s.leader((0, CONST["SW"] - 1.5, CONST["FAN_Z"]), 12, -22, "DIA38 + FAN")
 
-    bom(psp, 20.0, 232.0)
-    notes_block(psp, 264, 108, [
-        "ENVELOPE %d \u00d7 %d \u00d7 %d; CAVITY %d \u00d7 %d \u00d7 %d." % (
-            CONST["SH"], CONST["SW"], CONST["SHH"], CONST["CX"], CONST["CY"],
-            CONST["CH"]),
-        "FLOW: DIA6 INTAKE \u2192 FILTER \u2192 11 mm LANE \u2192 8 WELLS "
-        "\u2192 DUCT \u2192 DIA40 FAN.",
-        "PCB = CHAMBER FLOOR (OS-001); CARTRIDGES LIFT OUT WITH THE PLATE.",
+    iso = View(psp, "assembly", "ISO", -30, 0.45, 300, 118, hidden=False)
+    caption(psp, iso.centre[0], 112, "ISO \u2013 as built  (NTS)")
+
+    bom(psp, 20.0, 96.0)
+    notes_block(psp, 235, 100, [
+        "ENVELOPE %d \u00d7 %d \u00d7 %d, FAN %d PROUD OF THE BACK." % (
+            SH, SW, SHH, CONST["FAN_T"]),
+        "8 SOCKETS: 1\u00d76 KEYED 2.54 mm, ANALOG ROW DOWNSTREAM.",
+        "LID SCREWS: M3 \u00d7 12 INTO HEAT-SET INSERTS, 4 PLACES.",
+        "FILTER DROPS INTO THE FRONT DRAWER; NOTHING ELSE IS A CONSUMABLE.",
         "NO SILICONE, PVC, PAPER OR FOAM WHERE THE SAMPLE TOUCHES.",
-        "ITEM NUMBERS MATCH THE BOM; EXPLODED IS A TRUE HLR.",
+        "BALLOON NUMBERS MATCH THE BOM; THE EXPLODED VIEW IS TRUE HLR.",
     ])
     title_block(psp, dict(COMMON, title="ASSEMBLY", no="OS-000", sheet="1",
-                          sheets="3", scale="NTS", material="see BOM",
+                          sheets="3", scale="AS NOTED", material="see BOM",
                           finish="see BOM"))
     return psp
 
@@ -584,152 +593,121 @@ def sheet_shell(doc):
     psp = doc.layouts.new("OS-001")
     psp.page_setup(size=(PW, PH), margins=(0, 0, 0, 0), units="mm")
     frame(psp)
-    psp.add_text("SHELL \u2013 main body  (OS-001)", height=5,
+    psp.add_text("SHELL \u2013 open tray  (OS-001)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    psp.add_text("PETG FDM, printed as one part; the PCB is the sealed chamber "
-                 "floor and the baffle plate seats on the ledge at z=%d" %
-                 CONST["BAFFLE_Z"], height=3,
+    psp.add_text("one printed part: floor, four walls, four bosses for the lid "
+                 "screws, four standoffs for the board, a filter drawer and a "
+                 "rear fan plate", height=3,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    # ---- FRONT: the intake face, X (horizontal) x Z (vertical), 1:2 -------
-    v = View(psp, "shell", "FRONT", 270, 0.5, 40, 200, hidden=False)
-    caption(psp, v.centre[0], 258, "FRONT \u2013 intake face  1:2")
-    v.chain_x([(0, 0, 0), (MIDX - 26, 0, 0), (MIDX, 0, 0), (MIDX + 26, 0, 0),
-               (CONST["SH"], 0, 0)], 8)                       # 35 / 26 / 26 / 35
-    v.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 18)              # 122
-    v.chain_y([(CONST["SH"], 0, 0), (CONST["SH"], 0, CONST["FLOOR"]),
-               (CONST["SH"], 0, CONST["NO_Z"])], 10, "right")  # 12 / 43
-    v.dim_y((CONST["SH"], 0, 0), (CONST["SH"], 0, CONST["SHH"]), 20, "right")
-    for dx in (-26, 0, 26):
-        v.cross((MIDX + dx, 0, CONST["NO_Z"]), size=2.0)
-    v.leader((MIDX, 0, CONST["NO_Z"]), 0, -16, "3 \u00d7 DIA%d THRU" %
-             (2 * CONST["NO_R"]))
-    v.cut_line(MIDX, "B", both=False)
+    # ---- FRONT: the intake face, X (horizontal) x Z (vertical), 1:1 ------
+    v = View(psp, "shell", "FRONT", 270, 1.0, 30, 200, hidden=False)
+    caption(psp, v.centre[0], 177, "FRONT \u2013 intake face  1:1")
+    v.chain_x([(0, 0, 0), (MIDX - CONST["NO_PITCH"], 0, 0), (MIDX, 0, 0),
+               (MIDX + CONST["NO_PITCH"], 0, 0), (SH, 0, 0)], 8)
+    v.dim_x((0, 0, 0), (SH, 0, 0), 16)
+    v.chain_y([(SH, 0, 0), (SH, 0, CONST["NO_Z"]), (SH, 0, CONST["CAV_Z1"])],
+              10, "right")
+    v.dim_y((SH, 0, 0), (SH, 0, CONST["CAV_Z1"]), 18, "right")
+    for dx in (-CONST["NO_PITCH"], 0, CONST["NO_PITCH"]):
+        v.cross((MIDX + dx, 0, CONST["NO_Z"]), size=2.2)
+    v.leader((MIDX + CONST["NO_PITCH"], 0, CONST["NO_Z"]), 6, 16,
+             "3 \u00d7 DIA%d" % (2 * CONST["NO_R"]))
+    v.leader((CONST["USB_X"], 0, CONST["USB_Z"]), -6, -14,
+             "DIA%d" % (2 * CONST["USB_R"]))
+    v.cut_line(MIDX, "A", both=False)
 
-    # ---- SECTION C-C: horizontal cut through the exhaust bore, 1:2 ------
-    # The plan was replaced by this section: hidden lines for the cavity, the
-    # board pocket and the plate ledge land on top of each other in a plan, so
-    # it read as a hatched mess.  A cut above the fan axis shows the same walls,
-    # the bore and the floor pocket as real, hatched material.
-    p = View(psp, "shell", "SECTION_CC", 0, 0.5, 40, 105, hidden=False,
-             hatch=1.4)
-    caption(psp, p.centre[0], 167, "SECTION C-C \u2013 z=%d  1:2" %
-            (CONST["FAN_Z"] + 5.0))
-    p.chain_x([(0, 0, 0), (CX0, 0, 0), (CX1, 0, 0), (CONST["SH"], 0, 0)], 8)
-    p.dim_x((0, 0, 0), (CONST["SH"], 0, 0), 18)               # 8 / 106 / 8
-    p.chain_y([(CONST["SH"], 0, 0), (CONST["SH"], CY0, 0),
-               (CONST["SH"], CY1, 0), (CONST["SH"], CONST["SW"], 0)],
-              10, "right")                                     # 7 / 100 / 7
-    p.dim_y((CONST["SH"], 0, 0), (CONST["SH"], CONST["SW"], 0), 20, "right")
+    # ---- SECTION A-A on x=61: Y (horizontal) x Z (vertical), 1.5:1 ------
+    s = View(psp, "shell", "SECTION_A", 90, 1.25, 215, 200, hidden=False,
+             hatch=1.1)
+    caption(psp, s.centre[0], 177, "SECTION A-A \u2013 x=%d  1.25:1" % MIDX)
+    s.dim_x((0, 0, 0), (0, CONST["SW"] + CONST["FAN_PLATE_T"], 0), 8)
+    s.dim_x((0, CONST["WALL"], 0), (0, CONST["CY1"], 0), 18)
+    s.dim_y((0, 0, CONST["FLOOR_T"]), (0, 0, CONST["CAV_Z1"]), 10, "left")
+    s.dim_y((0, 0, 0), (0, 0, CONST["CAV_Z1"]), 22, "left", from_box=True)
+    s.leader((0, CONST["WALL"] / 2.0, CONST["NO_Z"]), 20, -8, "3 THK")
+    s.leader((0, CONST["WALL"] + 2.0, CONST["FILT_Z0"] - 1.5), 16, -12,
+             "FILTER SEAT")
+    s.leader((0, CONST["SW"] - 1.5, CONST["FAN_Z"]), 12, -20, "DIA%d" %
+             (2 * CONST["FAN_R"]))
 
-    # ---- SECTION B-B on x=61: Y (horizontal) x Z (vertical), 1:2 --------
-    # Hidden lines are suppressed and the cut faces are hatched from the
-    # measured section geometry, so this reads as a section, not a wireframe.
-    s = View(psp, "shell", "SECTION_BB", 90, 0.5, 250, 200, hidden=False,
-             hatch=1.4)
-    caption(psp, s.centre[0], 258, "SECTION B-B \u2013 x=%d  1:2" % MIDX)
-    s.dim_x((0, 0, 0), (0, CONST["SW"], 0), 18)               # 114
-    s.chain_y([(0, 0, 0), (0, 0, CONST["FLOOR"]), (0, 0, BZ),
-               (0, 0, CONST["FLOOR"] + CONST["CH"]), (0, 0, CONST["SHH"])],
-              11, "left")                                      # 12 / 37 / 11 / 30
-    s.dim_y((0, 0, 0), (0, 0, CONST["SHH"]), 12, "right", from_box=True)
-    s.leader((0, CONST["FAN_Y"], CONST["FAN_Z"]), -24, -22,
-             "DIA%d exhaust, axis z=%d" % (
-                 2 * CONST["FAN_R"], CONST["FAN_Z"]))
+    # ---- ISO -------------------------------------------------------------
+    iso = View(psp, "shell", "ISO", -30, 0.55, 46, 88, hidden=False)
+    caption(psp, iso.centre[0], 82, "ISO \u2013 shell as printed  (NTS)")
 
-    # ---- ISO: cutaway on the same plane as B-B, so the inside is visible --
-    iso = View(psp, "shell", "ISO", -30, 0.38, 300, 100, hidden=False)
-    caption(psp, iso.centre[0], 96,
-            "ISO \u2013 shell as printed  (NTS)")
-
-    notes_block(psp, 16, 78, [
+    notes_block(psp, 200, 160, [
         "MATERIAL: PETG FDM, 0.2 mm LAYER, 4 PERIMETERS; SEAL WETTED FACES.",
-        "THE PCB IS THE CHAMBER FLOOR: SEAT POCKET 1.6 DEEP, BOARD TOP z=%d."
-        % CONST["FLOOR"],
-        "BAFFLE PLANE z=%d (%d ABOVE THE FLOOR). MODULE ALLOWANCE %d, "
-        "RECESS %d." % (BZ, BZ - CONST["FLOOR"],
-                        CONST["BAFFLE_Z"] - CONST["FLOOR"] - 8, 8),
-        "FLOW: 3 \u00d7 DIA%d INTAKE (z=%d) \u2192 FILTER (y=%d) \u2192 11 mm "
-        "LANE \u2192 8 WELLS \u2192 DUCT \u2192 DIA%d FAN." % (
-            2 * CONST["NO_R"], CONST["NO_Z"], CONST["FILT_Y0"],
-            2 * CONST["FAN_R"]),
-        "ALL OPENINGS DEBURRED; NO SILICONE, PVC, PAPER OR FOAM IN THE GAS PATH.",
-        "DIMS IN mm. DATUM: FRONT-LOWER-LEFT OUTER CORNER (0, 0, 0).",
+        "WALL %d, FLOOR %d, LID %d (OS-002); CAVITY %d \u00d7 %d \u00d7 %d." % (
+            CONST["WALL"], CONST["FLOOR_T"], CONST["LID_T"],
+            CONST["CX"], CONST["CY"], CONST["CH"]),
+        "BOARD SITS ON 4 STANDOFFS (DIA%d, z=%d..%d), TOP FACE = CHAMBER "
+        "FLOOR." % (CONST["STANDOFF_D"], CONST["FLOOR_T"], CONST["PCB_Z"]),
+        "LID: 4 \u00d7 M3 \u00d7 12 INTO HEAT-SET INSERTS IN DIA%d CORNER "
+        "BOSSES; LID ADDS %d mm." % (CONST["BOSS_D"], CONST["LID_T"]),
+        "FILTER PAD %d \u00d7 %d \u00d7 %d DROPS IN FROM THE TOP, HELD BY THE "
+        "LID." % (FILT_W, FILT_T, FILT_H),
+        "NO SILICONE, PVC, PAPER OR FOAM IN THE GAS PATH.  DIMS IN mm.",
     ])
-    title_block(psp, dict(COMMON, title="SHELL \u2013 main body", no="OS-001",
-                          sheet="2", sheets="3", scale="1:2",
+    title_block(psp, dict(COMMON, title="SHELL \u2013 open tray", no="OS-001",
+                          sheet="2", sheets="3", scale="AS NOTED",
                           material=PROCESS["shell"]["primary"],
                           finish=PROCESS["shell"]["finish"]))
     return psp
 
 
-def sheet_baffle(doc):
+def sheet_lid(doc):
     psp = doc.layouts.new("OS-002")
     psp.page_setup(size=(PW, PH), margins=(0, 0, 0, 0), units="mm")
     frame(psp)
-    psp.add_text("BAFFLE \u2013 well plate  (OS-002)", height=5,
+    psp.add_text("LID  (OS-002)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    psp.add_text("PTFE plate that closes the chamber; every well is open-bottom, "
-                 "so each cell reads the volume under it", height=3,
-                 dxfattribs={"layer": "TXT"}).set_placement(
+    psp.add_text("a flat plate with four counterbored holes: it closes the "
+                 "chamber, holds the filter down and clamps nothing else",
+                 height=3, dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
-    # ---- PLAN at 1:1: this sheet doubles as a print-and-check template ----
-    p = View(psp, "baffle", "PLAN", 0, 1.0, 30, 150, hidden=False)
-    caption(psp, p.centre[0], 126,
-            "PLAN (%d wells + reference port)  1:1 \u2013 PRINT AT 100%%"
-            % (len(A_X) + len(D_X)))
-    p.chain_x([(CX0, CY0, 0)] + [(x, CY0, 0) for x in A_X] + [(CX1, CY0, 0)], 8)
-    p.dim_x((CX0, CY0, 0), (CX1, CY0, 0), 16)                 # 106
-    p.chain_x([(CX0, CY1, 0)] + [(x, CY1, 0) for x in D_X] + [(CX1, CY1, 0)],
-              8, above=True)                                  # digital row
-    p.dim_y((CX1, CY0, 0), (CX1, CY1, 0), 16, "right")        # 100
-    p.dim_y((CX1, CONST["A_Y0"], 0), (CX1, CONST["A_Y0"] + CONST["A_SY"], 0),
-            8, "right")
-    p.dim_y((CX1, CONST["D_Y0"], 0), (CX1, CONST["D_Y0"] + CONST["D_SY"], 0),
-            8, "right")
-    p.dim_y((CX1, CONST["SHT_Y0"], 0),
-            (CX1, CONST["SHT_Y0"] + CONST["SHT_SY"], 0), 8, "right")
+    # ---- PLAN 1:1 --------------------------------------------------------
+    p = View(psp, "lid", "PLAN", 0, 1.0, 30, 96, hidden=False)
+    caption(psp, p.centre[0], 80, "PLAN \u2013 hole pattern  1:1")
+    p.dim_x((0, 0, 0), (SH, 0, 0), 8)
+    p.dim_y((0, 0, 0), (0, SW, 0), 8, "left")
+    p.chain_x([(0, SW, 0), (CONST["BOSS_INSET"], SW, 0),
+               (SH - CONST["BOSS_INSET"], SW, 0), (SH, SW, 0)], 10, above=True)
+    p.dim_y((0, CONST["BOSS_INSET"], 0), (0, SW - CONST["BOSS_INSET"], 0),
+            10, "right")
+    p.leader((CONST["BOSS_INSET"], SW - CONST["BOSS_INSET"], 0), 14, -10,
+             "4 \u00d7 DIA%d THRU, CBORE DIA%d \u00d7 %d" % (
+                 CONST["SCREW_D"], CONST["CBORE_D"], CONST["CBORE_T"]))
 
-    # ---- SECTION A-A through the analog row, 2:1: wells and ribs --------
-    a = View(psp, "baffle", "SECTION_AA", 270, 2.0, 30, 96, hidden=False,
+    # ---- SECTION C-C through the front screw pair, 1.5:1 -----------------
+    c = View(psp, "lid", "SECTION_C", 270, 1.5, 200, 236, hidden=False,
              hatch=0.9)
-    caption(psp, a.centre[0], 72, "SECTION A-A \u2013 analog well row  2:1")
-    a.chain_x([(CX0, 0, BZ), (A_X[0] - CONST["A_SX"] / 2, 0, BZ),
-               (A_X[0] + CONST["A_SX"] / 2, 0, BZ),
-               (A_X[1] - CONST["A_SX"] / 2, 0, BZ),
-               (A_X[1] + CONST["A_SX"] / 2, 0, BZ),
-               (A_X[2] - CONST["A_SX"] / 2, 0, BZ),
-               (A_X[2] + CONST["A_SX"] / 2, 0, BZ),
-               (A_X[3] - CONST["A_SX"] / 2, 0, BZ),
-               (A_X[3] + CONST["A_SX"] / 2, 0, BZ),
-               (CX1, 0, BZ)], 8)                              # 3/22/4/22...
-    a.dim_x((CX0, 0, BZ), (CX1, 0, BZ), 16)                   # 106
-    a.dim_y((CX1, 0, BZ - BT), (CX1, 0, BZ), 10, "right")     # 2, in open space
+    caption(psp, c.centre[0], 230, "SECTION C-C \u2013 y=%d, through the "
+            "counterbores  1.5:1" % CONST["BOSS_INSET"])
+    c.dim_y((0, 0, CONST["LID_Z0"]), (0, 0, CONST["LID_Z1"]), 6, "right")
+    c.dim_y((0, 0, CONST["LID_Z1"] - CONST["CBORE_T"]),
+            (0, 0, CONST["LID_Z1"]), 16, "right")
+    c.leader((CONST["BOSS_INSET"] + 1.7, 0, CONST["LID_Z1"] - 3.0), -14, 10,
+             "DIA%d \u00d7 %d DEEP" % (CONST["CBORE_D"], CONST["CBORE_T"]))
 
-    iso = View(psp, "baffle", "ISO", -30, 0.45, 268, 150, hidden=False)
-    caption(psp, iso.centre[0], 144, "ISO \u2013 open-bottom wells  (NTS)")
+    iso = View(psp, "lid", "ISO", -30, 0.60, 250, 120, hidden=False)
+    caption(psp, iso.centre[0], 114, "ISO \u2013 lid as printed  (NTS)")
 
-    notes_block(psp, 162, 266, [
-        "MATERIAL: PTFE, MACHINED. SUBSTITUTE: PVDF OR BOROSILICATE.",
-        "PLATE %d \u00d7 %d \u00d7 %d, SEATS ON THE SHELL LEDGE AT z=%d." % (
-            CONST["CX"], CONST["CY"], BT, BZ - BT),
-        "WELL ORDER IS FLOW ORDER: DIGITAL UPSTREAM, ANALOG DOWNSTREAM.",
-        "EVERY WELL IS OPEN-BOTTOM: THE CELL READS THE SUB-BAFFLE VOLUME.",
-        "ANALOG WELLS %d \u00d7 %d (A1\u2013A4), DIGITAL WELLS %d \u00d7 %d "
-        "(D1\u2013D4)." % (CONST["A_SX"], CONST["A_SY"], CONST["D_SX"],
-                          CONST["D_SY"]),
-        "U5 REFERENCE PORT %d \u00d7 %d AT (%d, %d): SHT31 SEES THE SAME AIR." % (
-            CONST["SHT_SX"], CONST["SHT_SY"], CONST["SHT_X"], CONST["SHT_Y0"]),
-        "GENERAL TOLERANCE ISO 2768-mK; WETTED FACES FREE OF RESIDUE.",
+    notes_block(psp, 30, 74, [
+        "MATERIAL: PETG FDM, 0.2 mm LAYER, 4 PERIMETERS (SAME SPOOL AS SHELL).",
+        "PLATE %d THICK; COUNTERBORE %d \u00d7 %d FOR M3 SOCKET HEAD." % (
+            LID_T, CONST["CBORE_D"], CONST["CBORE_T"]),
+        "MATING FACE FLAT WITHIN 0.2; NO GASKET - THE FAN RUNS AT NEGATIVE "
+        "PRESSURE.",
+        "THE UNDERSIDE HOLDS THE FILTER PAD DOWN: NO ADHESIVE, NO FASTENER.",
     ])
-    title_block(psp, dict(COMMON, title="BAFFLE \u2013 well plate", no="OS-002",
+    title_block(psp, dict(COMMON, title="LID \u2013 flat plate", no="OS-002",
                           sheet="3", sheets="3", scale="AS NOTED",
-                          material=PROCESS["baffle"]["primary"],
-                          finish=PROCESS["baffle"]["finish"]))
+                          material=PROCESS["lid"]["primary"],
+                          finish=PROCESS["lid"]["finish"]))
     return psp
 
 
@@ -773,7 +751,7 @@ def plot(sheets):
 
 
 SHEETS = (("OS-000_assembly", sheet_assembly), ("OS-001_shell", sheet_shell),
-          ("OS-002_baffle", sheet_baffle))
+          ("OS-002_lid", sheet_lid))
 
 
 def generate():

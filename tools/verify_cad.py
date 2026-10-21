@@ -69,8 +69,8 @@ def extent(lst):
     return (min(xs), min(ys), max(xs), max(ys))
 
 
-check("HLR has shell/baffle/assembly views",
-      {"shell", "baffle", "assembly"} <= set(hlr),
+check("HLR has shell/lid/assembly views",
+      {"shell", "lid", "assembly"} <= set(hlr),
       ",".join(sorted(hlr)))
 check("HLR has an exploded assembly view",
       "EXPLODED" in hlr.get("assembly", {}),
@@ -95,43 +95,67 @@ for _part, _views in hlr.items():
         check(f"HLR {_part}/{_view} carries measured projection axes", _ok,
               str(_ax))
 check("exploded view offsets are recorded with the geometry",
-      set(hlr.get("explode", {})) == {"baffle", "filter", "pcb", "fan"},
+      set(hlr.get("explode", {})) == {"pcb", "filter", "lid", "screws", "fan"},
       str(hlr.get("explode")))
 
 fc = circles(ents("shell", "FRONT", "visible"))
-check("shell FRONT = 3 nostril circles",
-      len(fc) == 3, f"{len(fc)}")
-check("shell FRONT nostrils r = NO_R, pitch 26",
-      len(fc) == 3 and all(near(c["r"], CONST["NO_R"], 1e-3) for c in fc)
-      and near(sorted(c["c"][1] for c in fc)[1] - sorted(c["c"][1] for c in fc)[0],
-               CONST["SH"] / 2 - (CONST["SH"] / 2 - 26), 1e-3), "")
+no = [c for c in fc if near(c["r"], CONST["NO_R"], 1e-3)]
+usb = [c for c in fc if near(c["r"], CONST["USB_R"], 1e-3)]
+check("shell FRONT = 3 nostril bores + 1 USB port",
+      len(no) == 3 and len(usb) == 1, f"{len(fc)} circles")
+# the FRONT projection puts model X on the second coordinate and -Z on the first
+xs = sorted(c["c"][1] for c in no)
+check("shell FRONT nostril pitch = NO_PITCH",
+      len(xs) == 3 and near(xs[1] - xs[0], CONST["NO_PITCH"], 1e-3)
+      and near(xs[2] - xs[1], CONST["NO_PITCH"], 1e-3), str(xs))
+check("shell FRONT USB port at (USB_X, USB_Z)",
+      len(usb) == 1 and near(usb[0]["c"][1], CONST["USB_X"], 1e-3)
+      and near(-usb[0]["c"][0], CONST["USB_Z"], 1e-3),
+      str(usb[0]["c"]) if usb else "-")
 
-# baffle plan: outer 4 + (N slots + 1 reference port) x 4 = 4N + 4 straight edges
-N_SLOTS = len(CONST["A_X"]) + len(CONST["D_X"])
-N_PORTS = 1                       # SHT31 reference-sensor port
-bl = [e for e in ents("baffle", "PLAN", "visible") if e["t"] == "line"]
-bx0, by0, bx1, by1 = extent(bl)
-check("baffle PLAN extent = cavity",
-      near(bx1 - bx0, CONST["CX"], 1e-3) and near(by1 - by0, CONST["CY"], 1e-3),
-      f"{bx1-bx0:.1f} x {by1-by0:.1f} vs {CONST['CX']} x {CONST['CY']}")
-check(f"baffle PLAN = {4*(N_SLOTS+N_PORTS)+4} edges "
-      f"(outer 4 + ({N_SLOTS} wells + {N_PORTS} port) x 4)",
-      len(bl) == 4 * (N_SLOTS + N_PORTS) + 4, f"{len(bl)}")
-# the reference port must be in the lane, upstream of the hot analog row and
-# clear of both well rows (a module must not sit over it)
-check("SHT31 port clears both module rows and stays in-cavity",
-      CONST["SHT_Y0"] >= CONST["D_Y0"] + CONST["D_SY"]
-      and CONST["SHT_Y0"] + CONST["SHT_SY"] <= CONST["A_Y0"]
-      and CONST["SHT_X"] - CONST["SHT_SX"] / 2 >= CONST["WSIDE"]
-      and CONST["SHT_X"] + CONST["SHT_SX"] / 2 <= CONST["WSIDE"] + CONST["CX"],
-      f"y {CONST['SHT_Y0']}..{CONST['SHT_Y0']+CONST['SHT_SY']} "
-      f"x {CONST['SHT_X']-CONST['SHT_SX']/2}..{CONST['SHT_X']+CONST['SHT_SX']/2}")
-
-sl = ents("shell", "SECTION_CC", "visible")
+# The section has to show the real part, not a bounding box: a cut through x=61
+# must measure the shell depth (fan plate included) and the height.  The fan
+# plate is a 44 mm square centred on the fan axis, so it stands 2 mm above the
+# tray rim; the tray itself stops at CAV_Z1, where the lid lands.
+_shell_top = max(CONST["CAV_Z1"], CONST["FAN_Z"] + CONST["FAN_PLATE"] / 2.0)
+sl = ents("shell", "SECTION_A", "visible")
 sx0, sy0, sx1, sy1 = extent(sl)
-check(f"shell SECTION C-C extent {CONST['SH']:.0f} x {CONST['SW']:.0f}",
-      near(sx1 - sx0, CONST["SH"], 1e-3) and near(sy1 - sy0, CONST["SW"], 1e-3),
+check(f"shell SECTION A-A extent {CONST['SW'] + CONST['FAN_PLATE_T']:.0f} x "
+      f"{_shell_top:.0f}",
+      sorted([round(sx1 - sx0, 3), round(sy1 - sy0, 3)])
+      == sorted([CONST["SW"] + CONST["FAN_PLATE_T"], _shell_top]),
       f"{sx1-sx0:.1f} x {sy1-sy0:.1f}")
+
+# The lid plan must be the plate, with four counterbored screw holes on the boss
+# centres: that pattern is what the shell's inserts are drilled to.
+lp = ents("lid", "PLAN", "visible")
+lx0, ly0, lx1, ly1 = extent(lp)
+check(f"lid PLAN extent {CONST['SH']:.0f} x {CONST['SW']:.0f}",
+      near(lx1 - lx0, CONST["SH"], 1e-3) and near(ly1 - ly0, CONST["SW"], 1e-3),
+      f"{lx1-lx0:.1f} x {ly1-ly0:.1f}")
+lc = circles(lp)
+bore = [c for c in lc if near(c["r"], CONST["CBORE_D"] / 2.0, 1e-3)]
+thru = [c for c in lc if near(c["r"], CONST["SCREW_D"] / 2.0, 1e-3)]
+want = sorted((round(x, 1), round(y, 1)) for x, y in
+              ((CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+               (CONST["SH"] - CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+               (CONST["BOSS_INSET"], CONST["SW"] - CONST["BOSS_INSET"]),
+               (CONST["SH"] - CONST["BOSS_INSET"],
+                CONST["SW"] - CONST["BOSS_INSET"])))
+check("lid PLAN = 4 counterbores + 4 through holes at the boss centres",
+      len(bore) == 4 and len(thru) == 4
+      and sorted((round(c["c"][0], 1), round(c["c"][1], 1)) for c in thru) == want,
+      str([(c["c"], c["r"]) for c in lc]))
+
+# The assembly section is the one view that proves the stack: shell depth + the
+# fan hanging off the back, and the full height including the lid.
+ab = ents("assembly", "SECTION_B", "visible")
+ax0, ay0, ax1, ay1 = extent(ab)
+check("assembly SECTION B-B extent = shell + fan plate + fan x full height",
+      sorted([round(ax1 - ax0, 3), round(ay1 - ay0, 3)])
+      == sorted([CONST["SW"] + CONST["FAN_PLATE_T"] + CONST["FAN_T"],
+                 CONST["SHH"]]),
+      f"{ax1-ax0:.1f} x {ay1-ay0:.1f}")
 
 # ------------------------------- 3D model -----------------------------------
 for f in ("smell_monitor.FCStd", "smell_monitor.STEP"):
@@ -165,7 +189,7 @@ def _stl_manifold(path):
     return n, sum(1 for c in ec.values() if c != 2)
 
 
-for s in ("smell_monitor_shell.stl", "smell_monitor_baffle.stl"):
+for s in ("smell_monitor_shell.stl", "smell_monitor_lid.stl"):
     p = os.path.join(FC, s)
     sz = os.path.getsize(p) if os.path.exists(p) else 0
     check(f"STL {s} present, <=10 MB",
@@ -174,23 +198,94 @@ for s in ("smell_monitor_shell.stl", "smell_monitor_baffle.stl"):
     check(f"STL {s} watertight (closed 2-manifold)",
           tri is not None and bad == 0, f"{tri} tris, {bad} bad edges")
 
+# ------------------- the shell must be a tray, not a sealed box -------------
+# The defect this guards against: an earlier shell had 30 mm of material over
+# the chamber.  It could not be printed (sealed cavity), assembled (the modules
+# had no way in) or serviced - and every drawing of it was an empty box.  An
+# open tray means a vertical ray from the cavity finds no material above it.
+def _stl_tris(path):
+    b = open(path, "rb").read()
+    n = _struct.unpack("<I", b[80:84])[0]
+    return [_struct.unpack("<12f", b[84 + i * 50:84 + i * 50 + 48])[3:]
+            for i in range(n)]
+
+
+def _ray_up(tris, x, y, z):
+    """z of the first crossing of the solid boundary above (x, y, z), or None."""
+    best = None
+    for v in tris:
+        a, b, c = v[0:3], v[3:6], v[6:9]
+        d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(d) < 1e-12:
+            continue
+        u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / d
+        w = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / d
+        if u < -1e-9 or w < -1e-9 or u + w > 1 + 1e-9:
+            continue
+        zz = a[2] + u * (b[2] - a[2]) + w * (c[2] - a[2])
+        if zz > z + 1e-6 and (best is None or zz < best):
+            best = zz
+    return best
+
+
+_shell = _stl_tris(os.path.join(FC, "smell_monitor_shell.stl"))
+_lid = _stl_tris(os.path.join(FC, "smell_monitor_lid.stl"))
+_cav_top = 0.0
+for v in _shell:
+    for k in (0, 3, 6):
+        if (CONST["CX0"] < v[k] < CONST["CX1"]
+                and CONST["CY0"] < v[k + 1] < CONST["CY1"]):
+            _cav_top = max(_cav_top, v[k + 2])
+check("shell is an open tray: nothing above the cavity ceiling",
+      near(_cav_top, CONST["CAV_Z1"], 1e-3),
+      "cavity top z=%.2f, ceiling z=%.2f" % (_cav_top, CONST["CAV_Z1"]))
+_lz = [v[k] for v in _lid for k in (2, 5, 8)]
+check("lid is a separate part spanning CAV_Z1..LID_Z1",
+      near(min(_lz), CONST["LID_Z0"], 1e-3) and near(max(_lz), CONST["LID_Z1"], 1e-3),
+      "z %.2f..%.2f" % (min(_lz), max(_lz)))
+
+_probe = [(CONST["CX0"] + CONST["CX"] / 2.0, CONST["CY0"] + CONST["CY"] / 2.0)]
+_probe += [(x, CONST["A_Y0"]) for x in CONST["A_X"]]
+_probe += [(x, CONST["D_Y0"]) for x in CONST["D_X"]]
+_above = CONST["PCB_TOP"] + 0.5
+_blocked = []
+for x, y in _probe:
+    z = _ray_up(_shell, x, y, _above)
+    if z is not None:
+        _blocked.append((round(x, 1), round(y, 1), round(z, 1)))
+check("every socket has open air above it (only the lid covers it)",
+      not _blocked, str(_blocked))
+
+_cx = CONST["CX0"] + CONST["CX"] / 2.0
+_cy = CONST["CY0"] + CONST["CY"] / 2.0
+_floor = _ray_up(_shell, _cx, _cy, 0.5)
+check("tray floor under the board is FLOOR_T thick",
+      _floor is not None and near(_floor, CONST["FLOOR_T"], 0.05),
+      "z=%s" % _floor)
+_stand = _ray_up(_shell, 18.0, 16.0, CONST["FLOOR_T"] + 0.5)
+check("board has a standoff to sit on at PCB_Z",
+      _stand is not None and near(_stand, CONST["PCB_Z"], 0.05), "z=%s" % _stand)
+
 # ------------------------- CAD drawing sheets (DXF source) ------------------
 SHEET_DIMS = {
-    "OS-000": set(),                       # assembly: BOM + NTS views
-    "OS-001": {CONST["SH"], CONST["SW"], CONST["SHH"], CONST["CX"], CONST["CY"],
-               CONST["FLOOR"], 11.0, 26.0, 37.0, 43.0},
-    "OS-002": {CONST["CX"], CONST["CY"], CONST["A_SX"], CONST["A_SY"],
-               CONST["D_SX"], CONST["D_SY"], 26.0, 21.0, 12.0,
-               float(CONST["BAFFLE_T"])},
+    "OS-000": {CONST["SW"] + CONST["FAN_PLATE_T"] + CONST["FAN_T"],
+               CONST["CY"], round(CONST["PCB_TOP"], 1), CONST["SHH"]},
+    "OS-001": {CONST["SH"], CONST["CAV_Z1"], CONST["NO_Z"],
+               round(CONST["CAV_Z1"] - CONST["NO_Z"], 1),
+               CONST["NO_PITCH"], CONST["SW"] + CONST["FAN_PLATE_T"],
+               CONST["CY"], CONST["CAV_Z1"] - CONST["FLOOR_T"]},
+    "OS-002": {CONST["SH"], CONST["SW"], CONST["BOSS_INSET"],
+               CONST["SW"] - 2 * CONST["BOSS_INSET"], CONST["LID_T"],
+               CONST["CBORE_T"]},
 }
 # A drawing that stops stating its geometry has stopped being a drawing, so each
 # part sheet must carry at least this many dimensions.
-SHEET_MIN_DIMS = {"OS-000": 0, "OS-001": 15, "OS-002": 12}
+SHEET_MIN_DIMS = {"OS-000": 5, "OS-001": 12, "OS-002": 8}
 SHEET_TOKENS = {
-    "OS-000": ("ASSEMBLY", "EXPLODED", "BILL OF MATERIALS", "PETG", "PTFE",
-               "OpenSmell"),
-    "OS-001": ("SHELL", "FRONT", "SECTION C-C", "SECTION B-B", "MATERIAL"),
-    "OS-002": ("BAFFLE", "PLAN", "SECTION A-A", "MATERIAL"),
+    "OS-000": ("ASSEMBLY", "EXPLODED", "BILL OF MATERIALS", "SECTION B-B",
+               "PETG"),
+    "OS-001": ("SHELL", "FRONT", "SECTION A-A", "FILTER SEAT", "MATERIAL"),
+    "OS-002": ("LID", "PLAN", "SECTION C-C", "COUNTERBORE", "MATERIAL"),
 }
 for name, want in SHEET_DIMS.items():
     dxf = os.path.join(SHEETS, name + ".dxf")
@@ -202,7 +297,7 @@ for name, want in SHEET_DIMS.items():
     lay = doc.layouts.get(name)
     check(f"sheet {name}.dxf audit clean", len(doc.audit().errors) == 0,
           f"{len(doc.audit().errors)} errors")
-    dims = sorted({round(d.get_measurement() * d.override().get("dimlfac", 1.0))
+    dims = sorted({round(d.get_measurement() * d.override().get("dimlfac", 1.0), 1)
                    for d in lay.query("DIMENSION")})
     check(f"sheet {name} dims measure true mm",
           want <= set(dims), f"got {dims}")

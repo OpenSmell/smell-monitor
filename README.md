@@ -2,10 +2,10 @@
 
 **Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced. The module interface is fixed by **`docs/module-standard.md`** (OpenSmell Module Standard v1, OSM-1, blueprint §4.9); the board in the tree is still the revision that predates it, and `tools/verify_module_fit.py` prints every remaining gap as an open item.
 
-**One blocking mechanical defect is open:** the shell is modelled as a sealed box
-— 30 mm of material over the chamber, no lid and no service opening — so it
-cannot be printed, assembled or serviced as drawn. Blueprint §14 records the
-measurement, the cause and the fix.
+The enclosure is the simple one a builder can hold in their head: an open tray,
+a board on four standoffs, modules plugged into eight headers, a flat lid with
+four M3 screws, a filter pad that drops into the front, and a 40 mm fan on the
+back. No baffle, no plenum, no separate panel. Service is four screws.
 
 The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$50–150 BOM), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
 
@@ -25,23 +25,19 @@ We're not competing on certified precision. We're building the *Arduino of noses
 ## Key features
 
 - **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md); rewiring the current board to it is revision L.
-- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), cavity-recessed sensors, PTFE/glass gas-contacting chamber.
+- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), an open chamber with no sorbent surfaces, a replaceable dust filter, and the board itself as the chamber floor.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
 - **Open:** KiCad source, BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. (Part numbers: `electrical/bom.csv` is designator/value/footprint/qty; supplier PNs are still an open item.)
 
 ## How it works, in one paragraph
 
-Air is pulled through three Ø6 nostrils, through a filter that spans the full
-width of the duct, along an 11 mm lane, and down through eight 20 × 20 mm
-windows — one per slot — into the sealed volume under the baffle plate, then out
-through a 40 mm fan. Each window sits over one module's sensing face, so every
-sensor sees the same sample at the same time, at a known flow position (digital
-row upstream, the hot MOX row last). The board is the chamber floor and a PTFE
-insert covers all of it except the eight sensor windows and the reference port,
-so the air touches PTFE, borosilicate and 316 stainless only. Readings stay
-comparable because the cycle is driven (intake → hold → purge) and every record
-carries slot index, flow position, temperature, humidity, and the module's
-identity and calibration from its 1-Wire EEPROM.
+Air is pulled through three Ø6 nostrils in the front wall, through a serviceable
+filter pad, over the flat module row (digital upstream, the hot MOX row last)
+and out through a 40 mm fan in the back. There is no baffle and no well: a
+module plugs into its header and its sensing face looks straight into the moving
+sample. Readings stay comparable because the cycle is driven (intake → hold →
+purge) and every record carries slot index, flow position, temperature,
+humidity, and the module's identity and calibration from its 1-Wire EEPROM.
 
 ## What it costs
 
@@ -98,7 +94,7 @@ hand-verified numbers:
 | `tools/verify_electrical.py` | slot contract ↔ geometry ↔ GPIO/pin budget |
 | `tools/verify_netlist.py` | model netlist == exported schematic netlist |
 | `tools/verify_pcb.py` | headers on contract, outline, track width, vias, 0 unconnected, DRC |
-| `tools/verify_cad.py` | HLR views, baffle wells, DXFs, vector A3 PDF, print meshes |
+| `tools/verify_cad.py` | HLR views, section extents, hole patterns, DXFs, vector A3 PDF, print meshes |
 | `tools/verify_sensor_matrix.py` | starter pack covers every persona |
 | `tools/verify_orthogonality.py` | response-matrix rank / slot-count trade study |
 | `tools/verify_firmware_pins.py` | firmware pin map == `interface.PINMAP` |

@@ -78,8 +78,13 @@ def main():
     d_gaps = sorted(round(D[i + 1] - D[i], 2) for i in range(len(D) - 1))
     check(len(set(a_gaps)) <= 1, "analog pitch uniform", "gaps=%s" % a_gaps)
     check(len(set(d_gaps)) <= 1, "digital pitch uniform", "gaps=%s" % d_gaps)
-    check(max(A) - min(A) + CONST["A_SX"] <= CONST["CX"] + 1,
-          "analog row fits cavity")
+    # a cartridge is at most 20 mm wide (OSM-1), so the row spans its centres
+    # plus 10 mm each side; both rows must stay inside the cavity walls.
+    for bank, xs in (("analog", A), ("digital", D)):
+        check(max(xs) - min(xs) + 20.0 <= CONST["CX"],
+              "%s row fits cavity" % bank,
+              "%.1f mm row in a %.0f mm cavity"
+              % (max(xs) - min(xs) + 20.0, CONST["CX"]))
 
     print("== rails ==")
     for rail, amps in IF.railtotals().items():

@@ -60,6 +60,7 @@ MEASURE, and blueprint 14 lists it as an open item.
 """
 
 SOCKET_STANDOFF = 8.5    # 2.54 mm female header: card's lower edge above the board
+MODULE_REACH = 32.0      # a cartridge extends this far from its pin line
 MIN_LATERAL_GAP = 2.0    # clearance we want between a can and the next card
 WALL_GAP = 2.0           # clearance between the end of a row and the cavity wall
 
@@ -159,19 +160,27 @@ STARTER_PACK = ["MQ-135-openimpulse", "MQ-136", "MICS-6814", "ZE03", "SCD40"]
 # what the chamber gives a module
 # ---------------------------------------------------------------------------
 def limits(const, n_rows=4):
-    """Clearances a module must live inside, from the geometry constants."""
+    """Clearances a module must live inside, from the geometry constants.
+
+    There is no baffle plate and no well any more: a module plugs into its
+    socket and stands in the open chamber.  The limits are therefore the slot
+    pitch (it must not touch its neighbour), the 32 mm reach from the pin line
+    to the next row or the rear wall, and the clear height above the board.
+    """
     lane = {}
-    for bank, x0, sx, sy, y0 in (("analog", "A_X", "A_SX", "A_SY", "A_Y0"),
-                                 ("digital", "D_X", "D_SX", "D_SY", "D_Y0")):
+    for bank, x0, y0 in (("analog", "A_X", "A_Y0"),
+                         ("digital", "D_X", "D_Y0")):
         xs = const[x0]
+        pitch = xs[1] - xs[0]
         lane[bank] = dict(
-            pitch=xs[1] - xs[0], n=len(xs), row=(min(xs), max(xs)),
-            aperture=(const[sx], const[sy]), ap_y=(const[y0], const[y0] + const[sy]),
-            row_y=const[y0] + const[sy] / 2.0)
-    return dict(h_clear=const["BAFFLE_Z"] - const["FLOOR"],   # 37 mm to the plate
-                recess=8.0, cavity_x=const["CX"], cavity_y=const["CY"],
-                cavity_x_range=(const["WSIDE"], const["WSIDE"] + const["CX"]),
-                cavity_z=(const["FLOOR"], const["BAFFLE_Z"]), lane=lane)
+            pitch=pitch, n=len(xs), row=(min(xs), max(xs)),
+            aperture=(pitch - 4.0, MODULE_REACH),
+            ap_y=(const[y0], const[y0] + MODULE_REACH),
+            row_y=const[y0])
+    return dict(h_clear=const["CAV_Z1"] - const["PCB_TOP"],
+                recess=0.0, cavity_x=const["CX"], cavity_y=const["CY"],
+                cavity_x_range=(const["CX0"], const["CX1"]),
+                cavity_z=(const["PCB_TOP"], const["CAV_Z1"]), lane=lane)
 
 
 def mounted(m, lim):
@@ -216,19 +225,19 @@ def check(key, const):
                      "summing carrier or %d slots" % (m["ao"], m["ao"]))
         hard = True
 
-    # 3. height under the baffle plate
+    # 3. clear height above the board
     if env:
         top = env["height"]
-        notes.append("height above board %.1f mm (plate is %.1f mm up, spec "
-                     "leaves a %.1f mm recess)" % (top, lim["h_clear"], lim["recess"]))
-        risky = top > lim["h_clear"] - lim["recess"]
+        notes.append("height above board %.1f mm; the chamber gives %.1f mm"
+                     % (top, lim["h_clear"]))
+        risky = top > lim["h_clear"] - 2.0
         bad = top > lim["h_clear"]
         if bad:
-            notes.append("COLLIDES with the plate" if m["basis"] == "measured"
-                         else "would COLLIDE with the plate")
+            notes.append("COLLIDES with the lid" if m["basis"] == "measured"
+                         else "would COLLIDE with the lid")
         elif risky:
-            notes.append("leaves only %.1f mm of the %.1f mm sensor recess"
-                         % (lim["h_clear"] - top, lim["recess"]))
+            notes.append("leaves only %.1f mm below the lid"
+                         % (lim["h_clear"] - top))
         if (bad or risky) and "edge" in m["unverified"]:
             measure = True
             notes.append("depends on which card edge carries the connector - "
@@ -254,22 +263,12 @@ def check(key, const):
                          "x=%.1f..%.1f - the end modules' cans must point inward"
                          % (x0 - env["across"], x1 + env["across"], cx0, cx1))
 
-        # 6. aperture alignment: is the window over the sensing element?
-        if m["can"]:
-            if env["long_axis"] == "horizontal" and m.get("can_off"):
-                notes.append("sensing element sits %.0f mm downstream of the header "
-                             "line; the aperture is centred ON it -> offset the "
-                             "aperture or the window misses the sensor"
-                             % m["can_off"])
-            elif env["long_axis"] == "vertical":
-                notes.append("sensing element is centred on the header line: "
-                             "aperture centring is right")
-            notes.append("aperture %gx%g mm vs a %.1f mm element: %s"
-                         % (lane["aperture"][0], lane["aperture"][1],
-                            m["can"][0],
-                            "window is smaller than the element (acts as a shroud)"
-                            if m["can"][0] > lane["aperture"][1]
-                            else "window is larger than the element"))
+        # 6. reach: the card must stop before the next row and the rear wall
+        if env["along_flow"] > MODULE_REACH:
+            notes.append("reaches %.0f mm from the pin line; the row allows %.0f"
+                         % (env["along_flow"], MODULE_REACH))
+            if env["along_flow"] > MODULE_REACH + 4:
+                hard = True
     if measure and not hard:
         return "MEASURE", notes
     return ("CONFLICT" if hard else "FITS"), notes
