@@ -617,8 +617,8 @@ def sheet_shell(doc):
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
     # ---- FRONT: the intake face, X (horizontal) x Z (vertical), 1:1 ------
-    v = View(psp, "shell", "FRONT", 270, 1.0, 30, 200, hidden=False)
-    caption(psp, v.centre[0], 177, "FRONT \u2013 intake face  1:1")
+    v = View(psp, "shell", "FRONT", 270, 1.0, 25, 215, hidden=False)
+    caption(psp, v.centre[0], 192, "FRONT \u2013 intake face  1:1")
     v.chain_x([(0, 0, 0), (MIDX - CONST["NO_PITCH"], 0, 0), (MIDX, 0, 0),
                (MIDX + CONST["NO_PITCH"], 0, 0), (SH, 0, 0)], 8)
     v.dim_x((0, 0, 0), (SH, 0, 0), 16)
@@ -629,14 +629,14 @@ def sheet_shell(doc):
         v.cross((MIDX + dx, 0, CONST["NO_Z"]), size=2.2)
     v.leader((MIDX + CONST["NO_PITCH"], 0, CONST["NO_Z"]), 6, 16,
              "3 \u00d7 DIA%d" % (2 * CONST["NO_R"]))
-    v.leader((CONST["USB_X"], 0, CONST["USB_Z"]), -6, -14,
+    v.leader((CONST["USB_X"], 0, CONST["USB_Z"]), -8, 10,
              "DIA%d" % (2 * CONST["USB_R"]))
     v.cut_line(MIDX, "A", both=False)
 
-    # ---- SECTION A-A on x=61: Y (horizontal) x Z (vertical), 1.5:1 ------
-    s = View(psp, "shell", "SECTION_A", 90, 1.25, 215, 200, hidden=False,
+    # ---- SECTION A-A on x=61: Y (horizontal) x Z (vertical), 1.25:1 ------
+    s = View(psp, "shell", "SECTION_A", 90, 1.25, 45, 95, hidden=False,
              hatch=1.1)
-    caption(psp, s.centre[0], 177, "SECTION A-A \u2013 x=%d  1.25:1" % MIDX)
+    caption(psp, s.centre[0], 70, "SECTION A-A \u2013 x=%d  1.25:1" % MIDX)
     s.dim_x((0, 0, 0), (0, CONST["SW"] + CONST["FAN_PLATE_T"], 0), 8)
     s.dim_x((0, CONST["WALL"], 0), (0, CONST["CY1"], 0), 18)
     s.dim_y((0, 0, CONST["FLOOR_T"]), (0, 0, CONST["CAV_Z1"]), 10, "left")
@@ -647,11 +647,27 @@ def sheet_shell(doc):
     s.leader((0, CONST["SW"] - 1.5, CONST["FAN_Z"]), 12, -20, "DIA%d" %
              (2 * CONST["FAN_R"]))
 
-    # ---- ISO -------------------------------------------------------------
-    iso = View(psp, "shell", "ISO", -30, 0.55, 46, 88, hidden=False)
-    caption(psp, iso.centre[0], 82, "ISO \u2013 shell as printed  (NTS)")
+    # ---- PLAN: the open top, X (horizontal) x Y (vertical), 1:1 ----------
+    # This is the view that gives a maker the boss and standoff positions; the
+    # front and the section alone leave them to be inferred from the lid.
+    p = View(psp, "shell", "PLAN", 0, 1.0, 245, 160, hidden=False)
+    caption(psp, p.centre[0], 136, "PLAN \u2013 open top  1:1")
+    p.chain_x([(0, 0, 0), (16, 0, 0), (SH - 16, 0, 0), (SH, 0, 0)], 8)
+    p.dim_x((0, 0, 0), (SH, 0, 0), 16)
+    p.chain_y([(SH, 0, 0), (SH, 16, 0), (SH, SW - 16, 0), (SH, SW, 0)], 8,
+              "right")
+    p.dim_y((SH, 0, 0), (SH, SW, 0), 16, "right")
+    p.cross((CONST["BOSS_INSET"], CONST["BOSS_INSET"], CONST["CAV_Z1"]),
+            size=2.4)
+    p.leader((CONST["BOSS_INSET"], CONST["BOSS_INSET"], CONST["CAV_Z1"]),
+             -6, 10, "4 \u00d7 DIA%d BOSS, M3 INSERT" % CONST["BOSS_D"])
+    p.leader((16.0, 16.0, CONST["PCB_Z"]), -6, -2,
+             "4 \u00d7 DIA%d STANDOFF, z %d..%d"
+             % (CONST["STANDOFF_D"], CONST["FLOOR_T"], CONST["PCB_Z"]))
+    p.leader((CONST["CX1"] - 2.0, CONST["WALL"] + 2.0, CONST["FILT_Z0"]),
+             4, -8, "FILTER RAILS")
 
-    notes_block(psp, 200, 160, [
+    notes_block(psp, 200, 118, [
         "MATERIAL: PETG FDM, 0.2 mm LAYER, 4 PERIMETERS; SEAL WETTED FACES.",
         "WALL %d, FLOOR %d, LID %d (OS-002); CAVITY %d \u00d7 %d \u00d7 %d." % (
             CONST["WALL"], CONST["FLOOR_T"], CONST["LID_T"],

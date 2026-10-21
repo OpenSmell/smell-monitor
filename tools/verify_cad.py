@@ -198,6 +198,37 @@ for s in ("smell_monitor_shell.stl", "smell_monitor_lid.stl"):
     check(f"STL {s} watertight (closed 2-manifold)",
           tri is not None and bad == 0, f"{tri} tris, {bad} bad edges")
 
+# The plan is the view that locates the bosses and the standoffs; without it a
+# maker has to infer them from the lid sheet.
+pl = ents("shell", "PLAN", "visible")
+px0, py0, px1, py1 = extent(pl)
+check(f"shell PLAN extent {CONST['SH']:.0f} x "
+      f"{CONST['SW'] + CONST['FAN_PLATE_T']:.0f} (fan plate included)",
+      near(px1 - px0, CONST["SH"], 1e-3)
+      and near(py1 - py0, CONST["SW"] + CONST["FAN_PLATE_T"], 1e-3),
+      f"{px1-px0:.1f} x {py1-py0:.1f}")
+pc = circles(pl)
+_have = [(c["c"][0], c["c"][1], c["r"]) for c in pc]
+
+
+def _at(cx, cy, r):
+    return any(near(x, cx, 0.05) and near(y, cy, 0.05) and near(rr, r, 1e-3)
+               for x, y, rr in _have)
+
+
+check("shell PLAN locates the 4 lid bosses and the 4 board standoffs",
+      all(_at(x, y, CONST["BOSS_D"] / 2.0) for x, y in
+          ((CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+           (CONST["SH"] - CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+           (CONST["BOSS_INSET"], CONST["SW"] - CONST["BOSS_INSET"]),
+           (CONST["SH"] - CONST["BOSS_INSET"],
+            CONST["SW"] - CONST["BOSS_INSET"])))
+      and all(_at(x, y, CONST["STANDOFF_D"] / 2.0) for x, y in
+              ((16.0, 16.0), (CONST["SH"] - 16.0, 16.0),
+               (16.0, CONST["SW"] - 16.0),
+               (CONST["SH"] - 16.0, CONST["SW"] - 16.0))),
+      f"{len(pc)} circles/arcs in the view")
+
 # ------------------- the shell must be a tray, not a sealed box -------------
 # The defect this guards against: an earlier shell had 30 mm of material over
 # the chamber.  It could not be printed (sealed cavity), assembled (the modules

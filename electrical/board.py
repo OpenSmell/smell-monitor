@@ -172,11 +172,11 @@ DECISIONS = [
     "transistors, so flashing = hold BOOT, tap RESET. blueprint 5.5 puts the "
     "user button on GPIO23 (a non-strapping pin per interface.PINS_STRAP); "
     "line 664's 'button (GPIO0)' is stale - GPIO0 is the BOOT button only.",
-    "USB-C CC1/CC2 5.1k pulldowns: required to draw VBUS from a C-to-C cable "
-    "or any Type-C source. Missing from bom.csv (only 10k/330 fitted).",
+    "USB-C CC1/CC2 5.1k pulldowns (R1, R2): required to draw VBUS from a "
+    "C-to-C cable or any Type-C source; bom.csv carries them as 5.1k.",
     "I2C pull-ups 4.7k (master + per TCA9548A channel) per blueprint 5.4; "
-    "bom.csv lists only 10k. 10k is marginal at 400 kHz. BOM is regenerated "
-    "from the schematic, so its passive counts are no longer authoritative.",
+    "bom.csv carries R15, R16 and R21-R28 as 4.7k.  10k is marginal at "
+    "400 kHz, so the BOM value is the one that matters.",
     "AO input divider 10k/10k: maps the 0-5 V slot output to <=2.5 V at the "
     "ADS1115 (blueprint 5.3), one divider per analog slot.",
     "Analog slot order set to +5V/GND/AO/DO/3V3 (was +5V/3V3/GND/AO/DO) so a "

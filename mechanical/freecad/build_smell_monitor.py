@@ -338,6 +338,7 @@ for _s, _v in ((pcb.Shape, EXPLODE["pcb"]),
 
 VIEW_REQUESTS = [
     ("shell", "FRONT", shell.Shape, (0, -1, 0)),
+    ("shell", "PLAN", shell.Shape, (0, 0, 1)),
     ("shell", "SECTION_A", sec_a, (1, 0, 0)),
     ("shell", "ISO", shell.Shape, (1, -1, 1)),
     ("lid", "PLAN", lid.Shape, (0, 0, 1)),

@@ -307,7 +307,7 @@ Plan view. X = width (the rows), Y = depth; the sample flows front → rear:
 One PCB, 114 × 105 mm, seated as the chamber **floor** (its top face is the
 cavity floor, see §6.2). All 8 sockets face up and every breakout module stands
 **perpendicular** to the board, its plane parallel to the flow, so one module
-never shadows the row behind it and the connector line of every slot runs along
+does not sit in the shadow of the row behind it and the connector line of every slot runs along
 the flow axis.
 
 **Why digital is upstream.** The analog bank is where the 5 V parts live, and
@@ -825,9 +825,28 @@ the entire class of "the panel does not line up with the chamber" defects.
 | USB-C | Ø12 bulkhead hole at x = 14, z = 10 |
 
 Flow is horizontal, front to rear: nostrils → filter pad → over the digital row
-→ over the analog row → rear bore → fan. The nostrils sit 11 mm above the
-module plane so the inlet jet spreads before it reaches the first row instead of
-blasting one cartridge.
+→ over the analog row → rear bore → fan.
+
+The nostrils are at z = 30, which is **mid-height of the module band** (a
+cartridge occupies z 17.1..38.1), and 30 mm upstream of the first row. That is
+a deliberate trade, not a tuned inlet: the jet hits the upstream (digital) row
+squarely with the freshest gas, and the 30 mm of free length is the only
+diffuser in the design. What that costs is quantified nowhere yet — it is the
+first thing the `cfd/` case reports (a jet that lands on one cartridge leaves
+its neighbours slower). If the CFD says the impingement is too sharp, the fix is
+one constant: three Ø4 nostrils, or a Ø6 pattern staggered 13 mm, or a
+perforated diffuser in the 30 mm gap.
+
+Two other flow facts that are honest to state up front:
+
+* the front slot **below** the filter pad (z 8.6..17.1, behind the bottom rail)
+  is a 8.4 mm dead zone that connects to the chamber. It is where the USB
+  pigtail lives. The CFD case probes it: if it fills faster than the first row,
+  it is a bypass around the filter and the bottom rail has to close it.
+* the hood over a cartridge's sensing face is **4.9 mm**. That is a shallow
+  channel by MOX practice (Winsen hoods are 5–10 mm), so it is the second thing
+  the CFD measures, and the one parameter (`CH` 40 → 46) that would change if it
+  is slow.
 
 ### 6.3 Materials & sample-memory control
 
@@ -1093,7 +1112,7 @@ both part sheets.
 board and the bosses onto each other as hidden lines, the sheet uses a real cut:
 OS-001's section A-A is a vertical cut at x = 61 (through an intake, the filter
 seat and the exhaust bore) and OS-000's section B-B is the same plane through
-the whole assembly, so it proves the stack — lid, board, sockets, filter pad,
+the whole assembly, so it shows the stack — lid, board, sockets, filter pad,
 rear wall, fan. Isometric views are rotated by −30° so the model +Z is vertical —
 TechDraw's projector puts +Y vertical, which makes an unrotated isometric lie on
 its back and hides the fact that the parts are stacked in Z.
@@ -1155,7 +1174,7 @@ never be silently destroyed or faked:
 | Risk | Mitigation |
 |------|------------|
 | Wetted-material cost | Plain PETG tray + lid; a PTFE liner is an optional upgrade |
-| Most slots unfilled at first | v1 proves the interface; packs modelled later |
+| Most slots unfilled at first | v1 exercises the interface; packs modelled later |
 | Fan speed affects MOX temperature | Fan outside the chamber; validated by §8.2 |
 | Sensor drift over months | Swappable sockets + SHT31 data + shared open dataset |
 | USB-C current limits | 5 V/3 A source assumed; §5.8 |
