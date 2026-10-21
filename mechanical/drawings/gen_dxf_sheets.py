@@ -50,8 +50,8 @@ with open(HLR_JSON, encoding="utf-8") as _fh:
 PW, PH = 420.0, 297.0                 # A3 landscape, paper mm
 MARGIN, BORDER = 6.0, 12.0            # trim edge + drawing border (6 mm zone strip)
 TB_W, TB_H = 180.0, 40.0              # ISO 7200 title block
-REV, PROJECT = "L", "OpenSmell"       # sheet revision tracks the design revision
-DATE = "2026-10-18"
+REV, PROJECT = "M", "OpenSmell"       # sheet revision tracks the design revision
+DATE = "2026-10-21"
 
 # ---- layers: name -> (ACI colour, linetype, lineweight 1/100 mm) -----------
 LAYERS = {
@@ -570,6 +570,18 @@ def sheet_assembly(doc):
     s.leader((0, 30.0, CONST["PCB_TOP"] - 0.8), 24, 10, "PCB 1.6")
     s.leader((0, CONST["SW"] - 1.5, CONST["FAN_Z"]), 12, -22, "DIA38 + FAN")
 
+    # Modules are user-supplied, so they are not in the solid.  Draw the OSM-1
+    # envelope as a phantom: without it the 4.9 mm hood over the sensing face -
+    # the number the whole chamber height is chosen for - is on no drawing.
+    _mz0 = CONST["PCB_TOP"] + CONST["SOCK_H"]
+    _mz1 = _mz0 + 21.0
+    for _y0 in (CONST["D_Y0"], CONST["A_Y0"]):
+        _c = [s.P(MIDX, _y0, _mz0), s.P(MIDX, _y0 + 32.0, _mz0),
+              s.P(MIDX, _y0 + 32.0, _mz1), s.P(MIDX, _y0, _mz1)]
+        for _i in range(4):
+            _a, _b = _c[_i], _c[(_i + 1) % 4]
+            psp.add_lwpolyline([_a, _b], dxfattribs={"layer": "HID"})
+
     iso = View(psp, "assembly", "ISO", -30, 0.45, 300, 118, hidden=False)
     caption(psp, iso.centre[0], 112, "ISO \u2013 as built  (NTS)")
 
@@ -582,6 +594,8 @@ def sheet_assembly(doc):
         "FILTER DROPS INTO THE FRONT DRAWER; NOTHING ELSE IS A CONSUMABLE.",
         "NO SILICONE, PVC, PAPER OR FOAM WHERE THE SAMPLE TOUCHES.",
         "BALLOON NUMBERS MATCH THE BOM; THE EXPLODED VIEW IS TRUE HLR.",
+        "DASHED = OSM-1 MODULE (USER-SUPPLIED); %0.1f mm AIR ABOVE ITS FACE."
+        % (CONST["CAV_Z1"] - (CONST["PCB_TOP"] + CONST["SOCK_H"] + 21.0)),
     ])
     title_block(psp, dict(COMMON, title="ASSEMBLY", no="OS-000", sheet="1",
                           sheets="3", scale="AS NOTED", material="see BOM",
@@ -685,7 +699,7 @@ def sheet_lid(doc):
     # ---- SECTION C-C through the front screw pair, 1.5:1 -----------------
     c = View(psp, "lid", "SECTION_C", 270, 1.5, 200, 236, hidden=False,
              hatch=0.9)
-    caption(psp, c.centre[0], 230, "SECTION C-C \u2013 y=%d, through the "
+    caption(psp, c.centre[0], 230, "SECTION C-C \u2013 y=%g, through the "
             "counterbores  1.5:1" % CONST["BOSS_INSET"])
     c.dim_y((0, 0, CONST["LID_Z0"]), (0, 0, CONST["LID_Z1"]), 6, "right")
     c.dim_y((0, 0, CONST["LID_Z1"] - CONST["CBORE_T"]),
