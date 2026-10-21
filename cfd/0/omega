@@ -1,0 +1,25 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      omega;
+}
+dimensions      [0 0 -1 0 0 0 0];
+internalField   uniform 256;
+
+boundaryField
+{
+    "(inlet0|inlet1|inlet2)"
+    {
+        type            turbulentMixingLengthFrequencyInlet;
+        mixingLength    0.001;
+        value           uniform 256;
+    }
+    outlet  { type inletOutlet; inletValue uniform 256; value uniform 256; }
+    "(sideX0|sideX1|board|lid|cartridges)"
+    {
+        type        omegaWallFunction;
+        value       uniform 256;
+    }
+}

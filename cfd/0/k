@@ -1,0 +1,25 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      k;
+}
+dimensions      [0 2 -2 0 0 0 0];
+internalField   uniform 0.02;
+
+boundaryField
+{
+    "(inlet0|inlet1|inlet2)"
+    {
+        type        turbulentIntensityKineticEnergyInlet;
+        intensity   0.05;
+        value       uniform 0.02;
+    }
+    outlet  { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
+    "(sideX0|sideX1|board|lid|cartridges)"
+    {
+        type        kqRWallFunction;
+        value       uniform 0.02;
+    }
+}

@@ -1,0 +1,28 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvOptions;
+}
+// Filter pad.  d = 7e7 1/m2 is a 4 mm non-woven at ~3 Pa per 0.6 m/s; that is
+// the only number here that a bench measurement should replace (NF1).
+porosity
+{
+    type            explicitPorositySource;
+    active          yes;
+    selectionMode   cellZone;
+    cellZone        pad;
+    explicitPorositySourceCoeffs
+    {
+        type            DarcyForchheimer;
+        d               d [0 -2 0 0 0 0 0] (7e7 7e7 7e7);
+        f               f [0 -1 0 0 0 0 0] (0 0 0);
+        coordinateSystem
+        {
+            origin (0 0 0);
+            e1     (1 0 0);
+            e2     (0 1 0);
+        }
+    }
+}

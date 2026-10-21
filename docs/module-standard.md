@@ -149,12 +149,12 @@ up, and comes out upward. Flat is not cosmetic:
   a socket points the inlet sideways at its neighbour instead of into the flow;
 * standing cards needed 40–48 mm of height where the chamber gives 34.4 mm above
   the board, so a 32–40 mm MQ card did not fit at all. Flat, the same card is
-  25 mm tall and fits with room to spare.
+  21 mm tall and leaves 4.9 mm of clear air under the lid.
 
 | Quantity | Value |
 |----------|-------|
 | Cartridge outline | ≤ **20 mm** across the row × ≤ **32 mm** along the flow |
-| Cartridge height (its own board plus the tallest cell) | ≤ **26 mm** |
+| Cartridge height (its own board plus the tallest cell) | ≤ **21 mm** |
 | On the socket | the cartridge sits ≈8.5 mm up, so its top lands ≈34 mm above the board, under a lid at 43 mm |
 | Sensing element | anywhere on the card, on the slot centre line; it only needs clear air above it |
 | Slot pitch | a **base parameter** (26 / 21 mm as built); a cartridge must be ≤ 20 mm wide so it clears a 22 mm pitch |
@@ -246,7 +246,7 @@ same schema.
 ## 7. Conformance checklist (for a module maker)
 
 1. 2.54 mm keyed 1×6 header, pinout §2.1, right-angle on the card edge.
-2. Outline ≤ 20 × 32 mm, ≤ 26 mm tall in the flat pose (§4).
+2. Outline ≤ 20 × 32 mm, ≤ 21 mm tall in the flat pose (§4).
 3. Sensing element anywhere on the card, on the slot centre line, with clear air
    above it.
 4. EEPROM per §3.1, checksum valid, `kind` and `class` correct.

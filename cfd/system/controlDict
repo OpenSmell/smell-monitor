@@ -1,0 +1,36 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+application     simpleFoam;
+startFrom       startTime;
+startTime       0;
+stopAt          endTime;
+endTime         3000;
+deltaT          1;
+writeControl    timeStep;
+writeInterval   500;
+purgeWrite      2;
+writeFormat     ascii;
+writePrecision  6;
+writeCompression off;
+timeFormat      general;
+timePrecision   6;
+runTimeModifiable true;
+
+functions
+{
+    // p is kinematic (p/rho): multiply by 1.2 to compare with the NF1 bench.
+    // The fan is not modelled as a curve; the flow rate is imposed, so this
+    // number IS the system pressure drop at that flow.
+    inletPressure
+    {
+        type    patchAverage;
+        libs    ("libfieldFunctionObjects.so");
+        patches (inlet0 inlet1 inlet2);
+        fields  (p);
+    }
+}

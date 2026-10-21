@@ -1,0 +1,19 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      nut;
+}
+dimensions      [0 2 -1 0 0 0 0];
+internalField   uniform 0;
+
+boundaryField
+{
+    "(inlet0|inlet1|inlet2|outlet)" { type calculated; value uniform 0; }
+    "(sideX0|sideX1|board|lid|cartridges)"
+    {
+        type        nutkWallFunction;
+        value       uniform 0;
+    }
+}

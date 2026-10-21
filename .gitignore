@@ -54,3 +54,12 @@ mechanical/drawings/sheets/*.png
 .env
 *.pem
 .opencode
+
+# CFD: the case is committed, the run is not
+cfd/constant/polyMesh/
+cfd/constant/triSurface/cartridges.stl
+cfd/postProcessing/
+cfd/log.*
+cfd/[1-9]*/
+cfd/processor*/
+cfd/clock.foam

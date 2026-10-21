@@ -1,0 +1,68 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      topoSetDict;
+}
+// Cut the three nostril patches and the fan outlet out of the box faces.
+actions
+(
+
+    {
+        name    inlet0;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   inletFace;
+    }
+    {
+        name    inlet0;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     (32.0 2.0 27.0) (38.0 4.0 33.0);
+    }
+    {
+        name    inlet1;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   inletFace;
+    }
+    {
+        name    inlet1;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     (58.0 2.0 27.0) (64.0 4.0 33.0);
+    }
+    {
+        name    inlet2;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   inletFace;
+    }
+    {
+        name    inlet2;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     (84.0 2.0 27.0) (90.0 4.0 33.0);
+    }
+    {
+        name    outlet;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   outletFace;
+    }
+    {
+        name    outlet;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     (44.0 110.0 8.6) (78.0 112.0 40.0);
+    }
+);

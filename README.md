@@ -82,6 +82,7 @@ smell-monitor/
 │   ├── freecad/             # parametric 3D model (build + style scripts)
 │   └── drawings/            # DXF/PDF sheet generation
 ├── firmware/esp32/smell_monitor/   # ESP32 firmware (arduino-cli, sketch.yaml)
+├── cfd/                     # OpenFOAM case: exchange time, cascade, interference
 ├── tools/                   # numeric verification gates (see below)
 └── README.md
 ```

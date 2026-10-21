@@ -1,0 +1,18 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      U;
+}
+dimensions      [0 1 -1 0 0 0 0];
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    inlet0  { type flowRateInletVelocity; volumetricFlowRate 8.333333e-05; value uniform (0 2.3 0); }
+    inlet1  { type flowRateInletVelocity; volumetricFlowRate 8.333333e-05; value uniform (0 2.3 0); }
+    inlet2  { type flowRateInletVelocity; volumetricFlowRate 8.333333e-05; value uniform (0 2.3 0); }
+    outlet  { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
+    "(sideX0|sideX1|board|lid|cartridges)" { type noSlip; }
+}

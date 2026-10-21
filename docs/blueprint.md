@@ -933,17 +933,33 @@ firmware pin map against `interface.PINMAP`.
   shift (validates the open chamber).
 - Plus NF1–NF5 (§3.8).
 
-### 8.3 CFD (optional, once)
-Single steady-state cavity sim at 15 L/min (and a 150 L/min full-speed case).
-Verify no recirculation zone > 5% of volume upstream of any sensor; sensor-nose
-velocity ≤ 0.1 × duct core. Tool: OpenFOAM `simpleFoam`. This is *validation*,
-not a design driver — v1 geometry is already locked by the rules of §3 and §4.
+### 8.3 CFD (one case, three numbers)
+
+The case is written and committed: **`cfd/`** (OpenFOAM v10/v11, `bash run.sh`).
+It meshes the tray cavity from `constants.py`, carves the eight sockets and
+cartridges, models the filter pad as a Darcy sink, and runs `simpleFoam` at
+15 L/min followed by a unit-step tracer (`scalarTransportFoam`). `report.py`
+prints t63/t90 at a probe in the gap over every cartridge.
+
+It answers the three questions that the hand calculation cannot:
+
+1. the exchange time over each row — whether a 4.9 mm hood over the sensing
+   face is adequately ventilated, or `CH` has to grow;
+2. the row-to-row cascade — how much the upstream row takes out before the
+   downstream row sees the sample;
+3. whether a filled slot disturbs its neighbours (`bash run.sh --omit 3,6`).
+
+Status: **written, not yet run.** The dev machine is Windows; the case runs on
+Linux. Nothing in v1 is waiting on it — the geometry is fixed by §3, §4 and
+§6 — but the result decides one parameter: if the 4.9 mm hood is slow, `CH`
+goes from 40 to 46 and the whole model regenerates from the same constants.
 
 ### 8.4 Delivery checklist for fabrication
 - [x] ERC 0 errors · [x] DRC 0 errors (`tools/verify_netlist.py`, `tools/verify_pcb.py`)
 - [x] Gerbers + drill + CPL (`tools/export_fab.py` → `electrical/smell_monitor_v1_1/fab/`)
 - [ ] Supplier part numbers in the BOM (`electrical/bom.csv` is designator/value/footprint/qty only)
-- [ ] STEP of assembly + enclosure · [ ] Assembly guide · [ ] Firmware binary + flash guide
+- [x] STEP of assembly + enclosure (`mechanical/freecad/*.STEP`, `*.stl`)
+- [ ] Assembly guide · [ ] Firmware binary + flash guide
 
 ---
 
@@ -1221,12 +1237,11 @@ path for automatic zero/baseline calibration.
 - Pneumatic: NF1 filter ΔP bench + media vendor (a flat 110 × 23 face is
   25 cm²; a 4 mm non-woven at ≈0.6 m/s drops only a few Pa, so the pleated-pack
   requirement is retired), fan P/N.
-- CFD: one `simpleFoam` pass at 15 and 150 L/min (§8.3) on the current geometry.
-  Three numbers it must produce: (1) the exchange time over each row, which sets
-  the 34.4 mm clear height and the 42 mm row spacing; (2) the cascade between the
-  upstream and downstream rows (how much of the sample the first row removes
-  before the second sees it); (3) whether a filled slot's cartridge perturbs its
-  neighbours' exchange.
+- CFD: the case in `cfd/` (§8.3) — one `simpleFoam` pass plus the tracer, at 15
+  and 150 L/min. It must produce (1) the exchange time over each row, which
+  decides whether the 4.9 mm hood is enough or `CH` grows; (2) the cascade
+  between the upstream and downstream rows; (3) whether a filled slot's
+  cartridge perturbs its neighbours' exchange.
 - Mass: MQ module mass from a physical sample.
 
 ---

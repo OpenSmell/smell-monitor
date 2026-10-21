@@ -33,10 +33,11 @@ CARTRIDGE = {
     "pins": ["+5V", "GND", "AO", "DO", "3V3", "ID"],
     "pose": "flat: card parallel to the board, sensing face up, removed upward",
     # Height is the cartridge's own, not the distance to a plate: on a vertical
-    # socket it rides ~8.5 mm up and its top ends ~34 mm above the board, under
-    # a lid at 43 mm. There is no plate and no window: the sensing face only
-    # needs clear air above it (docs/module-standard.md 4).
-    "envelope": {"across": 20.0, "along": 32.0, "height": 26.0},
+    # socket it rides ~8.5 mm up and its top ends ~29.5 mm above the board, so a
+    # 21 mm card keeps 4.9 mm of clear air under the lid.  That gap is the flow
+    # hood over the sensing face and the number the CFD case in cfd/ reports on;
+    # if it comes out slow, the fix is 6 mm more wall (CH), not a new pose.
+    "envelope": {"across": 20.0, "along": 32.0, "height": 21.0},
     "sensor_zone": None,        # no window to align to; element is free on the card
     "rail_mA": {"5V": 150, "3V3": 50},
     "source_mV": 5000,          # AO may swing to 5 V; the base divides it 10k/10k
