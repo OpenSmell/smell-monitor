@@ -76,6 +76,11 @@ CONST["LID_Z0"] = CONST["CAV_Z1"]
 CONST["LID_Z1"] = CONST["LID_Z0"] + CONST["LID_T"]
 CONST["PCB_TOP"] = CONST["PCB_Z"] + CONST["PCB_T"]
 CONST["FILT_Z1"] = CONST["CAV_Z1"]
+# The pad starts behind the front bosses (their radius sets the offset), plus
+# 0.3 mm so the pad drops in and the rail never shares a tangent face with a
+# boss (a coincident contact makes the fused shell non-manifold).
+CONST["FILT_Y0"] = CONST["BOSS_INSET"] + CONST["BOSS_D"] / 2.0 + 0.3
+CONST["FILT_Y1"] = CONST["FILT_Y0"] + CONST["FILT_T"]
 
 # Material / process decision (engineering rationale -- see DRAWINGS_NOTES):
 #   The wetted flow path (anything the sample gas touches) sets carryover

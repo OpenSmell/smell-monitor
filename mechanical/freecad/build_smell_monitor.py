@@ -89,9 +89,10 @@ body = body.cut(cyl_y(CONST["USB_R"], -1.0, CONST["WALL"] + 1.0,
 # Filter drawer: two side rails and a bottom rail.  The pad drops in from the
 # top and the lid is what holds it down - no fasteners, no adhesive.
 _fz0, _rw, _rd = CONST["FILT_Z0"], CONST["RAIL_W"], CONST["RAIL_D"]
-body = body.fuse(box(CX0, CY0, _fz0 - _rw, CX1, CY0 + _rd, _fz0))
-body = body.fuse(box(CX0, CY0, _fz0, CX0 + _rw, CY0 + _rd, CZ1))
-body = body.fuse(box(CX1 - _rw, CY0, _fz0, CX1, CY0 + _rd, CZ1))
+_fy0 = CONST["FILT_Y0"]
+body = body.fuse(box(CX0, _fy0, _fz0 - _rw, CX1, _fy0 + _rd, _fz0))
+body = body.fuse(box(CX0, _fy0, _fz0, CX0 + _rw, _fy0 + _rd, CZ1))
+body = body.fuse(box(CX1 - _rw, _fy0, _fz0, CX1, _fy0 + _rd, CZ1))
 for bx, by in BOSSES:                              # M3 heat-set inserts
     body = body.fuse(cylinder(CONST["BOSS_D"] / 2.0, CZ0, CZ1, bx, by))
 for sx, sy in STANDOFFS:                           # board rests here
@@ -135,8 +136,8 @@ pcb.Shape = plate
 # --- filter pad: 110 x 4 x 23, the only consumable ------------------------
 filt = doc.addObject("Part::Feature", "Filter")
 filt.Label = "filter"
-filt.Shape = box(CX0 + CONST["RAIL_W"], CY0, CONST["FILT_Z0"],
-                 CX1 - CONST["RAIL_W"], CY0 + CONST["FILT_T"], CONST["FILT_Z1"])
+filt.Shape = box(CX0 + CONST["RAIL_W"], CONST["FILT_Y0"], CONST["FILT_Z0"],
+                 CX1 - CONST["RAIL_W"], CONST["FILT_Y1"], CONST["FILT_Z1"])
 
 # --- exhaust fan: d40 x t10, mounted on the rear plate --------------------
 fan = doc.addObject("Part::Feature", "Fan")

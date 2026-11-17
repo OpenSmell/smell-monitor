@@ -273,14 +273,18 @@ calibration possible.
 
 ## 9. What the current board does not match yet
 
-`tools/verify_module_fit.py` reports these against the as-built revision; they
-are the OSM-1 re-lay work, in this order:
+`tools/verify_module_fit.py` reports these against the as-built revision; the
+board rows are the OSM-1 re-lay work, in this order:
 
 | Gap | As-built | Standard |
 |-----|----------|----------|
 | `ID` pin on the gas-cell socket | 5 pins, no ID | 6 pins, §2.1 |
 | Qwiic port at every slot | digital row only, 0.1 in headers | one JST-SH port per slot |
-| Mounting pose | vertical card sockets | right-angle headers, flat cartridges |
 | Series protection on `DO` | direct to the GPIO | 10 kΩ in series |
 | Analog inputs | one 4-channel ADC | two (8 slots) |
 | Board outline | plain 114 × 105 rectangle | four r = 5 corner notches for the lid bosses; USB-C at the front edge |
+
+The cartridge pose is the module maker's side of the same contract, not a base
+board change: the base's vertical sockets already take a right-angle header, so
+a module that ships a straight header stands up and points its inlet at its
+neighbour. §4 is where that rule lives.

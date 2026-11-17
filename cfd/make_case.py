@@ -19,14 +19,14 @@ NX, NY, NZ = 58, 54, 17          # 2 mm cells; snappy refines to 1 mm
 
 INLETS = [(35.0, 30.0), (61.0, 30.0), (87.0, 30.0)]   # x, z on y = Y0
 OUTLET = (44.0, 78.0, Z0, 40.0)                        # x0, x1, z0, z1 on y = Y1
-PAD = (6.0, 116.0, Y0, 7.0, 20.0, Z1)                  # x0,x1,y0,y1,z0,z1
+PAD = (6.0, 116.0, 10.8, 14.8, 20.0, Z1)                # x0,x1,y0,y1,z0,z1
 
 PROBES = [
     ("A0", (22.0, 91.0, 40.5)), ("A1", (48.0, 91.0, 40.5)),
     ("A2", (74.0, 91.0, 40.5)), ("A3", (100.0, 91.0, 40.5)),
     ("D0", (29.5, 49.0, 40.5)), ("D1", (50.5, 49.0, 40.5)),
     ("D2", (71.5, 49.0, 40.5)), ("D3", (92.5, 49.0, 40.5)),
-    ("bypass", (61.0, 15.0, 14.0)),      # under the filter pad
+    ("bypass", (61.0, 12.8, 14.0)),      # under the filter pad
     ("outlet", (61.0, 105.0, 25.0)),
 ]
 
@@ -140,7 +140,7 @@ patches
 
 FILES["system/topoSetDict.pad"] = foam("topoSetDict", """
 // The filter pad is a porous zone, not a solid: a Darcy-Forchheimer sink in
-// the 4 mm slab the pad occupies, x 6..116, y 3..7, z 20..43.
+// the 4 mm slab the pad occupies, x 6..116, y 10.8..14.8, z 20..43.
 actions
 (
     {

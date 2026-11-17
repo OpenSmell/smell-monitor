@@ -821,7 +821,7 @@ the entire class of "the panel does not line up with the chamber" defects.
 | Socket rows | analog y = 75, digital y = 33 (as-built PCB positions) |
 | Row spacing | 42 mm, so a 32 mm cartridge cannot reach the next row |
 | Header pitch | 26 mm analog / 21 mm digital (a base parameter, not a module rule) |
-| Filter | 110 × 4 × 23 pad in a front drawer, held down by the lid |
+| Filter | 110 × 4 × 23 pad in a drawer 10.8 mm behind the front wall (clear of the corner bosses), held down by the lid |
 | USB-C | Ø12 bulkhead hole at x = 14, z = 10 |
 
 Flow is horizontal, front to rear: nostrils → filter pad → over the digital row
@@ -839,10 +839,10 @@ perforated diffuser in the 30 mm gap.
 
 Two other flow facts that are honest to state up front:
 
-* the front slot **below** the filter pad (z 8.6..17.1, behind the bottom rail)
-  is a 8.4 mm dead zone that connects to the chamber. It is where the USB
-  pigtail lives. The CFD case probes it: if it fills faster than the first row,
-  it is a bypass around the filter and the bottom rail has to close it.
+* the front slot **below** the filter pad (z 8.6..17, behind the bottom rail)
+  is an 8.4 mm dead zone that connects to the chamber. The CFD case probes it:
+  if it fills faster than the first row, it is a bypass around the filter and
+  the bottom rail has to close it.
 * the hood over a cartridge's sensing face is **4.9 mm**. That is a shallow
   channel by MOX practice (Winsen hoods are 5–10 mm), so it is the second thing
   the CFD measures, and the one parameter (`CH` 40 → 46) that would change if it
@@ -1212,7 +1212,7 @@ path for automatic zero/baseline calibration.
 
 | M | 2026-10-21 | **The enclosure is rebuilt as the simple thing it should have been, and the drawings follow.** The shell was a sealed solid: 30 mm of material over the chamber, no lid, no service opening, so it could not be printed, assembled or serviced. Measured volume 714 427 mm³ against a 1 251 720 mm³ envelope, `isInside((61, 57, 75))` true. The cause was architectural, not cosmetic: a baffle plate 37 mm above the board, eight wells, a PTFE liner and a vertical front panel that was modelled as a horizontal chamber floor. **Replaced** by an open tray (122 × 114 × 43, 3 mm walls, 3 mm floor) + a flat 6 mm lid on four M3 screws into heat-set inserts; the board sits on four Ø6 standoffs with its top face as the chamber floor at z = 8.6; modules plug straight into the eight 1×6 sockets; a 110 × 4 × 23 filter pad drops into a front drawer and is held down by the lid; a Ø40 fan mounts outside a 4 mm rear plate through a Ø38 bore with blind screws. **Retired:** the baffle, the plenum, the 11 mm lane, the 20 × 20 mm windows, the PTFE insert, the reference port, the front-panel board and the OLED window. **Kept:** the flat cartridge pose, the two rows (digital upstream, MOX downstream), the as-built header positions (analog y = 75, digital y = 33, 26/21 mm pitch), the wetted-material bans and the OSM-1 socket contract. Slot pitch is now explicitly a base *parameter* (`standard.SLOTS.pitch_min` = 22, `max_width` = 20, `reach` = 32), not a module rule. The drawing set is rebuilt from the new solid: OS-000 exploded + section B-B through the whole stack, OS-001 tray (front + section A-A + iso), OS-002 lid (1:1 plan + 1.5:1 counterbore section + iso); sections are hatched from real cut faces and every dimension is on a measured feature. Gates: `verify_cad` now checks section extents and the lid hole pattern against `constants.py`; `verify_module_fit`, `verify_electrical` and `interface.py` no longer reference the retired constants. Header L→M. |
 
-| N | 2026-11-17 | **The BOM becomes orderable, and pH is stated as what it is.** Added `bom-costed.csv`: every line carries an MPN, a manufacturer, a source and an indicative qty-10 price, for a complete base unit at **$31.20** (electronics $17.30, enclosure and hardware $9.10, harness $4.80; sensors excluded; re-quote before ordering). That closes the last fabrication-checklist item a manufacturer actually needs (§8.4). **pH restated (§15 row 14):** pH is a liquid-phase measurement and cannot be read in the gas path, but the old wording ("no pH on the base") read as "pH is not supported", which is wrong. pH is an OSM-1 cartridge — ISFET plus reference on a lead, calibration and wet-storage cap carried by the module — that occupies one slot and reports through the same record, so the base board stays gas + T/H and only fermentation and food users buy it. **Fixed a contradiction in §15:** row 16 (UI on a small front-panel board) and row 21 (headless v1) argued against each other; row 16 now states the invariant (UI is never on the chamber-floor board) and keeps the front-panel board as the v2 option. Header brought in step with the table (L→N). |
+| N | 2026-11-17 | **The BOM becomes orderable, and pH is stated as what it is.** Added `bom-costed.csv`: every line carries an MPN, a manufacturer, a source and an indicative qty-10 price, for a complete base unit at **$31.20** (electronics $17.30, enclosure and hardware $9.10, harness $4.80; sensors excluded; re-quote before ordering). That closes the last fabrication-checklist item a manufacturer actually needs (§8.4). **pH restated (§15 row 14):** pH is a liquid-phase measurement and cannot be read in the gas path, but the old wording ("no pH on the base") read as "pH is not supported", which is wrong. pH is an OSM-1 cartridge — ISFET plus reference on a lead, calibration and wet-storage cap carried by the module — that occupies one slot and reports through the same record, so the base board stays gas + T/H and only fermentation and food users buy it. **Fixed a contradiction in §15:** row 16 (UI on a small front-panel board) and row 21 (headless v1) argued against each other; row 16 now states the invariant (UI is never on the chamber-floor board) and keeps the front-panel board as the v2 option. **A new gate found a fit defect.** `tools/verify_clearance.py` measures solid-to-solid clearances instead of trusting drawings: it showed the 110 mm filter pad occupying the same space as the two front corner bosses (**731.7 mm³**), now closed by starting the drawer 10.8 mm behind the front wall and re-deriving the sheets, and it showed that the fabricated board's rectangular outline overlaps the four lid bosses by **221.0 mm³** — the modelled board carries four r = 5 mm notches that the gerbers do not, which makes the re-lay a fit requirement. Header brought in step with the table (L→N). |
 
 **Open items (need measurement or decision):**
 - Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
@@ -1230,22 +1230,16 @@ path for automatic zero/baseline calibration.
   re-lay is built. The slot pitch is a base parameter (26 / 21 mm as built), not a
   module rule — a cartridge only has to fit the socket, be ≤ 20 mm wide and stop
   within 32 mm of its pin line.
-- **Open blocker — the printed parts and the PCB do not fit each other.**
-  Measured from the solids by `tools/verify_clearance.py`: the filter pad
-  overlaps the tray by **731.7 mm³** (the 110 mm pad runs into the two front
-  corner bosses, whose inner faces are 101 mm apart), and the fabricated
-  board's plain rectangular Edge.Cuts overlaps the four Ø8 bosses by
-  **221.0 mm³**, so it cannot drop past them. The modelled board hides this
-  because it carries four r = 5 mm notches that the gerbers do not have. Two
-  ways out, and the boss route is the cheap one:
-  **(a)** start the bosses at the board top (z = 8.6, still fused to both walls,
-  so the lid keeps its four screws) and move the filter band 7.5 mm rearward to
-  clear them — no notch, no copper change, pad stays 110 mm;
-  **(b)** notch the board, which puts `J1` and `BZ1` inside the notch discs and
-  therefore forces a re-lay. **(a) removes the assembly blocker without touching
-  the PCB**, which leaves the OSM-1 re-lay a standards task rather than a fit
-  task. The USB pigtail still wants `J1` at the front edge so its cable never
-  crosses the chamber floor.
+- **Open blocker — the PCB does not fit the tray.** Measured from the solids by
+  `tools/verify_clearance.py`: the fabricated board's plain rectangular
+  Edge.Cuts overlaps the four Ø8 lid bosses by **221.0 mm³**, so it cannot drop
+  past them. The modelled board hides this with four r = 5 mm notches that the
+  gerbers do not have. **Notching the board is unavoidable**: the bosses carry
+  the lid and run the full cavity height, so raising them above the board would
+  trap it — they sit inside its footprint. Measured against the as-built
+  placement, `J1` is 2.16 mm and `BZ1` 3.77 mm from a notch centre against a 5 mm
+  radius, so both must move off the corners. **The re-lay is therefore a fit
+  requirement, not only the OSM-1 upgrade.**
 - **Board re-lay to the enclosure (next mechanical/electrical task).** `J1` USB-C
   moved to the front edge so its face lands behind the Ø12 bulkhead hole;
   `SW1..SW3`, `BZ1` and `LED1` stay on the board inside the chamber (headless v1,
@@ -1258,6 +1252,13 @@ path for automatic zero/baseline calibration.
 - **Module mounting key** — §4.9 defines it (pin-1 chamfer plus a polarising slot
   in the socket wall) but no footprint carries it yet: the OSM-1 re-lay adds it to the
   socket and to the cartridge outline.
+- **Closed this revision — the filter pad hit the corner bosses.** The 110 mm pad
+  sat in the same space as the two front bosses (**731.7 mm³** of overlap), so it
+  could not be fitted however right the drawing looked. The drawer now starts
+  `FILT_Y0` = 10.8 mm behind the front wall — the boss radius plus 0.3 mm, so the
+  pad drops in and the rail never shares a tangent face with a boss — and both
+  numbers are derived, so moving a boss moves the drawer. Verified at
+  **0.000 mm³** by `tools/verify_clearance.py`.
 - **Closed this revision — the sealed shell.** The shell was a solid block with
   30 mm of material over the chamber: not printable, not assemblable, not
   serviceable. It is now an open tray (122 × 114 × 43) with a flat 6 mm screwed lid,
@@ -1331,7 +1332,7 @@ A gate is not a measurement.
 | Netlist ≡ schematic ≡ firmware pin map | `tools/verify_netlist.py` (ERC 0/0/0), `tools/verify_firmware_pins.py` | proven, machine-checked |
 | Routed board on the chamber contract, DRC-clean | `tools/verify_pcb.py` | proven, machine-checked |
 | Chamber, shell, baffle and drawings derive from one constants file | `tools/verify_cad.py` | proven, machine-checked |
-| Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) | **OPEN — filter pad clashes with the tray by 731.7 mm³, and the rectangular PCB outline clashes with the four bosses by 221.0 mm³ (§14)** |
+| Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) | **OPEN — the rectangular PCB outline overlaps the bosses by 221.0 mm³; the filter-pad clash (731.7 mm³) is closed by moving the drawer 10.8 mm behind the front wall** |
 | Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
 | Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
 | Window exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated, not simulated — §8.3 |

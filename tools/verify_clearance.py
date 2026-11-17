@@ -89,12 +89,12 @@ def main():
     check("rectangular PCB outline vs bosses", total,
           "the drawn Edge.Cuts has no notches")
 
-    # The number a fix needs: how wide a pad fits between the front bosses.
-    gap = (CONST["SH"] - CONST["BOSS_INSET"]) - CONST["BOSS_D"] / 2.0 \
-        - (CONST["BOSS_INSET"] + CONST["BOSS_D"] / 2.0)
+    # The numbers a fix needs.
+    tangent = CONST["BOSS_INSET"] + CONST["BOSS_D"] / 2.0
+    pad_y0 = sh["filter"].BoundBox.YMin
     print("")
-    print("pad width between front bosses: %.1f mm (as modelled: %.1f mm)"
-          % (gap, sh["filter"].BoundBox.XLength))
+    print("front boss tangent y = %.1f mm; filter pad front face y = %.1f mm "
+          "(clearance %.1f mm)" % (tangent, pad_y0, pad_y0 - tangent))
     print("notch radius needed on the PCB:  %.1f mm at %s"
           % (CONST["BOSS_D"] / 2.0 + 1.0,
              ", ".join("(%.1f, %.1f)" % (x, y) for x, y in BOSSES)))
