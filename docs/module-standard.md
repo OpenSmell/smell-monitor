@@ -1,6 +1,6 @@
 # OpenSmell Module Standard v1 (OSM-1)
 
-Status: **draft — target revision L.** The module rules below are settled; the
+Status: **draft — target: the OSM-1 re-lay.** The module rules below are settled; the
 board in the tree is still the as-built revision that predates them (§9 lists
 exactly what does not match yet). `mechanical/standard.py` is the same rules as
 data, and `tools/verify_module_fit.py` checks the chamber, the socket contract
@@ -274,7 +274,7 @@ calibration possible.
 ## 9. What the current board does not match yet
 
 `tools/verify_module_fit.py` reports these against the as-built revision; they
-are the target revision L work, in this order:
+are the OSM-1 re-lay work, in this order:
 
 | Gap | As-built | Standard |
 |-----|----------|----------|

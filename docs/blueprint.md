@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Document** | OS-BP-001 |
-| **Revision** | L |
-| **Date** | 2026-10-18 |
-| **Status** | Architecture locked (socket fixed by `docs/module-standard.md`, blueprint §4.9); schematic ERC-clean, PCB routed and DRC-clean, firmware compiling; revision L is the board re-derive |
+| **Revision** | N |
+| **Date** | 2026-11-17 |
+| **Status** | Architecture locked (socket fixed by `docs/module-standard.md`, blueprint §4.9); schematic ERC-clean, PCB routed and DRC-clean, firmware compiling; the OSM-1 re-lay is the remaining board work |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -280,7 +280,7 @@ Fan @ ~25% ≈ 10–14 dBA · @ full ≈ 16–20 dBA · bellmouth inlet whistle 
 > **[§4.9](#49-the-module-standard-osm-1--the-decision-that-closes-45) and
 > `docs/module-standard.md` replace that with one uniform slot design repeated
 > eight times — a keyed 5 V gas-cell socket plus a Qwiic port at every slot — and
-> flat-mounted cartridges.** Revision L is the board that implements it. If you
+> flat-mounted cartridges.** The OSM-1 re-lay is the board that implements it. If you
 > are designing a module, read the standard first; the mechanical derivation of
 > the envelope stays in §4.5/§4.6.
 
@@ -976,7 +976,7 @@ goes from 40 to 46 and the whole model regenerates from the same constants.
 ### 8.4 Delivery checklist for fabrication
 - [x] ERC 0 errors · [x] DRC 0 errors (`tools/verify_netlist.py`, `tools/verify_pcb.py`)
 - [x] Gerbers + drill + CPL (`tools/export_fab.py` → `electrical/smell_monitor_v1_1/fab/`)
-- [ ] Supplier part numbers in the BOM (`electrical/bom.csv` is designator/value/footprint/qty only)
+- [x] Supplier part numbers + indicative cost (`bom-costed.csv`; KiCad `electrical/bom.csv` stays the machine file)
 - [x] STEP of assembly + enclosure (`mechanical/freecad/*.STEP`, `*.stl`)
 - [ ] Assembly guide · [ ] Firmware binary + flash guide
 
@@ -984,8 +984,9 @@ goes from 40 to 46 and the whole model regenerates from the same constants.
 
 ## 9. Bill of Materials
 
-Base electronics (representative; the full line-item list is in
-`electrical/bom.csv`):
+Base electronics (representative; the KiCad-generated `electrical/bom.csv` is
+designator/value/footprint only, so order from `bom-costed.csv` at the repo
+root, which carries an MPN, a source and a price per line):
 
 | Ref | Part | Notes |
 |-----|------|-------|
@@ -993,7 +994,7 @@ Base electronics (representative; the full line-item list is in
 | U2 | ADS1115 | 16-bit 4-ch ADC (4 analog channels) |
 | U4 | TCA9548A | 8-ch I²C mux, one channel per digital slot |
 | U5 | SHT31-D | T/RH, upstream |
-| U6 | OLED SSD1306 0.96" | UI |
+| U6 | OLED SSD1306 0.96" | UI — **not fitted in v1** (headless, §15 row 21) |
 | U7 | AMS1117-3.3 | 5→3.3 V LDO (added this revision) |
 | Q1 | AO3400A (SOT-23) | Low-side fan PWM switch (GPIO 4) |
 | Q2 | MMBT3904 (SOT-23) | Buzzer driver NPN (GPIO 13) |
@@ -1004,6 +1005,11 @@ Base electronics (representative; the full line-item list is in
 BOM deltas from v0: **add U7** (v0 had no 3.3 V rail) · analog headers
 `5V/GND/AO/DO/3V3` · digital headers `3.3V/GND/SDA/SCL/INT/CTRL` · fixed 2:1
 divider on AO · OLED 0.96" + active buzzer.
+
+Complete base unit at qty 10, sensors excluded, USD and ± 30 % (re-quote before
+ordering; excludes assembly, tax and freight): board and components **$17.30**,
+enclosure and hardware **$9.10**, harness **$4.80** — **$31.20**. Sensors add
+$2–25 each (§4.5).
 
 ---
 
@@ -1206,6 +1212,8 @@ path for automatic zero/baseline calibration.
 
 | M | 2026-10-21 | **The enclosure is rebuilt as the simple thing it should have been, and the drawings follow.** The shell was a sealed solid: 30 mm of material over the chamber, no lid, no service opening, so it could not be printed, assembled or serviced. Measured volume 714 427 mm³ against a 1 251 720 mm³ envelope, `isInside((61, 57, 75))` true. The cause was architectural, not cosmetic: a baffle plate 37 mm above the board, eight wells, a PTFE liner and a vertical front panel that was modelled as a horizontal chamber floor. **Replaced** by an open tray (122 × 114 × 43, 3 mm walls, 3 mm floor) + a flat 6 mm lid on four M3 screws into heat-set inserts; the board sits on four Ø6 standoffs with its top face as the chamber floor at z = 8.6; modules plug straight into the eight 1×6 sockets; a 110 × 4 × 23 filter pad drops into a front drawer and is held down by the lid; a Ø40 fan mounts outside a 4 mm rear plate through a Ø38 bore with blind screws. **Retired:** the baffle, the plenum, the 11 mm lane, the 20 × 20 mm windows, the PTFE insert, the reference port, the front-panel board and the OLED window. **Kept:** the flat cartridge pose, the two rows (digital upstream, MOX downstream), the as-built header positions (analog y = 75, digital y = 33, 26/21 mm pitch), the wetted-material bans and the OSM-1 socket contract. Slot pitch is now explicitly a base *parameter* (`standard.SLOTS.pitch_min` = 22, `max_width` = 20, `reach` = 32), not a module rule. The drawing set is rebuilt from the new solid: OS-000 exploded + section B-B through the whole stack, OS-001 tray (front + section A-A + iso), OS-002 lid (1:1 plan + 1.5:1 counterbore section + iso); sections are hatched from real cut faces and every dimension is on a measured feature. Gates: `verify_cad` now checks section extents and the lid hole pattern against `constants.py`; `verify_module_fit`, `verify_electrical` and `interface.py` no longer reference the retired constants. Header L→M. |
 
+| N | 2026-11-17 | **The BOM becomes orderable, and pH is stated as what it is.** Added `bom-costed.csv`: every line carries an MPN, a manufacturer, a source and an indicative qty-10 price, for a complete base unit at **$31.20** (electronics $17.30, enclosure and hardware $9.10, harness $4.80; sensors excluded; re-quote before ordering). That closes the last fabrication-checklist item a manufacturer actually needs (§8.4). **pH restated (§15 row 14):** pH is a liquid-phase measurement and cannot be read in the gas path, but the old wording ("no pH on the base") read as "pH is not supported", which is wrong. pH is an OSM-1 cartridge — ISFET plus reference on a lead, calibration and wet-storage cap carried by the module — that occupies one slot and reports through the same record, so the base board stays gas + T/H and only fermentation and food users buy it. **Fixed a contradiction in §15:** row 16 (UI on a small front-panel board) and row 21 (headless v1) argued against each other; row 16 now states the invariant (UI is never on the chamber-floor board) and keeps the front-panel board as the v2 option. Header brought in step with the table (L→N). |
+
 **Open items (need measurement or decision):**
 - Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
   schematic → placed + routed PCB (847 segments / 102 vias) → **DRC clean**
@@ -1214,26 +1222,41 @@ path for automatic zero/baseline calibration.
   a pin-name source for `board.py`.
 - **Module standard: the decision is made, the board is not yet built to it (top
   item).** §4.9 fixes the socket — flat cartridges, 8 slots, keyed 1×6 gas cell
-  with an `ID` pin, a Qwiic port at every slot. Target revision L is therefore a
+  with an `ID` pin, a Qwiic port at every slot. The OSM-1 re-lay is therefore a
   re-derive, not a decision: electrical (6-pin socket, Qwiic per slot, **10 kΩ in
   series with every `DO`**, the 1-Wire net, the second ADS1115 for 8 analog
   channels) and then a re-route. `tools/verify_module_fit.py` prints every
-  remaining gap as OPEN and exits 0; `--strict` is what CI runs once revision L
-  is built. The slot pitch is a base parameter (26 / 21 mm as built), not a
+  remaining gap as OPEN and exits 0; `--strict` is what CI runs once the OSM-1
+  re-lay is built. The slot pitch is a base parameter (26 / 21 mm as built), not a
   module rule — a cartridge only has to fit the socket, be ≤ 20 mm wide and stop
   within 32 mm of its pin line.
-- **Board re-lay to the enclosure (next mechanical/electrical task).** The
-  enclosure is the contract now (§6.1). Two changes: four r = 5 mm corner notches
-  for the lid bosses, and `J1` USB-C moved to the front edge so its face lands
-  behind the Ø12 bulkhead hole. `SW1..SW3`, `BZ1` and `LED1` stay on the board
-  inside the chamber (headless v1, §6.1); `U6` (OLED) is not fitted.
+- **Open blocker — the printed parts and the PCB do not fit each other.**
+  Measured from the solids by `tools/verify_clearance.py`: the filter pad
+  overlaps the tray by **731.7 mm³** (the 110 mm pad runs into the two front
+  corner bosses, whose inner faces are 101 mm apart), and the fabricated
+  board's plain rectangular Edge.Cuts overlaps the four Ø8 bosses by
+  **221.0 mm³**, so it cannot drop past them. The modelled board hides this
+  because it carries four r = 5 mm notches that the gerbers do not have. Two
+  ways out, and the boss route is the cheap one:
+  **(a)** start the bosses at the board top (z = 8.6, still fused to both walls,
+  so the lid keeps its four screws) and move the filter band 7.5 mm rearward to
+  clear them — no notch, no copper change, pad stays 110 mm;
+  **(b)** notch the board, which puts `J1` and `BZ1` inside the notch discs and
+  therefore forces a re-lay. **(a) removes the assembly blocker without touching
+  the PCB**, which leaves the OSM-1 re-lay a standards task rather than a fit
+  task. The USB pigtail still wants `J1` at the front edge so its cable never
+  crosses the chamber floor.
+- **Board re-lay to the enclosure (next mechanical/electrical task).** `J1` USB-C
+  moved to the front edge so its face lands behind the Ø12 bulkhead hole;
+  `SW1..SW3`, `BZ1` and `LED1` stay on the board inside the chamber (headless v1,
+  §6.1); `U6` (OLED) is not fitted.
 - **Carrier boards** — MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts, and
   MICS-6814 has three analog outputs against one AO per slot. One shared
   OpenSmell carrier accepts a TO-5 can, a Ø23.5 Winsen can or a bare SMD part and
   presents the standard socket, pinout and sensor zone (§4).
 - Mechanical: OS-003 (PCB floor plan) and OS-004 (pneumatic schematic) sheets (§12).
 - **Module mounting key** — §4.9 defines it (pin-1 chamfer plus a polarising slot
-  in the socket wall) but no footprint carries it yet: revision L adds it to the
+  in the socket wall) but no footprint carries it yet: the OSM-1 re-lay adds it to the
   socket and to the cartridge outline.
 - **Closed this revision — the sealed shell.** The shell was a solid block with
   30 mm of material over the chamber: not printable, not assemblable, not
@@ -1289,9 +1312,9 @@ module, the record shape) change only through §14.
 | 11 | The chamber is a **cascade, and every record says where the slot is** | treat the slots as independent | Gas independence degrades with upstream uptake. Reporting slot index and flow position lets the host model it (§4.9). |
 | 12 | **Driven three-phase cycle** | continuous streaming | Passive sampling injects uncontrolled ambient variability; comparability is the product (§2). |
 | 13 | Hand calculation plus gates first, **CFD once** | CFD before freezing the interface | The interface is what blocks hardware; the CFD tunes parameters, not invariants (§8.3). |
-| 14 | **No pH on the base** — pH is a different instrument, not another slot | a pH slot in the array | A glass electrode is a wet-storage consumable (it must sit in KCl and be re-calibrated), its output is ~−59 mV/pH at hundreds of MΩ, and it measures an aqueous phase, while every other slot measures headspace gas. A pH probe belongs on an external port or on a cartridge that brings its own buffer and storage cap; putting it in the gas chamber would dry it out and poison the array's reference. |
+| 14 | **pH is a pluggable ISFET module**, never a base-board sensor | a pH slot inside the gas array; a soldered pH front-end | pH is a property of an aqueous phase, so a probe in the gas path measures nothing. The users who need it (fermentation, brine, wort) need it in the *liquid*, not the headspace, so pH travels as its own cartridge: ISFET plus reference on a lead, calibration and wet-storage cap carried by the module, occupying one slot and reporting through the same record. The base board stays gas + T/H, and nobody buys a wet probe they will not use. |
 | 15 | **No battery on the base** — USB-C 5 V in, plus a 2-pin 5 V aux header | LiPo + charger + fuel gauge | A cell adds cost, a lithium shipping/compliance burden and a heat source next to four MOX heaters, and it makes the enclosure a battery compartment. A $10 power bank on the aux header gives hours of runtime with zero design, zero certification and zero thermal risk. |
-| 16 | **UI on a small front-panel board**, not on the chamber-floor board | OLED + buttons on the main board | The main board's top face *is* the chamber floor: anything on it is either in the sample air (sorbing, heating, corroding) or behind a wall. The front face is the only surface a display can face the user from, and one Qwiic cable is cheaper than a windowed lid plus a re-laid main board. |
+| 16 | **UI lives off the chamber-floor board** — host UI in v1, an optional front-panel board later | OLED + buttons on the main board | The main board's top face *is* the chamber floor: anything on it is either in the sample air (sorbing, heating, corroding) or behind a wall. The front face is the only surface a display can face the user from, and one Qwiic cable is cheaper than a windowed lid plus a re-laid main board. v1 is headless (row 21), so the first version ships the host UI and keeps the front-panel door open for v2. |
 | 17 | **Reference sensor is a socketed module** (Qwiic), not a soldered part | SHT31 soldered to the main board | A soldered SHT31 makes the whole board a consumable when the sensor drifts, and it cannot be swapped for a calibrated one. A Qwiic reference module costs ~$4 and is field-replaceable, which is what "serviceable" has to mean for the one part that sees the air directly. |
 | 18 | **Acrylic or PU conformal coat**, never silicone | silicone coat; parylene | Silicone vapour poisons SnO₂ permanently (§13), so a silicone-coated board is a slow array killer. Acrylic/PU protects the copper and the dividers at ~$0 and can be masked off the sensor windows and connectors; parylene is better but needs a vacuum house and cannot be touched up. |
 | 19 | **Open tray, board on four standoffs, flat screwed lid** — no baffle, no plenum, no flow lane, no well, no window | the plate-with-eight-openings + machined PTFE insert | It doubles the part count and the envelope (90 mm tall, 1.25 L), needs a machined PTFE insert to stay inert, and forces every cartridge into an 8 mm recess so its sensing face sits *below* the plate. The plate bought nothing a plugged-in cartridge does not already have: unobstructed air over its sensing face. The tray prints on any FDM machine, needs no liner, and comes apart with four screws. |
@@ -1308,6 +1331,7 @@ A gate is not a measurement.
 | Netlist ≡ schematic ≡ firmware pin map | `tools/verify_netlist.py` (ERC 0/0/0), `tools/verify_firmware_pins.py` | proven, machine-checked |
 | Routed board on the chamber contract, DRC-clean | `tools/verify_pcb.py` | proven, machine-checked |
 | Chamber, shell, baffle and drawings derive from one constants file | `tools/verify_cad.py` | proven, machine-checked |
+| Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) | **OPEN — filter pad clashes with the tray by 731.7 mm³, and the rectangular PCB outline clashes with the four bosses by 221.0 mm³ (§14)** |
 | Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
 | Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
 | Window exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated, not simulated — §8.3 |

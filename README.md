@@ -24,7 +24,7 @@ We're not competing on certified precision. We're building the *Arduino of noses
 
 ## Key features
 
-- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md); rewiring the current board to it is revision L.
+- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md); rewiring the board in the tree to it is the OSM-1 re-lay.
 - **Repeatable measurements:** active three-phase cycle (intake → hold → purge), a chamber with a small, known wetted area (sealed PETG; no foam, silicone or paper), a replaceable dust filter, and the board itself as the chamber floor.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
 - **Open:** KiCad source, BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. (Part numbers: `electrical/bom.csv` is designator/value/footprint/qty; supplier PNs are still an open item.)
@@ -96,6 +96,7 @@ hand-verified numbers:
 | `tools/verify_netlist.py` | model netlist == exported schematic netlist |
 | `tools/verify_pcb.py` | headers on contract, outline, track width, vias, 0 unconnected, DRC |
 | `tools/verify_cad.py` | HLR views, section extents, hole patterns, DXFs, vector A3 PDF, print meshes |
+| `tools/verify_clearance.py` | solid-to-solid clearances: filter pad vs tray, PCB outline vs lid bosses |
 | `tools/verify_sensor_matrix.py` | starter pack covers every persona |
 | `tools/verify_orthogonality.py` | response-matrix rank / slot-count trade study |
 | `tools/verify_firmware_pins.py` | firmware pin map == `interface.PINMAP` |
@@ -105,7 +106,7 @@ hand-verified numbers:
 
 1. **Read the blueprint:** `docs/blueprint.md` — objective & success criteria (§0), design (§1–7), verification (§8)
 2. **Design a module:** `docs/module-standard.md` — the slot, pinouts, cartridge envelope, identity EEPROM, conformance checklist
-3. **Build one:** `docs/blueprint.md` §9 (BOM) → §10 (assembly)
+3. **Build one:** `bom-costed.csv` (orderable parts and cost) → `docs/blueprint.md` §9 (BOM) → §10 (assembly)
 4. **Use one:** `docs/blueprint.md` §11 (user manual)
 5. **Order a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
 
