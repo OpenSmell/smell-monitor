@@ -38,8 +38,11 @@ CONST = {
     # PCB on four standoffs, component side up; its top face is the chamber floor
     "PCB_X": 114.0, "PCB_Y": 105.0, "PCB_T": 1.6, "PCB_Z": 7.0,
     "STANDOFF_D": 6.0,
-    # lid: 4 x M3 into heat-set inserts in corner bosses
-    "BOSS_D": 8.0, "BOSS_INSET": 6.5,
+    # lid: 4 x M3 into heat-set inserts in corner bosses.  The bosses stand
+    # inside the board footprint (they carry the lid), so the board gets a
+    # BOSS_D/2 + BOSS_CLEAR cut-out at each one - one number shared by the
+    # enclosure model and the PCB Edge.Cuts.
+    "BOSS_D": 8.0, "BOSS_INSET": 6.5, "BOSS_CLEAR": 0.3,
     "SCREW_D": 3.4, "CBORE_D": 6.2, "CBORE_T": 3.2,
     # module sockets, in SHELL coordinates: these are the as-built PCB header
     # positions (board origin is at 4.0, 4.5), so the enclosure and the board
@@ -53,8 +56,10 @@ CONST = {
     # nostrils: 3 x d6 on the front wall, pitch 26, centred, above the modules
     "NO_R": 3.0, "NO_Z": 30.0, "NO_PITCH": 26.0,
     # USB-C: d12 bulkhead hole for a panel-mount pigtail, in the dead zone
-    # below the filter (the only place a cable can live without wetting)
-    "USB_R": 6.0, "USB_X": 14.0, "USB_Z": 10.0,
+    # below the filter (the only place a cable can live without wetting).
+    # X is pinned to J1's board position plus the board origin (14 + 4), so the
+    # pigtail plugs straight into the receptacle instead of jogging sideways.
+    "USB_R": 6.0, "USB_X": 18.0, "USB_Z": 10.0,
     # filter drawer: a 110 x 4 x 23 pad slides down between two side rails and
     # is held by the lid.  It is the only consumable, and it costs cents.
     "FILT_Z0": 20.0, "FILT_T": 4.0,

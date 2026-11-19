@@ -125,7 +125,8 @@ pcb = doc.addObject("Part::Feature", "PCB")
 pcb.Label = "pcb"
 plate = box(PCB_X0, PCB_Y0, PZ0, PCB_X1, PCB_Y1, PZ1)
 for bx, by in BOSSES:                              # corner notches for the bosses
-    plate = plate.cut(cylinder(5.0, PZ0 - 1.0, PZ1 + 1.0, bx, by))
+    plate = plate.cut(cylinder(CONST["BOSS_D"] / 2.0 + CONST["BOSS_CLEAR"],
+                               PZ0 - 1.0, PZ1 + 1.0, bx, by))
 _half_l = CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0
 for cx, cy in SOCKETS:
     plate = plate.fuse(box(cx - _half_l, cy - CONST["SOCK_P"] / 2.0, PZ1,

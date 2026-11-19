@@ -7,8 +7,9 @@ so it is checked with numbers rather than by looking at pictures:
   * placement - all 8 sensing headers sit exactly on
     ``interface.ANALOG_HEADERS`` / ``DIGITAL_HEADERS`` (the L2 contract), so a
     slot can never drift off its chamber well,
-  * fabrication - board outline = ``CONST['PCB_X'] x CONST['PCB_Y']``, no
-    copper narrower than the board's own minimum track width, via stack sane,
+  * fabrication - board outline = ``CONST['PCB_X'] x CONST['PCB_Y']`` with the
+    four boss cut-outs the tray needs, no copper narrower than the board's own
+    minimum track width, via stack sane,
   * routing - every net fully connected (0 unconnected),
   * DRC - ``kicad-cli pcb drc`` clean (0 violations / 0 unconnected /
     0 footprint errors), i.e. the board a fab house would accept.
@@ -21,6 +22,7 @@ it (same as ``electrical/gen_pcb.py``):
 If ``kicad-cli`` cannot be found the DRC row is reported SKIPPED (loudly) and
 the rest of the gate still decides the exit code.
 """
+import math
 import os
 import glob
 import shutil
@@ -106,6 +108,46 @@ for bank, want in rows.items():
 check(f"board outline = {CONST['PCB_X']:.0f} x {CONST['PCB_Y']:.0f} mm",
       abs(w - CONST["PCB_X"]) <= 0.01 and abs(h - CONST["PCB_Y"]) <= 0.01,
       f"{w} x {h}")
+
+# ---------------------------- boss clearance --------------------------------
+# The tray's four M3 bosses stand inside the board footprint (they carry the
+# lid and run the full cavity height), so the board must have a circular cut-out
+# at each one.  Measure that on the real Edge.Cuts geometry, not on a rectangle
+# rebuilt from the constants: the gerbers are what the fab cuts.
+poly = pcbnew.SHAPE_POLY_SET()
+if not board.GetBoardPolygonOutlines(poly, True) or poly.OutlineCount() != 1:
+    check("board outline is one closed polygon", False, "outline did not close")
+else:
+    check("board outline is one closed polygon", True, f"{poly.Area()/1e12:.1f} mm2")
+    x0 = (CONST["SH"] - CONST["PCB_X"]) / 2.0
+    y0 = (CONST["SW"] - CONST["PCB_Y"]) / 2.0
+    V = pcbnew.VECTOR2I
+    F = pcbnew.FromMM
+    r_boss = CONST["BOSS_D"] / 2.0
+    worst = 99.0
+    worst_name = ""
+    for sx, sy in ((CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+                   (CONST["SH"] - CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+                   (CONST["SH"] - CONST["BOSS_INSET"],
+                    CONST["SW"] - CONST["BOSS_INSET"]),
+                   (CONST["BOSS_INSET"], CONST["SW"] - CONST["BOSS_INSET"])):
+        bx = ox + (sx - x0)
+        by = oy + (CONST["PCB_Y"] - (sy - y0))
+        # nearest board material to the boss axis, radial scan at 0.05 mm
+        found = 8.0
+        r = 0.0
+        while r <= 8.0:
+            if any(poly.Contains(V(F(bx + r * math.cos(2 * math.pi * k / 180)),
+                                    F(by + r * math.sin(2 * math.pi * k / 180))))
+                   for k in range(180)):
+                found = r
+                break
+            r += 0.05
+        if found < worst:
+            worst, worst_name = found, f"({sx:.1f},{sy:.1f})"
+    check(f"board clears the tray bosses (needs >= {r_boss + 0.2:.1f} mm)",
+          worst >= r_boss + 0.2 - 1e-6,
+          f"nearest material {worst:.2f} mm at {worst_name}")
 
 tracks = [t for t in board.GetTracks() if not isinstance(t, pcbnew.PCB_VIA)]
 vias = [t for t in board.GetTracks() if isinstance(t, pcbnew.PCB_VIA)]

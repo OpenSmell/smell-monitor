@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Document** | OS-BP-001 |
-| **Revision** | N |
-| **Date** | 2026-11-17 |
-| **Status** | Architecture locked (socket fixed by `docs/module-standard.md`, blueprint §4.9); schematic ERC-clean, PCB routed and DRC-clean, firmware compiling; the OSM-1 re-lay is the remaining board work |
+| **Revision** | O |
+| **Date** | 2026-11-19 |
+| **Status** | Architecture locked (socket fixed by `docs/module-standard.md`, blueprint §4.9); schematic ERC-clean, PCB routed, DRC-clean and mechanically fitted to the tray; firmware compiling; the OSM-1 re-lay is the remaining board work |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -802,10 +802,12 @@ hole: those parts live on the board inside, reachable with the lid off, and the
 UI is Osmograph. This removes the separate front-panel board, the ribbon, and
 the entire class of "the panel does not line up with the chamber" defects.
 
-> **Board re-lay is the next electrical task.** The enclosure is now the
-> contract: the board must match it, not the other way round. Two changes are
-> needed — four corner notches (r = 5) for the lid bosses, and the USB-C moved to
-> the front edge. Nothing else moves.
+> **The board is fitted to the enclosure (rev O).** `Edge.Cuts` carries four
+> r = 4.3 mm cut-outs for the lid bosses (`BOSS_D/2 + BOSS_CLEAR`), `J1` sits at
+> (14, 6) behind the Ø12 bulkhead hole and `BZ1` moved to (12, 84). Re-routed,
+> 0 unconnected, DRC clean; `tools/verify_pcb.py` measures 4.30 mm of material
+> clearance at every boss on the real outline. What remains is the OSM-1 socket
+> re-lay (§4.9), not fit.
 
 ### 6.2 Chamber geometry (locked)
 
@@ -822,7 +824,7 @@ the entire class of "the panel does not line up with the chamber" defects.
 | Row spacing | 42 mm, so a 32 mm cartridge cannot reach the next row |
 | Header pitch | 26 mm analog / 21 mm digital (a base parameter, not a module rule) |
 | Filter | 110 × 4 × 23 pad in a drawer 10.8 mm behind the front wall (clear of the corner bosses), held down by the lid |
-| USB-C | Ø12 bulkhead hole at x = 14, z = 10 |
+| USB-C | Ø12 bulkhead hole at x = 18, z = 10 (on `J1`'s axis) |
 
 Flow is horizontal, front to rear: nostrils → filter pad → over the digital row
 → over the analog row → rear bore → fan.
@@ -1213,10 +1215,11 @@ path for automatic zero/baseline calibration.
 | M | 2026-10-21 | **The enclosure is rebuilt as the simple thing it should have been, and the drawings follow.** The shell was a sealed solid: 30 mm of material over the chamber, no lid, no service opening, so it could not be printed, assembled or serviced. Measured volume 714 427 mm³ against a 1 251 720 mm³ envelope, `isInside((61, 57, 75))` true. The cause was architectural, not cosmetic: a baffle plate 37 mm above the board, eight wells, a PTFE liner and a vertical front panel that was modelled as a horizontal chamber floor. **Replaced** by an open tray (122 × 114 × 43, 3 mm walls, 3 mm floor) + a flat 6 mm lid on four M3 screws into heat-set inserts; the board sits on four Ø6 standoffs with its top face as the chamber floor at z = 8.6; modules plug straight into the eight 1×6 sockets; a 110 × 4 × 23 filter pad drops into a front drawer and is held down by the lid; a Ø40 fan mounts outside a 4 mm rear plate through a Ø38 bore with blind screws. **Retired:** the baffle, the plenum, the 11 mm lane, the 20 × 20 mm windows, the PTFE insert, the reference port, the front-panel board and the OLED window. **Kept:** the flat cartridge pose, the two rows (digital upstream, MOX downstream), the as-built header positions (analog y = 75, digital y = 33, 26/21 mm pitch), the wetted-material bans and the OSM-1 socket contract. Slot pitch is now explicitly a base *parameter* (`standard.SLOTS.pitch_min` = 22, `max_width` = 20, `reach` = 32), not a module rule. The drawing set is rebuilt from the new solid: OS-000 exploded + section B-B through the whole stack, OS-001 tray (front + section A-A + iso), OS-002 lid (1:1 plan + 1.5:1 counterbore section + iso); sections are hatched from real cut faces and every dimension is on a measured feature. Gates: `verify_cad` now checks section extents and the lid hole pattern against `constants.py`; `verify_module_fit`, `verify_electrical` and `interface.py` no longer reference the retired constants. Header L→M. |
 
 | N | 2026-11-17 | **The BOM becomes orderable, and pH is stated as what it is.** Added `bom-costed.csv`: every line carries an MPN, a manufacturer, a source and an indicative qty-10 price, for a complete base unit at **$31.20** (electronics $17.30, enclosure and hardware $9.10, harness $4.80; sensors excluded; re-quote before ordering). That closes the last fabrication-checklist item a manufacturer actually needs (§8.4). **pH restated (§15 row 14):** pH is a liquid-phase measurement and cannot be read in the gas path, but the old wording ("no pH on the base") read as "pH is not supported", which is wrong. pH is an OSM-1 cartridge — ISFET plus reference on a lead, calibration and wet-storage cap carried by the module — that occupies one slot and reports through the same record, so the base board stays gas + T/H and only fermentation and food users buy it. **Fixed a contradiction in §15:** row 16 (UI on a small front-panel board) and row 21 (headless v1) argued against each other; row 16 now states the invariant (UI is never on the chamber-floor board) and keeps the front-panel board as the v2 option. **A new gate found a fit defect.** `tools/verify_clearance.py` measures solid-to-solid clearances instead of trusting drawings: it showed the 110 mm filter pad occupying the same space as the two front corner bosses (**731.7 mm³**), now closed by starting the drawer 10.8 mm behind the front wall and re-deriving the sheets, and it showed that the fabricated board's rectangular outline overlaps the four lid bosses by **221.0 mm³** — the modelled board carries four r = 5 mm notches that the gerbers do not, which makes the re-lay a fit requirement. Header brought in step with the table (L→N). |
+| O | 2026-11-19 | **The board now fits the tray, measured on the file the fab cuts.** The four Ø8 lid bosses stand inside the board footprint (they carry the lid and run the full cavity height), so no boss move or outline shrink can clear them — only cut-outs. `Edge.Cuts` is now four straight edges joined by four **r = 4.3 mm** concave arcs, from a new shared constant `BOSS_CLEAR = 0.3` (`mechanical/constants.py`) that the enclosure model and the PCB generator both read. Two parts sat inside the new cut-outs and moved: `J1` (10, 6) → **(14, 6)**, with the Ø12 bulkhead hole moved 14 → 18 mm so the pigtail still plugs straight into it, and `BZ1` (12, 93) → **(12, 84)**. The board was re-routed: **868 segments / 104 vias, 0 unconnected**, DRC clean. **The gate was the real defect**: `tools/verify_clearance.py` had been comparing the bosses to a rectangle rebuilt from constants, which proves nothing about the gerbers. That check moved into `tools/verify_pcb.py`, which reads `GetBoardPolygonOutlines()` — the actual Edge.Cuts — and radial-scans each boss axis; it reports **4.30 mm** of material clearance at all four and fails below 4.2 mm. `verify_clearance.py` keeps the solid-to-solid work and now also proves the CAD cut-out radius exceeds the boss radius. The 221.0 mm³ blocker is closed. Header O. |
 
 **Open items (need measurement or decision):**
 - Electrical: **done** — board model (`electrical/board.py`) → generated ERC-clean
-  schematic → placed + routed PCB (847 segments / 102 vias) → **DRC clean**
+  schematic → placed + routed PCB (868 segments / 104 vias) → **DRC clean**
   (0 violations / 0 unconnected / 0 footprint errors) → fab package exported.
   `tools/verify_pcb.py` now holds that line. The v0 schematic is retained only as
   a pin-name source for `board.py`.
@@ -1230,20 +1233,23 @@ path for automatic zero/baseline calibration.
   re-lay is built. The slot pitch is a base parameter (26 / 21 mm as built), not a
   module rule — a cartridge only has to fit the socket, be ≤ 20 mm wide and stop
   within 32 mm of its pin line.
-- **Open blocker — the PCB does not fit the tray.** Measured from the solids by
-  `tools/verify_clearance.py`: the fabricated board's plain rectangular
-  Edge.Cuts overlaps the four Ø8 lid bosses by **221.0 mm³**, so it cannot drop
-  past them. The modelled board hides this with four r = 5 mm notches that the
-  gerbers do not have. **Notching the board is unavoidable**: the bosses carry
-  the lid and run the full cavity height, so raising them above the board would
-  trap it — they sit inside its footprint. Measured against the as-built
-  placement, `J1` is 2.16 mm and `BZ1` 3.77 mm from a notch centre against a 5 mm
-  radius, so both must move off the corners. **The re-lay is therefore a fit
-  requirement, not only the OSM-1 upgrade.**
-- **Board re-lay to the enclosure (next mechanical/electrical task).** `J1` USB-C
-  moved to the front edge so its face lands behind the Ø12 bulkhead hole;
-  `SW1..SW3`, `BZ1` and `LED1` stay on the board inside the chamber (headless v1,
-  §6.1); `U6` (OLED) is not fitted.
+- **Closed this revision — the PCB now fits the tray.** The fabricated board's
+  outline is no longer a plain rectangle: it carries a circular cut-out of
+  r = `BOSS_D/2 + BOSS_CLEAR` = **4.3 mm** at each of the four Ø8 lid bosses,
+  cut from the same constant the enclosure model uses. Notching is unavoidable —
+  the bosses carry the lid and run the full cavity height, so they sit inside the
+  board footprint and cannot be moved out of it. Two parts sat inside the new
+  cut-outs and moved: `J1` from (10, 6) to **(14, 6)** — the Ø12 bulkhead hole
+  moved 14 → 18 mm with it, so the pigtail still plugs straight in — and `BZ1`
+  from (12, 93) to **(12, 84)**. `tools/verify_pcb.py` now measures the real Edge.Cuts polygon
+  (not a rectangle rebuilt from constants) and reports **4.30 mm** of material
+  clearance at every boss; the board was re-routed with 0 unconnected nets and
+  DRC clean.
+- **Remaining board work — the OSM-1 re-lay.** `J1`, `BZ1` and the fit are done;
+  what is left is electrical: 6-pin gas-cell socket, Qwiic at every slot,
+  10 kΩ in series with every `DO`, the 1-Wire `ID` net and a second ADS1115 for
+  eight analog channels. `SW1..SW3`, `LED1` stay on the board inside the chamber
+  (headless v1, §6.1); `U6` (OLED) is not fitted.
 - **Carrier boards** — MICS-6814, SCD40/41, SGP4x and BME688 are SMD parts, and
   MICS-6814 has three analog outputs against one AO per slot. One shared
   OpenSmell carrier accepts a TO-5 can, a Ø23.5 Winsen can or a bare SMD part and
@@ -1330,9 +1336,9 @@ A gate is not a measurement.
 | Claim | Checked by | Status |
 |-------|-----------|--------|
 | Netlist ≡ schematic ≡ firmware pin map | `tools/verify_netlist.py` (ERC 0/0/0), `tools/verify_firmware_pins.py` | proven, machine-checked |
-| Routed board on the chamber contract, DRC-clean | `tools/verify_pcb.py` | proven, machine-checked |
+| Routed board on the chamber contract, DRC-clean | `tools/verify_pcb.py` (headers, real Edge.Cuts polygon, 4.30 mm boss clearance, 0 unconnected, DRC) | proven, machine-checked |
 | Chamber, shell, baffle and drawings derive from one constants file | `tools/verify_cad.py` | proven, machine-checked |
-| Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) | **OPEN — the rectangular PCB outline overlaps the bosses by 221.0 mm³; the filter-pad clash (731.7 mm³) is closed by moving the drawer 10.8 mm behind the front wall** |
+| Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) + `tools/verify_pcb.py` (real Edge.Cuts) | proven — filter pad 0.000 mm³, modelled board 0.000 mm³, fabricated board 4.30 mm clearance at every boss |
 | Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
 | Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
 | Window exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated, not simulated — §8.3 |

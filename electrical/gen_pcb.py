@@ -5,7 +5,9 @@ The board model owns the truth (which part, which pin, which net, which
 footprint).  This script turns it into a real `.kicad_pcb` that KiCad can open,
 DRC and hand to a fabricator:
 
-  * board outline  = CONST['PCB_X'] x CONST['PCB_Y']  (114 x 105 mm)
+  * board outline  = CONST['PCB_X'] x CONST['PCB_Y']  (114 x 105 mm) with four
+    circular cut-outs of BOSS_D/2 + BOSS_CLEAR at the tray's lid bosses - the
+    bosses stand inside the board footprint, so a rectangle cannot be fitted,
   * sensing headers live exactly on the chamber coordinates
     (interface.ANALOG_HEADERS / DIGITAL_HEADERS), so the board seats on the
     baffle wells with no re-measurement,
@@ -14,6 +16,7 @@ DRC and hand to a fabricator:
 Run with KiCad's own Python (it ships pcbnew):
   & "C:\\Program Files\\KiCad\\10.0\\bin\\python.exe" electrical/gen_pcb.py
 """
+import math
 import os
 import sys
 
@@ -46,9 +49,13 @@ PLACE = {
     "J4": (70.0, 70.5, 0), "J5": (96.0, 70.5, 0),
     "J6": (25.5, 28.5, 0), "J7": (46.5, 28.5, 0),
     "J8": (67.5, 28.5, 0), "J9": (88.5, 28.5, 0),
-    # --- USB + power, bottom strip ----------------------------------------
-    "J1": (10.0, 6.0, 0),
-    "R1": (18.0, 6.0, 0), "R2": (22.0, 6.0, 0),
+    # --- USB + power, front strip ------------------------------------------
+    # J1 is 14 mm in, not 10: the tray's front-left boss needs an r = 4.3 mm
+    # cut-out, and a USB-C receptacle whose courtyard reaches x = 4.7 would sit
+    # inside it.  14 also puts the receptacle directly under the d12 bulkhead
+    # hole, so the panel pigtail is a short, straight plug.
+    "J1": (14.0, 6.0, 0),
+    "R1": (21.0, 6.0, 0), "R2": (24.0, 6.0, 0),
     "U7": (31.0, 8.0, 0),
     "C7": (42.0, 6.0, 0), "C9": (46.0, 6.0, 0),
     "C10": (50.0, 6.0, 0), "C11": (54.0, 6.0, 0),
@@ -81,8 +88,10 @@ PLACE = {
     # top Edge.Cuts and trips silk_edge_clearance.  The antenna keep-out still
     # overhangs the edge by >20 mm either way, so nothing electrical changes.
     "U1": (68.0, 94.4, 0),
-    # --- outputs, top strip -----------------------------------------------
-    "BZ1": (12.0, 93.0, 0), "Q2": (24.0, 92.0, 0),
+    # --- outputs, rear strip -----------------------------------------------
+    # BZ1 moved from the rear-left corner (12, 93): the rear-left boss needs an
+    # r = 4.3 cut-out and the buzzer's 10.2 mm body sat inside it.
+    "BZ1": (12.0, 84.0, 0), "Q2": (24.0, 92.0, 0),
     "R12": (29.0, 90.0, 0), "R13": (32.0, 90.0, 0),
     "LED1": (40.0, 94.0, 0), "R14": (36.5, 94.0, 0),
     "Q1": (100.0, 88.0, 0), "J10": (108.0, 88.0, 90),
@@ -203,15 +212,64 @@ def main():
         nets[name] = ni
 
     # --- board outline -----------------------------------------------------
-    for x0, y0, x1, y1 in ((0, 0, PCB_W, 0), (PCB_W, 0, PCB_W, PCB_D),
-                           (PCB_W, PCB_D, 0, PCB_D), (0, PCB_D, 0, 0)):
-        seg = pcbnew.PCB_SHAPE(board)
-        seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
-        seg.SetLayer(pcbnew.Edge_Cuts)
-        seg.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(x0), pcbnew.FromMM(y0)))
-        seg.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(x1), pcbnew.FromMM(y1)))
-        seg.SetWidth(pcbnew.FromMM(0.1))
-        board.Add(seg)
+    # Not a plain rectangle: the tray's four M3 bosses stand inside the board
+    # footprint, so the board has to give each one a circular cut-out of
+    # r = boss radius + 0.3 mm.  Without them the board cannot drop past the
+    # bosses (tools/verify_clearance.py measured 221 mm3 of interference), and
+    # no copper change can fix that.
+    _R = CONST["BOSS_D"] / 2.0 + CONST["BOSS_CLEAR"]
+    _inset = CONST["BOSS_INSET"]
+    _x0 = (CONST["SH"] - PCB_W) / 2.0
+    _y0 = (CONST["SW"] - PCB_D) / 2.0
+    # KiCad y runs opposite to the model, so the inward direction is derived
+    # from the corner's own position on the board rather than carried over.
+    _corners = {}
+    for sx, sy in ((_inset, _inset), (CONST["SH"] - _inset, _inset),
+                   (CONST["SH"] - _inset, CONST["SW"] - _inset),
+                   (_inset, CONST["SW"] - _inset)):
+        cx = sx - _x0
+        cy = PCB_D - (sy - _y0)
+        dx = 1.0 if cx < PCB_W / 2.0 else -1.0
+        dy = 1.0 if cy < PCB_D / 2.0 else -1.0
+        ex = 0.0 if dx > 0 else PCB_W
+        ey = 0.0 if dy > 0 else PCB_D
+        pv = (ex, cy + dy * math.sqrt(_R ** 2 - (ex - cx) ** 2))
+        ph = (cx + dx * math.sqrt(_R ** 2 - (ey - cy) ** 2), ey)
+        mid = (cx + dx * _R / math.sqrt(2.0), cy + dy * _R / math.sqrt(2.0))
+        _corners[(dx, dy)] = (pv, ph, mid)
+
+    def _kicad_shape(kind):
+        s = pcbnew.PCB_SHAPE(board)
+        s.SetShape(kind)
+        s.SetLayer(pcbnew.Edge_Cuts)
+        s.SetWidth(pcbnew.FromMM(0.1))
+        return s
+
+    def _line(p, q):
+        s = _kicad_shape(pcbnew.SHAPE_T_SEGMENT)
+        s.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(p[0]), pcbnew.FromMM(p[1])))
+        s.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(q[0]), pcbnew.FromMM(q[1])))
+        board.Add(s)
+
+    def _arc(p, m, q):
+        s = _kicad_shape(pcbnew.SHAPE_T_ARC)
+        s.SetArcGeometry(
+            pcbnew.VECTOR2I(pcbnew.FromMM(p[0]), pcbnew.FromMM(p[1])),
+            pcbnew.VECTOR2I(pcbnew.FromMM(m[0]), pcbnew.FromMM(m[1])),
+            pcbnew.VECTOR2I(pcbnew.FromMM(q[0]), pcbnew.FromMM(q[1])))
+        board.Add(s)
+
+    # Walk the perimeter: bottom edge, right edge, top edge, left edge.
+    bl, br, tr, tl = (_corners[(1, 1)], _corners[(-1, 1)],
+                      _corners[(-1, -1)], _corners[(1, -1)])
+    _line(bl[1], br[1])          # bottom
+    _arc(br[1], br[2], br[0])    # bottom-right notch
+    _line(br[0], tr[0])          # right
+    _arc(tr[0], tr[2], tr[1])    # top-right notch
+    _line(tr[1], tl[1])          # top
+    _arc(tl[1], tl[2], tl[0])    # top-left notch
+    _line(tl[0], bl[0])          # left
+    _arc(bl[0], bl[2], bl[1])    # bottom-left notch
 
     # --- footprints --------------------------------------------------------
     missing = []

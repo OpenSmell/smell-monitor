@@ -282,7 +282,10 @@ board rows are the OSM-1 re-lay work, in this order:
 | Qwiic port at every slot | digital row only, 0.1 in headers | one JST-SH port per slot |
 | Series protection on `DO` | direct to the GPIO | 10 kΩ in series |
 | Analog inputs | one 4-channel ADC | two (8 slots) |
-| Board outline | plain 114 × 105 rectangle | four r = 5 corner notches for the lid bosses; USB-C at the front edge |
+
+The board outline is no longer a gap: `Edge.Cuts` carries the four boss cut-outs
+(r = 4.3 mm) and `J1` sits at (14, 6) behind the Ø12 bulkhead hole. Both are
+measured by `tools/verify_pcb.py`.
 
 The cartridge pose is the module maker's side of the same contract, not a base
 board change: the base's vertical sockets already take a right-angle header, so
