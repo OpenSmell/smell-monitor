@@ -5,5 +5,7 @@ FoamFile
     class       dictionary;
     object      transportProperties;
 }
+transportModel  Newtonian;
+
 nu              1.5e-05;    // air at 20 C
 DT              1e-05;      // passive tracer, used by the second run

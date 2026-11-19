@@ -121,7 +121,7 @@ hand-verified numbers:
 - [x] Firmware — three-phase cycle, USB/Wi-Fi/BLE, compiles clean
 - [ ] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004
 - [ ] Enclosure CAD derived from the routed board (open: module mounting key, PTFE floor liner, reference pocket — §14)
-- [ ] Fabrication pass (Seeed Fusion / JLCPCB)
+- [ ] Fabrication pass (send Gerbers to board house)
 - [ ] CFD validation pass (optional, blueprint §8.3)
 
 ## Contributing

@@ -115,7 +115,7 @@ static void acquire_finish() {
 static void report() {
   Record r = g_last;
   r.phase = PH_REPORT;                 // "a completed measurement"
-  char buf[512];
+  char buf[2048];
   if (proto_to_json(&r, buf, sizeof(buf)) > 0) net_publish(buf);
   ui_show(r.phase, r.t, r.rh, r.ao[0], net_wifi_on(), net_ble_on());
   ui_beep(120);

@@ -11,7 +11,7 @@ addLayers       false;
 
 geometry
 {
-    cartridges
+    cartridges.stl
     {
         type triSurfaceMesh;
         name cartridges;

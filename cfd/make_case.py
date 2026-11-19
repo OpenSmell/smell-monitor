@@ -131,10 +131,30 @@ FILES["system/createPatchDict"] = foam("createPatchDict", """
 pointSync false;
 patches
 (
-    { name inlet0; patchInfo { type patch; } }
-    { name inlet1; patchInfo { type patch; } }
-    { name inlet2; patchInfo { type patch; } }
-    { name outlet; patchInfo { type patch; } }
+    {
+        name inlet0;
+        patchInfo { type patch; }
+        constructFrom set;
+        set inlet0;
+    }
+    {
+        name inlet1;
+        patchInfo { type patch; }
+        constructFrom set;
+        set inlet1;
+    }
+    {
+        name inlet2;
+        patchInfo { type patch; }
+        constructFrom set;
+        set inlet2;
+    }
+    {
+        name outlet;
+        patchInfo { type patch; }
+        constructFrom set;
+        set outlet;
+    }
 );
 """)
 
@@ -167,7 +187,7 @@ addLayers       false;
 
 geometry
 {
-    cartridges
+    cartridges.stl
     {
         type triSurfaceMesh;
         name cartridges;

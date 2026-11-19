@@ -23,6 +23,10 @@ struct Record {
   float    rh;          // %RH   (SHT31)
   // detected module identity per digital slot ("none" when empty)
   char     digital[4][16];
+  // Cartridge EEPROM fields. The v1.1 base board does not yet read the 1-Wire
+  // ID chip, so these are emitted null until the OSM-1 re-lay wires the ID net.
+  char     eeprom_id[16];
+  char     calibration_date[16];
 };
 
 // Serialise `r` into `buf` as one JSON object (no trailing newline added here).

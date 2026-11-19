@@ -388,8 +388,8 @@ def _part_step(shape, name):
 
 
 def _part_stl(shape, name):
-    """Mesh export for print services (Seeed takes one watertight STL per part,
-    <=10 MB). BRep solids are closed -> a fine tessellation stays manifold."""
+    """Mesh export for print services (one watertight STL per part, <= 10 MB).
+    BRep solids are closed, so a fine tessellation stays manifold."""
     import MeshPart
     path = os.path.join(os.path.dirname(OUT_STEP), name)
     try:

@@ -6,10 +6,10 @@ FoamFile
     object      controlDict;
 }
 application     simpleFoam;
-startFrom       startTime;
+startFrom       latestTime;
 startTime       0;
 stopAt          endTime;
-endTime         3000;
+endTime         1200;
 deltaT          1;
 writeControl    timeStep;
 writeInterval   500;

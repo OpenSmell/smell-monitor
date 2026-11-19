@@ -164,7 +164,7 @@ for f in ("smell_monitor.FCStd", "smell_monitor.STEP"):
           os.path.exists(p) and os.path.getsize(p) > 1000,
           f"{os.path.getsize(p)/1024:.0f} KB" if os.path.exists(p) else "missing")
 
-# ------------------------- print meshes (Seeed: STL only, <=10 MB) ---------
+# ------------------------- print meshes (STL only, <= 10 MB) ---------
 import struct as _struct  # noqa: E402
 from collections import Counter as _Counter  # noqa: E402
 

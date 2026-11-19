@@ -35,7 +35,7 @@ static char g_broker[64] = "";
 static uint16_t g_broker_port = 1883;
 static char g_topic[48] = "opensmell/record";
 
-static char g_latest[512] = "{}";
+static char g_latest[2048] = "{}";
 static NetCommandFn g_on_command = nullptr;
 
 // BLE writes arrive on the BLE stack task; hand them to the main loop instead

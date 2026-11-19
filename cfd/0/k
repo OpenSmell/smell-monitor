@@ -16,6 +16,8 @@ boundaryField
         intensity   0.05;
         value       uniform 0.02;
     }
+    inletFace  { type turbulentIntensityKineticEnergyInlet; intensity 0.05; value uniform 0.02; }
+    outletFace { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
     outlet  { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
