@@ -77,6 +77,20 @@ result is effectively a laminar solution.
   poor, the fix is 6 mm more wall (`CH` 40 → 46), not a new pose: the flat
   cartridge is right, the hood over it is what is short.
 
+## Quantitative t63/t90 requires physical bench validation
+
+CFD proves the geometry is not sealed and air flows as intended (max inlet
+velocity ≈ 2 m/s at 15 L/min, continuity residual ≈ 10⁻⁹), but the exact
+exchange times are not trustworthy from this mesh. At 2 m/s through 1 mm cells
+the Courant number at the inlet jets is O(10–20), and `Gauss upwind`
+numerical diffusion makes the scalar jump cells faster than physical
+advection — the sim reports t63/t90 ≈ 0.02 s at every probe, which is 86×
+faster than the plug-flow reference V/Q = 1.72 s.
+
+Validate t63/t90 empirically with the physical flow bench or smoke test
+(blueprint §3.8) once hardware is in hand. Do not iterate CFD numerics to
+chase the number.
+
 ## Changing the flow
 
 Edit `0/U` (all three inlets, `volumetricFlowRate`, m³/s per inlet) and rerun.

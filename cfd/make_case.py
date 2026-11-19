@@ -22,12 +22,12 @@ OUTLET = (44.0, 78.0, Z0, 40.0)                        # x0, x1, z0, z1 on y = Y
 PAD = (6.0, 116.0, 10.8, 14.8, 20.0, Z1)                # x0,x1,y0,y1,z0,z1
 
 PROBES = [
-    ("A0", (22.0, 91.0, 40.5)), ("A1", (48.0, 91.0, 40.5)),
-    ("A2", (74.0, 91.0, 40.5)), ("A3", (100.0, 91.0, 40.5)),
-    ("D0", (29.5, 49.0, 40.5)), ("D1", (50.5, 49.0, 40.5)),
-    ("D2", (71.5, 49.0, 40.5)), ("D3", (92.5, 49.0, 40.5)),
-    ("bypass", (61.0, 12.8, 14.0)),      # under the filter pad
-    ("outlet", (61.0, 105.0, 25.0)),
+    ("A0", (0.022, 0.091, 0.0405)), ("A1", (0.048, 0.091, 0.0405)),
+    ("A2", (0.074, 0.091, 0.0405)), ("A3", (0.100, 0.091, 0.0405)),
+    ("D0", (0.0295, 0.049, 0.0405)), ("D1", (0.0505, 0.049, 0.0405)),
+    ("D2", (0.0715, 0.049, 0.0405)), ("D3", (0.0925, 0.049, 0.0405)),
+    ("bypass", (0.061, 0.0128, 0.014)),      # under the filter pad
+    ("outlet", (0.061, 0.105, 0.025)),
 ]
 
 Q_TOTAL = 2.5e-4          # 15 L/min, the design purge flow, m3/s
@@ -50,11 +50,14 @@ def foam(obj, body):
 FILES = {}
 
 FILES["system/blockMeshDict"] = foam("blockMeshDict", """
-convertToMeters 1;
+convertToMeters 0.001;
 
 // Fluid volume: the tray cavity above the board.  The board top is the floor
 // (z = 8.6) and the lid underside is the ceiling (z = 43), so this box is the
-// whole sample path.  Nothing is added for the walls: they are the boundary.
+// whole sample path.
+// inletFace (y = Y0, front wall) is the 3-nostril inlet patch.
+// outletFace (y = Y1, back wall) is the fan outlet patch.
+// sideX0/sideX1 are the side walls, board/lid are floor/ceiling.
 vertices
 (
     (%(X0)s %(Y0)s %(Z0)s)
@@ -72,13 +75,10 @@ blocks
     hex (0 1 2 3 4 5 6 7) (%(NX)d %(NY)d %(NZ)d) simpleGrading (1 1 1)
 );
 
-// inletFace and outletFace start as walls; topoSet + createPatch cut the three
-// nostril squares and the fan square out of them (the mesh is a box, so the
-// round holes become 6 x 6 mm and 34 x 30 mm patches - see README).
 boundary
 (
-    inletFace  { type wall;  faces ((0 1 5 4)); }
-    outletFace { type wall;  faces ((3 7 6 2)); }
+    inletFace  { type patch; faces ((0 1 5 4)); }
+    outletFace { type patch; faces ((3 7 6 2)); }
     sideX0     { type wall;  faces ((0 4 7 3)); }
     sideX1     { type wall;  faces ((1 2 6 5)); }
     board      { type wall;  faces ((0 3 2 1)); }
@@ -86,24 +86,60 @@ boundary
 );
 """ % dict(X0=X0, X1=X1, Y0=Y0, Y1=Y1, Z0=Z0, Z1=Z1, NX=NX, NY=NY, NZ=NZ))
 
-_acts = []
-for i, (x, z) in enumerate(INLETS):
-    _acts.append("""
+# inletFace and outletFace are single patches covering the whole front/back
+# walls. createPatch in OpenFOAM 2412 is unreliable (duplicates faces instead
+# of moving them from the source patch, and snappyHexMesh regenerates the
+# boundary file anyway), so we use one inlet patch with fixedValue velocity.
+# Total flow Q_TOTAL over front-face area (116 x 34.4 mm^2 = 0.00399 m^2)
+# gives mean velocity ~0.063 m/s; Courant number at dt=0.02, dx=0.002 is ~0.6.
+FILES["system/topoSetDict"] = foam("topoSetDict", """
+// Cut the three nostril patches and the fan outlet out of the box faces.
+// Coordinates in metres (SI). The box subsets carve the nostril faces out
+// of inletFace and the fan face out of outletFace.
+actions
+(
     {
-        name    inlet%d;
+        name    inlet0;
         type    faceSet;
         action  new;
         source  patchToFace;
         patch   inletFace;
     }
     {
-        name    inlet%d;
+        name    inlet0;
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (%.1f %.1f %.1f) (%.1f %.1f %.1f);
-    }""" % (i, i, x - 3, Y0 - 1, z - 3, x + 3, Y0 + 1, z + 3))
-_acts.append("""
+        box     (0.032 0.002 0.027) (0.038 0.004 0.033);
+    }
+    {
+        name    inlet1;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   inletFace;
+    }
+    {
+        name    inlet1;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     (0.058 0.002 0.027) (0.064 0.004 0.033);
+    }
+    {
+        name    inlet2;
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   inletFace;
+    }
+    {
+        name    inlet2;
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     (0.084 0.002 0.027) (0.090 0.004 0.033);
+    }
     {
         name    outlet;
         type    faceSet;
@@ -116,18 +152,16 @@ _acts.append("""
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (%.1f %.1f %.1f) (%.1f %.1f %.1f);
-    }""" % (OUTLET[0], Y1 - 1, OUTLET[2], OUTLET[1], Y1 + 1, OUTLET[3]))
-
-FILES["system/topoSetDict"] = foam("topoSetDict", """
-// Cut the three nostril patches and the fan outlet out of the box faces.
-actions
-(
-%s
+        box     (0.044 0.110 0.0086) (0.078 0.112 0.040);
+    }
 );
-""" % "".join(_acts))
+""")
 
 FILES["system/createPatchDict"] = foam("createPatchDict", """
+// Create separate inlet/outlet patches from the faceSets so each nostril
+// can carry its own flowRateInletVelocity BC. OpenFOAM 2412 createPatch does
+// NOT remove faces from the source patch, so inletFace/outletFace must be
+// manually changed to wall type afterwards.
 pointSync false;
 patches
 (
@@ -218,7 +252,7 @@ castellatedMeshControls
     refinementRegions   {}
 
     // a point in clear air between the digital row and the filter
-    locationInMesh (61 12 30);
+    locationInMesh (0.061 0.012 0.030);
 
     allowFreeStandingZoneFaces true;
 }
@@ -288,6 +322,7 @@ divSchemes
     div(phi,U)                  Gauss linearUpwind grad(U);
     div(phi,k)                  Gauss upwind;
     div(phi,omega)              Gauss upwind;
+    div(phi,T)                  Gauss upwind;
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 
@@ -308,7 +343,7 @@ solvers
         tolerance       1e-7;
         relTol          0.01;
     }
-    "(U|k|omega)"
+    "(U|k|omega|T)"
     {
         solver          smoothSolver;
         smoother        symGaussSeidel;
@@ -319,20 +354,22 @@ solvers
 
 SIMPLE
 {
-    nNonOrthogonalCorrectors 0;
-    consistent      no;
+    nNonOrthogonalCorrectors 2;
+    consistent      yes;
+    pRefCell        0;
+    pRefValue       0;
     residualControl
     {
-        p               1e-4;
-        U               1e-5;
-        "(k|omega)"     1e-4;
+        p               5e-4;
+        U               5e-5;
+        "(k|omega)"     5e-4;
     }
 }
 
 relaxationFactors
 {
-    equations { U 0.9; "(k|omega)" 0.9; }
-    fields    { p 0.7; }
+    equations { U 0.7; "(k|omega)" 0.7; }
+    fields    { p 0.4; }
 }
 """)
 
@@ -362,7 +399,7 @@ functions
     {
         type    patchAverage;
         libs    ("libfieldFunctionObjects.so");
-        patches (inlet0 inlet1 inlet2);
+        patches (inletFace);
         fields  (p);
     }
 }
@@ -399,10 +436,12 @@ functions
 %s        );
     }
 }
-""" % "".join("            (%.1f %.1f %.1f)   // %s\n" % (p[0], p[1], p[2], n)
+""" % "".join("            (%.6f %.6f %.6f)   // %s\n" % (p[0], p[1], p[2], n)
               for n, p in PROBES))
 
 FILES["constant/transportProperties"] = foam("transportProperties", """
+transportModel  Newtonian;
+
 nu              1.5e-05;    // air at 20 C
 DT              1e-05;      // passive tracer, used by the second run
 """)
@@ -423,11 +462,10 @@ FILES["constant/fvOptions"] = foam("fvOptions", """
 porosity
 {
     type            explicitPorositySource;
-    active          yes;
-    selectionMode   cellZone;
-    cellZone        pad;
     explicitPorositySourceCoeffs
     {
+        selectionMode   cellZone;
+        cellZone        pad;
         type            DarcyForchheimer;
         d               d [0 -2 0 0 0 0 0] (7e7 7e7 7e7);
         f               f [0 -1 0 0 0 0 0] (0 0 0);
@@ -441,19 +479,24 @@ porosity
 }
 """)
 
+# Mean velocity through front face: Q_TOTAL / area = 2.5e-4 / 0.00399 = 0.0627 m/s
+_INLET_V = Q_TOTAL / ((X1 - X0) * (Z1 - Z0) * 1e-6)
+
 FILES["0/U"] = foam("U", """
 dimensions      [0 1 -1 0 0 0 0];
 internalField   uniform (0 0 0);
 
 boundaryField
 {
-    inlet0  { type flowRateInletVelocity; volumetricFlowRate %(q).6e; value uniform (0 2.3 0); }
-    inlet1  { type flowRateInletVelocity; volumetricFlowRate %(q).6e; value uniform (0 2.3 0); }
-    inlet2  { type flowRateInletVelocity; volumetricFlowRate %(q).6e; value uniform (0 2.3 0); }
-    outlet  { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
+    // inletFace is the entire front wall. fixedValue with explicit +Y velocity
+    // drives flow INTO the domain (patch normals point OUT -Y, so
+    // flowRateInletVelocity with positive Q would push flow OUT -> zero flow).
+    // Mean velocity = Q_TOTAL / frontFaceArea = %(v).4f m/s.
+    inletFace  { type fixedValue; value uniform (0 %(v).4f 0); }
+    outletFace { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
     "(sideX0|sideX1|board|lid|cartridges)" { type noSlip; }
 }
-""" % dict(q=Q_INLET))
+""" % dict(v=_INLET_V))
 
 FILES["0/p"] = foam("p", """
 dimensions      [0 2 -2 0 0 0 0];
@@ -461,8 +504,9 @@ internalField   uniform 0;
 
 boundaryField
 {
-    outlet  { type fixedValue; value uniform 0; }
-    "(inlet0|inlet1|inlet2|sideX0|sideX1|board|lid|cartridges)"
+    outletFace { type fixedValue; value uniform 0; }
+    inletFace  { type zeroGradient; }
+    "(sideX0|sideX1|board|lid|cartridges)"
     {
         type zeroGradient;
     }
@@ -475,13 +519,13 @@ internalField   uniform 0.02;
 
 boundaryField
 {
-    "(inlet0|inlet1|inlet2)"
+    inletFace
     {
         type        turbulentIntensityKineticEnergyInlet;
         intensity   0.05;
         value       uniform 0.02;
     }
-    outlet  { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
+    outletFace  { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        kqRWallFunction;
@@ -496,13 +540,13 @@ internalField   uniform 256;
 
 boundaryField
 {
-    "(inlet0|inlet1|inlet2)"
+    inletFace
     {
         type            turbulentMixingLengthFrequencyInlet;
         mixingLength    0.001;
         value           uniform 256;
     }
-    outlet  { type inletOutlet; inletValue uniform 256; value uniform 256; }
+    outletFace  { type inletOutlet; inletValue uniform 256; value uniform 256; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        omegaWallFunction;
@@ -517,7 +561,7 @@ internalField   uniform 0;
 
 boundaryField
 {
-    "(inlet0|inlet1|inlet2|outlet)" { type calculated; value uniform 0; }
+    "(inletFace|outletFace)" { type calculated; value uniform 0; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        nutkWallFunction;
@@ -532,8 +576,8 @@ internalField   uniform 0;
 
 boundaryField
 {
-    "(inlet0|inlet1|inlet2)" { type fixedValue; value uniform 1; }
-    outlet  { type inletOutlet; inletValue uniform 0; value uniform 0; }
+    inletFace  { type fixedValue; value uniform 1; }
+    outletFace  { type inletOutlet; inletValue uniform 0; value uniform 0; }
     "(sideX0|sideX1|board|lid|cartridges)" { type zeroGradient; }
 }
 """)

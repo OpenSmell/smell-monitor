@@ -6,10 +6,10 @@ FoamFile
     object      controlDict;
 }
 application     simpleFoam;
-startFrom       latestTime;
+startFrom       startTime;
 startTime       0;
 stopAt          endTime;
-endTime         1200;
+endTime         3000;
 deltaT          1;
 writeControl    timeStep;
 writeInterval   500;
@@ -30,7 +30,7 @@ functions
     {
         type    patchAverage;
         libs    ("libfieldFunctionObjects.so");
-        patches (inlet0 inlet1 inlet2);
+        patches (inletFace);
         fields  (p);
     }
 }

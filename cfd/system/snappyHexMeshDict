@@ -42,7 +42,7 @@ castellatedMeshControls
     refinementRegions   {}
 
     // a point in clear air between the digital row and the filter
-    locationInMesh (61 12 30);
+    locationInMesh (0.061 0.012 0.030);
 
     allowFreeStandingZoneFaces true;
 }

@@ -5,11 +5,14 @@ FoamFile
     class       dictionary;
     object      blockMeshDict;
 }
-convertToMeters 1;
+convertToMeters 0.001;
 
 // Fluid volume: the tray cavity above the board.  The board top is the floor
 // (z = 8.6) and the lid underside is the ceiling (z = 43), so this box is the
-// whole sample path.  Nothing is added for the walls: they are the boundary.
+// whole sample path.
+// inletFace (y = Y0, front wall) is the 3-nostril inlet patch.
+// outletFace (y = Y1, back wall) is the fan outlet patch.
+// sideX0/sideX1 are the side walls, board/lid are floor/ceiling.
 vertices
 (
     (3.0 3.0 8.6)
@@ -27,13 +30,10 @@ blocks
     hex (0 1 2 3 4 5 6 7) (58 54 17) simpleGrading (1 1 1)
 );
 
-// inletFace and outletFace start as walls; topoSet + createPatch cut the three
-// nostril squares and the fan square out of them (the mesh is a box, so the
-// round holes become 6 x 6 mm and 34 x 30 mm patches - see README).
 boundary
 (
-    inletFace  { type wall;  faces ((0 1 5 4)); }
-    outletFace { type wall;  faces ((3 7 6 2)); }
+    inletFace  { type patch; faces ((0 1 5 4)); }
+    outletFace { type patch; faces ((3 7 6 2)); }
     sideX0     { type wall;  faces ((0 4 7 3)); }
     sideX1     { type wall;  faces ((1 2 6 5)); }
     board      { type wall;  faces ((0 3 2 1)); }

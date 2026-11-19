@@ -5,6 +5,10 @@ FoamFile
     class       dictionary;
     object      createPatchDict;
 }
+// Create separate inlet/outlet patches from the faceSets so each nostril
+// can carry its own flowRateInletVelocity BC. OpenFOAM 2412 createPatch does
+// NOT remove faces from the source patch, so inletFace/outletFace must be
+// manually changed to wall type afterwards.
 pointSync false;
 patches
 (
