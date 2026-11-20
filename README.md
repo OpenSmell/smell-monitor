@@ -25,7 +25,7 @@ We're not competing on certified precision. We're building the *Arduino of noses
 ## Key features
 
 - **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md); rewiring the board in the tree to it is the OSM-1 re-lay.
-- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), a chamber with a small, known wetted area (sealed PETG; no foam, silicone or paper), a replaceable dust filter, and the board itself as the chamber floor.
+- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), a chamber with PTFE-lined wetted surfaces (no smell memory), a permanent washable inert mesh filter (zero recurring cost), and the board itself as the chamber floor.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
 - **Open:** KiCad source, orderable BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. `bom-costed.csv` carries the manufacturer part numbers, supplier and an indicative qty-10 price for every line; `electrical/bom.csv` is the designator/value/footprint/qty view the build uses.
 
@@ -39,6 +39,95 @@ sample. Readings stay comparable because the cycle is driven (intake → hold �
 purge) and every record carries slot index, flow position, temperature,
 humidity, and the module's identity and calibration from its 1-Wire EEPROM.
 
+## Product Specification — Assembly & Functionality
+
+The Smell Monitor is designed for manufacture and service. Every part has a
+single source of truth in `mechanical/constants.py`; the BOM is orderable from
+`bom-costed.csv`; the PCB is ERC/DRC-clean; the enclosure prints on any FDM
+machine. The wetted path is PTFE-lined so no smell memory builds up, and the
+filter is permanent and washable — zero recurring cost.
+
+```mermaid
+flowchart LR
+    subgraph step1 ["STEP 1 — Tray"]
+        T[PTFE-lined PETG tray<br/>122 × 114 × 43 mm<br/>3 mm walls, open top]
+    end
+
+    subgraph step2 ["STEP 2 — PCB"]
+        P[Base board on 4 standoffs<br/>Top face = chamber floor<br/>USB-C reaches front bulkhead]
+    end
+
+    subgraph step3 ["STEP 3 — Cartridges"]
+        C[8 × OSM-1 cartridges click in<br/>Flat pose, right-angle header<br/>Sensing face into moving air]
+    end
+
+    subgraph step4 ["STEP 4 — Filter"]
+        F[Washable inert mesh filter<br/>drops into front drawer<br/>Held by lid, never replaced]
+    end
+
+    subgraph step5 ["STEP 5 — Lid"]
+        L[Flat PETG lid, PTFE-lined<br/>4 × M3 screws into heat-set inserts<br/>Seals the chamber]
+    end
+
+    subgraph step6 ["STEP 6 — Osmograph"]
+        O[USB-C → Osmograph desktop<br/>.osmell record stream<br/>QC flags + user labels & notes]
+    end
+
+    T --> P --> C --> F --> L --> O
+```
+
+### Step 1 — Tray
+The PTFE-lined PETG tray is the outer shell. It prints as one open box
+(122 × 114 × 43 mm, 3 mm walls). All interior surfaces that touch sample air
+are PTFE-lined — no smell memory, wipe-clean with a dry lint-free cloth.
+
+### Step 2 — PCB
+The base board mounts on four Ø6 standoffs. Its top face *is* the chamber floor
+(at z = 8.6 mm). USB-C enters through a bulkhead pigtail in the front wall;
+the fan, buttons, LED and buzzer are reachable with the lid off. No panel
+openings penetrate the chamber.
+
+### Step 3 — Cartridges
+Eight OSM-1 cartridges plug into keyed 1×6 gas-cell sockets, one per slot.
+Every slot also carries a Qwiic/STEMMA QT port. Cartridges mount flat
+(right-angle header in a vertical socket), sensing face up, looking straight
+into the moving sample. Digital row upstream; MOX row downstream. Tool-free
+swap in under 60 seconds.
+
+### Step 4 — Filter
+A washable sintered stainless-steel or PTFE mesh filter drops into the front
+drawer. It stops dust and hair only — it does not strip analytes and it never
+needs replacing. Rinse under tap water, dry, reinsert.
+
+### Step 5 — Lid
+A flat 6 mm PETG lid seals the chamber with four M3 screws into heat-set
+inserts. The lid is PTFE-lined on its underside (wetted surface). Remove the
+four screws to access cartridges, filter, board, and fan.
+
+### Step 6 — Osmograph
+USB-C carries power and data. Osmograph on the host computer receives the
+`.osmell` record stream at 115200 baud, runs five automatic QC checks, and
+displays slot values, temperature, humidity, red QC flags, and user-supplied
+labels/notes. Wi-Fi and BLE are optional (same data over the air).
+
+---
+
+### Pneumatic flow path
+
+```
+  3 × Ø6 nostrils → washable inert filter → digital row (upstream)
+                                              → MOX row (downstream)
+                                              → 40 mm fan exhaust (rear)
+```
+
+Air is pulled through the front, crosses the filter, passes the digital row
+then the hot MOX row last, and exits through the rear fan. No baffle, no plenum,
+no well — a plugged-in cartridge already has unobstructed air over its sensing
+face.
+
+---
+
+
 ## What it costs
 
 Indicative one-off prices in USD (Oct 2026). The gates check geometry and nets,
@@ -51,8 +140,8 @@ not prices.
 | 8 × keyed 1×6 gas-cell sockets + 8 × Qwiic ports | $4 |
 | SHT31 reference module | $4 |
 | 40 mm 5 V PWM fan | $6 |
-| Filter media (pleated pack) | $4 |
-| PETG + PTFE stock | $8 |
+| Permanent washable inert mesh filter (sintered SS or PTFE) | $2 |
+| PETG + PTFE-lined stock | $8 |
 | M3 thumb screws + heat-set inserts | $3 |
 | **Base, no sensors** | **≈ $48** |
 | Starter pack: MQ-135, MQ-136, MICS-6814 carrier, ZE03-C2H4, SCD40 | $60–110 |
@@ -120,9 +209,9 @@ hand-verified numbers:
 - [x] Fab package (Gerbers + drill + CPL)
 - [x] Firmware — three-phase cycle, USB/Wi-Fi/BLE, compiles clean
 - [ ] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004
-- [ ] Enclosure CAD derived from the routed board (open: module mounting key, PTFE floor liner, reference pocket — §14)
+- [ ] Enclosure CAD — PTFE-lined tray + lid specified in `docs/blueprint.md` §15; `mechanical/constants.py` is the single source; export `smell_monitor_assembly.step` when FreeCAD model is finalised
 - [ ] Fabrication pass (send Gerbers to board house)
-- [ ] CFD validation pass (optional, blueprint §8.3)
+- [ ] Physical flow bench validation — CFD proves air moves; exact t63/t90 requires the NF1 bench (blueprint §3.8) once hardware is in hand
 
 ## Contributing
 

@@ -1065,13 +1065,15 @@ MQ-136 · general VOC → MQ-138/SGP40 · CO₂ → SCD40 (I²C) or MH-Z19C (5 V
 free analog slot) · ethylene → ZE03-C2H4 · RH + profile → BME688.
 
 **Maintenance.** Clean cavity with dry lint-free cloth (no solvents unless
-instructed) · replace intake filter every 90 days or after clogging/smoke/dust
-(PTFE side toward incoming air) · firmware update over USB via Osmograph.
+instructed) · rinse the washable sintered stainless-steel or PTFE mesh filter
+under tap water, dry, reinsert — it is permanent, never replaced · firmware update
+over USB via Osmograph.
 
 **Troubleshooting.** Dark screen → power/cable · fan fault → check fan/connector ·
 no sensors → install/reseat · stuck reading → clean/replace sensor · all-day drift
-→ warm up 10 min and log temperature · lingering smell → 2–3 purge cycles, else
-clean · bad data → check cable, 115200 baud.
+→ warm up 10 min and log temperature · lingering smell → rinse the inert filter
+mesh, wipe the PTFE-lined chamber with a dry lint-free cloth · bad data → check
+cable, 115200 baud.
 
 **Safety.** Experimental/research instrument, 5 V USB-C, do not open the service
 bay while powered, keep from liquids, not for explosive atmospheres.
@@ -1181,7 +1183,7 @@ never be silently destroyed or faked:
 
 | Risk | Mitigation |
 |------|------------|
-| Wetted-material cost | Plain PETG tray + lid; a PTFE liner is an optional upgrade |
+| Wetted-material cost | PTFE-lined tray + lid; inert wetted surfaces as standard, zero recurring cost |
 | Most slots unfilled at first | v1 exercises the interface; packs modelled later |
 | Fan speed affects MOX temperature | Fan outside the chamber; validated by §8.2 |
 | Sensor drift over months | Swappable sockets + SHT31 data + shared open dataset |
@@ -1323,8 +1325,8 @@ module, the record shape) change only through §14.
 | 15 | **No battery on the base** — USB-C 5 V in, plus a 2-pin 5 V aux header | LiPo + charger + fuel gauge | A cell adds cost, a lithium shipping/compliance burden and a heat source next to four MOX heaters, and it makes the enclosure a battery compartment. A $10 power bank on the aux header gives hours of runtime with zero design, zero certification and zero thermal risk. |
 | 16 | **UI lives off the chamber-floor board** — host UI in v1, an optional front-panel board later | OLED + buttons on the main board | The main board's top face *is* the chamber floor: anything on it is either in the sample air (sorbing, heating, corroding) or behind a wall. The front face is the only surface a display can face the user from, and one Qwiic cable is cheaper than a windowed lid plus a re-laid main board. v1 is headless (row 21), so the first version ships the host UI and keeps the front-panel door open for v2. |
 | 17 | **Reference sensor is a socketed module** (Qwiic), not a soldered part | SHT31 soldered to the main board | A soldered SHT31 makes the whole board a consumable when the sensor drifts, and it cannot be swapped for a calibrated one. A Qwiic reference module costs ~$4 and is field-replaceable, which is what "serviceable" has to mean for the one part that sees the air directly. |
-| 18 | **Acrylic or PU conformal coat**, never silicone | silicone coat; parylene | Silicone vapour poisons SnO₂ permanently (§13), so a silicone-coated board is a slow array killer. Acrylic/PU protects the copper and the dividers at ~$0 and can be masked off the sensor windows and connectors; parylene is better but needs a vacuum house and cannot be touched up. |
-| 19 | **Open tray, board on four standoffs, flat screwed lid** — no baffle, no plenum, no flow lane, no well, no window | the plate-with-eight-openings + machined PTFE insert | It doubles the part count and the envelope (90 mm tall, 1.25 L), needs a machined PTFE insert to stay inert, and forces every cartridge into an 8 mm recess so its sensing face sits *below* the plate. The plate bought nothing a plugged-in cartridge does not already have: unobstructed air over its sensing face. The tray prints on any FDM machine, needs no liner, and comes apart with four screws. |
+| 18 | **No breakout-board coating mandate** | silicone conformal coat; acrylic/PU coat | Breakout boards are supplied by the module maker / vendor. The base's only wetted surface is its top face (the chamber floor), which is PTFE-lined with the enclosure. Any board-level conformal coating is a module-maker decision, not a base-board requirement, so the base ships uncoated and the user is not burdened with a second maintenance item. |
+| 19 | **Open tray, board on four standoffs, flat screwed lid, PTFE-lined wetted faces** — no baffle, no plenum, no flow lane, no well, no window | the plate-with-eight-openings + machined PTFE insert | It doubles the part count and the envelope (90 mm tall, 1.25 L), needs a machined PTFE insert to stay inert, and forces every cartridge into an 8 mm recess so its sensing face sits *below* the plate. The plate bought nothing a plugged-in cartridge does not already have: unobstructed air over its sensing face. The tray prints on any FDM machine, is PTFE-lined so no smell memory builds up inside the chamber, needs no liner, and comes apart with four screws. |
 | 20 | **Fan outside the rear face**, on a 4 mm printed plate | fan inside the chamber on the rear wall | The fan's motor and plastics would sit in the sample, adding heat and sorption right where the gas leaves the array, and its 40 × 40 × 10 body would cut through the board's rear edge. Outside, it is downstream of everything, keeps its heat out of the box, and is serviceable without opening the lid. Its four screws are blind, so no hole enters the chamber. |
 | 21 | **Headless v1** — no display window, no panel buttons, no buzzer hole; UI is Osmograph | a small front-panel board (OLED + 3 buttons + Qwiic link) | A second board, a ribbon and a sealed feedthrough cost more than they return, and they create the whole class of defects where the panel and the chamber disagree about where the board is. The buttons, LED and buzzer stay on the board inside, reachable with the lid off; day-to-day use is a phone. |
 
