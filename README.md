@@ -169,7 +169,8 @@ smell-monitor/
 │   ├── standard.py          # the OSM-1 module rules as data (gates read this)
 │   ├── modules.py           # what the market actually sells, with sources
 │   ├── freecad/             # parametric 3D model (build + style scripts)
-│   └── drawings/            # DXF/PDF sheet generation
+│   ├── step/                # exported production STEP (assembly + shell + lid)
+│   └── drawings/            # DXF/PDF sheet generation + sheets/ (OS-000…OS-004 SVG)
 ├── firmware/esp32/smell_monitor/   # ESP32 firmware (arduino-cli, sketch.yaml)
 ├── cfd/                     # OpenFOAM case: exchange time, cascade, interference
 ├── tools/                   # numeric verification gates (see below)
@@ -208,10 +209,12 @@ hand-verified numbers:
 - [x] PCB placed + routed + DRC-clean, reproducibly (blueprint §12.1)
 - [x] Fab package (Gerbers + drill + CPL)
 - [x] Firmware — three-phase cycle, USB/Wi-Fi/BLE, compiles clean
-- [ ] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004
-- [ ] Enclosure CAD — PTFE-lined tray + lid specified in `docs/blueprint.md` §15; `mechanical/constants.py` is the single source; export `smell_monitor_assembly.step` when FreeCAD model is finalised
+- [x] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004 — `mechanical/drawings/sheets/` (SVG, ASME Y14)
+- [x] Enclosure CAD — `mechanical/step/smell_monitor_assembly.step` exported (FreeCAD model + shell/lid STEPs alongside); PTFE-lined tray + lid per `docs/blueprint.md` §15; `mechanical/constants.py` is the single source
+- [x] Physical flow bench validation plan — `docs/VALIDATION_PLAN.md` (NF1 flow bench, tracer breakthrough, purge completeness, row-to-row cascade, pass/fail t63/t90)
+- [x] HIL → Osmograph integration test — `tools/hil_simulator.py` + `osmograph-desktop/scripts/test-hil-qc.mjs`; all 5 QC flags raise the correct red pill against the live frontend, clean stream stays green
+- [x] Animation-level hardware spec — `pitch-showcase.html` (assembly → plug-in → cycle → QC loop → manufacturing hand-off)
 - [ ] Fabrication pass (send Gerbers to board house)
-- [ ] Physical flow bench validation — CFD proves air moves; exact t63/t90 requires the NF1 bench (blueprint §3.8) once hardware is in hand
 
 ## Contributing
 

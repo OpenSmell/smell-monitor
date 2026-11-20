@@ -18,6 +18,7 @@ Output: one compact `.osmell` JSON object per line on stdout.
 
 import argparse
 import json
+import math
 import sys
 import time
 
@@ -26,6 +27,18 @@ CYCLE_S = {"intake": 10.0, "hold": 10.0, "purge": 20.0}
 PHASES = ["intake", "hold", "purge", "report"]
 SLOTS = 8
 ANALOG_SLOTS = 4  # slots 0-3 are analog MOX; 4-7 are digital MEMS
+# Real MOX cells are never perfectly flat. Small intake-phase noise keeps a
+# healthy clean-air stream from looking like a stuck cell to the QC rules,
+# while injected anomalies deliberately override it. Noise is intake-only so
+# the hold phase stays flat (drift rule compares hold-to-hold over the 10 s
+# hold).
+NOISE_V = 0.002
+
+
+def intake_noise(cycle_id, slot_index):
+    """Deterministic alternating +/-NOISE_V so consecutive intakes always move."""
+    seed = cycle_id * 3 + slot_index
+    return NOISE_V * (1 if seed % 2 else -1)
 
 # Nominal per-slot voltages (V) at each phase. Analog MOX drops slightly
 # during intake as gas is absorbed, recovers during purge.
@@ -152,23 +165,30 @@ def main():
             # ---- simulated sensor values -------------------------------------
             base_v = BASE_V[phase]
 
+            # Clean analog voltage: intake-only noise so healthy cells move
+            # slightly each intake (distinguishes live cells from stuck ones)
+            # while hold stays perfectly flat (drift rule compares hold-to-hold
+            # over the 10 s hold).
+            clean_v = base_v + (intake_noise(cycle_id, slot_idx) if phase == "intake" else 0.0)
+
             # --inject-saturation: rail the target analog slot at 3.3V
             if args.inject_saturation:
-                slot_v = 3.3 if (phase in ("intake", "hold", "purge")) else base_v
-            else:
-                slot_v = base_v
-
+                slot_v = 3.3 if (phase in ("intake", "hold", "purge")) else clean_v
             # --inject-drift: add growing positive offset during hold
-            if args.inject_drift and phase == "hold":
+            elif args.inject_drift and phase == "hold":
                 drift_offset += 1.0  # mV per cycle -> triggers >0.05 mV/s
-                slot_v += drift_offset / 1000.0
-
+                slot_v = clean_v + drift_offset / 1000.0
             # --inject-stagnation: flat MOX derivative during intake
-            if args.inject_stagnation and phase == "intake":
-                slot_v = intake_last_v if intake_last_v is not None else base_v
+            elif args.inject_stagnation and phase == "intake":
+                slot_v = intake_last_v if intake_last_v is not None else clean_v
+            else:
+                slot_v = clean_v
 
-            # --inject-sht31: +10 degC spike
-            temp_c = 22.5 + (10.0 if args.inject_sht31 else 0.0)
+            # --inject-sht31: alternate 22.5 <-> 32.5 each cycle starting cycle 2.
+            # The QC rule is a *delta* between consecutive cycles, so every
+            # transition re-triggers; the flag stays visible through end of stream.
+            spike = args.inject_sht31 and (cycle_id % 2 == 0)
+            temp_c = 22.5 + (10.0 if spike else 0.0)
             rh_pct = 45.0
 
             # --inject-eeprom: null EEPROM ID with valid readings
@@ -180,7 +200,11 @@ def main():
             for i in range(SLOTS):
                 analog = i < ANALOG_SLOTS
                 if analog:
-                    av = slot_v if i == slot_idx else base_v
+                    # Non-target analog slots also get intake-only noise so a
+                    # clean stream never reads as a stuck cell.
+                    av = slot_v if i == slot_idx else base_v + (
+                        intake_noise(cycle_id, i) if phase == "intake" else 0.0
+                    )
                     dv = None
                 else:
                     av = None
@@ -202,11 +226,11 @@ def main():
             if phase == "hold":
                 hold_last_v = slot_v
 
-            sim_t += CYCLE_S[phase] / args.accel
+            sim_t += CYCLE_S.get(phase, 0.0) / args.accel
             prev_env = (temp_c, rh_pct)
 
             # ---- wall-clock pacing ------------------------------------------
-            phase_wall_s = CYCLE_S[phase] / args.accel
+            phase_wall_s = CYCLE_S.get(phase, 0.0) / args.accel
             elapsed = time.monotonic() - phase_wall_start
             remaining = phase_wall_s - elapsed
             if remaining > 0:
