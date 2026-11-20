@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ========================================================================
+    OS-003 — PCB mechanical floor plan
+    OpenSmell Smell Monitor v1.1 · Sheet 3 of 4
+    ASME Y14.100 / ISO 5457 A3 landscape · first-angle projection
+    Dimensions true to mechanical/constants.py
+    Source: mechanical/constants.py (CONST) · generated from parametric model
+    ======================================================================== -->
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm"
+     viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .title { font-size: 14px; font-weight: bold; text-anchor: middle; }
+      .sub   { font-size: 10px; text-anchor: middle; }
+      .tiny  { font-size: 7px; }
+      .label { font-size: 8px; font-weight: bold; text-anchor: middle; }
+      .dim   { font-size: 7px; fill: #1a1a1a; text-anchor: middle; }
+      .hdr   { font-size: 9px; font-weight: bold; }
+      .cell  { font-size: 8px; }
+      .line  { stroke: #000; stroke-width: 0.35; fill: none; }
+      .bold  { stroke: #000; stroke-width: 0.7; fill: none; }
+      .cent  { stroke: #666; stroke-width: 0.2; stroke-dasharray: 1.5,1.5; fill: none; }
+      .diml  { stroke: #000; stroke-width: 0.2; fill: none; marker-end: url(#arr); }
+      .arr   { fill: #000; }
+    </style>
+    <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <polygon points="0,0 6,3 0,6" />
+    </marker>
+  </defs>
+
+  <!-- ======================= TITLE BLOCK (bottom right, A3 landscape) ===== -->
+  <rect x="297" y="267" width="120" height="27" stroke="#000" stroke-width="0.5" fill="#fff" />
+  <text x="357" y="281" class="title">OS-003  PCB MECHANICAL FLOOR PLAN</text>
+  <text x="357" y="290" class="sub">Smell Monitor v1.1 · Rev A · A3 · ISO 2768-mK · dims in mm</text>
+
+  <rect x="297" y="254" width="120" height="10" stroke="#000" stroke-width="0.5" fill="#fff" />
+  <text x="357" y="263" class="tiny">DRAWN: OpenSmell  CHECK: —  DATE: 2026-11-20  SCALE: 1:1  DWG NO: OS-003</text>
+
+  <!-- ======================= TITLE BLOCK (top left) ====================== -->
+  <text x="20" y="30" class="title">OPENSMELL · SMELL MONITOR v1.1</text>
+  <text x="20" y="46" class="sub">Sheet OS-003 · PCB mechanical floor plan · 114 × 105 mm board</text>
+  <text x="20" y="62" class="tiny">Uncontrolled when printed · Verify against mechanical/constants.py before fabrication</text>
+
+  <!-- ======================= BOARD OUTLINE (scaled 3:1 for readability) == -->
+  <!-- Board origin at shell (4, 4.5). Draw board local coords scaled ×3, offset (60, 120). -->
+  <g transform="translate(60,120) scale(3)">
+    <!-- outline: 114 × 105 -->
+    <rect x="0" y="0" width="114" height="105" class="bold" />
+    <text x="57" y="113" class="label">PCB 114 × 105 × 1.6 mm (top face = chamber floor)</text>
+
+    <!-- boss cut-outs: BOSS_INSET=6.5 from each corner, r=4.3 -->
+    <circle cx="6.5" cy="6.5" r="4.3" class="line" />
+    <circle cx="107.5" cy="6.5" r="4.3" class="line" />
+    <circle cx="6.5" cy="98.5" r="4.3" class="line" />
+    <circle cx="107.5" cy="98.5" r="4.3" class="line" />
+    <text x="6.5" y="3" class="tiny" text-anchor="middle">r 4.3 boss cut-out ×4 (Ø8 boss − BOSS_CLEAR 0.3)</text>
+
+    <!-- analog row headers J2–J5: A_X=[22,48,74,100], A_Y0=75 -->
+    <g stroke="#0066cc" stroke-width="0.5" fill="#eef6ff">
+      <rect x="19.5" y="72.5" width="5" height="5" />
+      <rect x="45.5" y="72.5" width="5" height="5" />
+      <rect x="71.5" y="72.5" width="5" height="5" />
+      <rect x="97.5" y="72.5" width="5" height="5" />
+    </g>
+    <text x="22" y="71" class="tiny" text-anchor="middle">J2 A1</text>
+    <text x="48" y="71" class="tiny" text-anchor="middle">J3 A2</text>
+    <text x="74" y="71" class="tiny" text-anchor="middle">J4 A3</text>
+    <text x="100" y="71" class="tiny" text-anchor="middle">J5 A4</text>
+    <text x="22" y="96" class="tiny" text-anchor="middle">analog row · A_Y0=75</text>
+
+    <!-- digital row headers J6–J9: D_X=[29.5,50.5,71.5,92.5], D_Y0=33 -->
+    <g stroke="#cc6600" stroke-width="0.5" fill="#fff3e0">
+      <rect x="27" y="30.5" width="5" height="5" />
+      <rect x="48" y="30.5" width="5" height="5" />
+      <rect x="69" y="30.5" width="5" height="5" />
+      <rect x="90" y="30.5" width="5" height="5" />
+    </g>
+    <text x="29.5" y="29" class="tiny" text-anchor="middle">J6 D1</text>
+    <text x="50.5" y="29" class="tiny" text-anchor="middle">J7 D2</text>
+    <text x="71.5" y="29" class="tiny" text-anchor="middle">J8 D3</text>
+    <text x="92.5" y="29" class="tiny" text-anchor="middle">J9 D4</text>
+    <text x="50" y="18" class="tiny" text-anchor="middle">digital row (upstream) · D_Y0=33</text>
+
+    <!-- USB-C bulkhead: USB_X=18 -->
+    <circle cx="18" cy="62" r="3" class="line" />
+    <text x="18" y="67" class="tiny" text-anchor="middle">Ø12 USB-C bulkhead</text>
+
+    <!-- board origin mark -->
+    <circle cx="0" cy="0" r="1.5" class="cent" />
+    <text x="-2" y="-4" class="tiny" text-anchor="end">board origin (4, 4.5) shell</text>
+
+    <!-- corner boss positions (shell coords mapped to board local) -->
+    <text x="3" y="102" class="tiny" text-anchor="start">Ø8 lid boss cut-outs at board corners</text>
+    <text x="3" y="108" class="tiny" text-anchor="start">4 × M3 heat-set inserts, lid screw-down</text>
+  </g>
+
+  <!-- ======================= DIMENSION TABLE ============================= -->
+  <g transform="translate(280, 90)">
+    <rect x="0" y="0" width="135" height="120" stroke="#000" stroke-width="0.5" fill="#fafafa" />
+    <text x="67" y="16" class="hdr" text-anchor="middle">MECHANICAL DATA — OS-003</text>
+    <text x="8" y="30" class="cell">PCB outline</text>
+    <text x="122" y="30" class="cell">114 × 105 × 1.6 mm</text>
+    <text x="8" y="43" class="cell">Analog slots J2–J5 (A_X)</text>
+    <text x="122" y="43" class="cell">22 / 48 / 74 / 100 mm</text>
+    <text x="8" y="56" class="cell">Analog row A_Y0</text>
+    <text x="122" y="56" class="cell">75 mm</text>
+    <text x="8" y="69" class="cell">Digital slots J6–J9 (D_X)</text>
+    <text x="122" y="69" class="cell">29.5 / 50.5 / 71.5 / 92.5 mm</text>
+    <text x="8" y="82" class="cell">Digital row D_Y0</text>
+    <text x="122" y="82" class="cell">33 mm</text>
+    <text x="8" y="95" class="cell">Boss cut-out Ø (Ø8 boss − 0.6 clear)</text>
+    <text x="122" y="95" class="cell">Ø 8.6 mm (r 4.3)</text>
+    <text x="8" y="108" class="cell">Boss position (BOSS_INSET)</text>
+    <text x="122" y="108" class="cell">6.5 mm from corners</text>
+    <text x="8" y="121" class="cell">USB-C bulkhead Ø</text>
+    <text x="122" y="121" class="cell">Ø 12 mm @ (18, 10)</text>
+  </g>
+
+  <!-- ======================= NOTES ====================================== -->
+  <g transform="translate(20, 220)">
+    <text x="0" y="12" class="hdr">NOTES:</text>
+    <text x="0" y="26" class="tiny">1. Board top face is the chamber floor (z = 8.6 mm in shell).</text>
+    <text x="0" y="38" class="tiny">2. Four Ø8 lid bosses sit inside the board footprint; each carries</text>
+    <text x="18" y="48" class="tiny">   an r 4.3 mm concave cut-out in Edge.Cuts (4.30 mm min clearance).</text>
+    <text x="0" y="60" class="tiny">3. Digital row is upstream (fresh gas); analog/MOX row downstream.</text>
+    <text x="0" y="72" class="tiny">4. Slot pitch is a base parameter (26 mm analog / 21 mm digital),</text>
+    <text x="18" y="82" class="tiny">   not a module rule — cartridge ≤ 20 mm wide, stops ≤ 32 mm from pin line.</text>
+    <text x="0" y="94" class="tiny">5. All dims per mechanical/constants.py · ISO 2768-mK unless noted.</text>
+    <text x="0" y="106" class="tiny">6. Source: mechanical/constants.py · regenerate from parametric model.</text>
+  </g>
+</svg>

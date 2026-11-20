@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ========================================================================
+    OS-004 — Pneumatic schematic
+    OpenSmell Smell Monitor v1.1 · Sheet 4 of 4
+    ASME Y14.24 / ISO 128 · flow path, ΔP budget, fan operating point
+    Source: blueprint.md §3 · dims in mm, pressures in Pa, flow in L/min
+    ======================================================================== -->
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm"
+     viewBox="0 0 420 297" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <style>
+      .title { font-size: 14px; font-weight: bold; text-anchor: middle; }
+      .sub   { font-size: 10px; text-anchor: middle; }
+      .tiny  { font-size: 7px; }
+      .label { font-size: 8px; font-weight: bold; text-anchor: middle; }
+      .val   { font-size: 8px; text-anchor: middle; fill: #0066cc; }
+      .line  { stroke: #000; stroke-width: 0.5; fill: none; }
+      .flow  { stroke: #0066cc; stroke-width: 2; fill: none; marker-end: url(#arr); }
+      .arr   { fill: #0066cc; }
+      .box   { stroke: #000; stroke-width: 0.5; fill: #fff; }
+      .hdr   { font-size: 9px; font-weight: bold; }
+      .cell  { font-size: 8px; }
+      .key   { font-size: 8px; }
+    </style>
+    <marker id="arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <polygon points="0,0 7,3.5 0,7" fill="#0066cc" />
+    </marker>
+  </defs>
+
+  <!-- ======================= TITLE BLOCK ================================= -->
+  <rect x="297" y="267" width="120" height="27" stroke="#000" stroke-width="0.5" fill="#fff" />
+  <text x="357" y="281" class="title">OS-004  PNEUMATIC SCHEMATIC</text>
+  <text x="357" y="290" class="sub">Smell Monitor v1.1 · Rev A · flow path · ΔP budget · fan point</text>
+  <rect x="297" y="254" width="120" height="10" stroke="#000" stroke-width="0.5" fill="#fff" />
+  <text x="357" y="263" class="tiny">DRAWN: OpenSmell  CHECK: —  DATE: 2026-11-20  SCALE: NTS  DWG NO: OS-004</text>
+
+  <text x="20" y="30" class="title">OPENSMELL · SMELL MONITOR v1.1 · flow discipline</text>
+  <text x="20" y="46" class="sub">Single-pass front → rear: nostrils → filter → digital row → analog row → fan</text>
+
+  <!-- ======================= FLOW PATH DIAGRAM ========================= -->
+  <g transform="translate(40, 90) scale(1.4)">
+    <!-- Sample / headspace -->
+    <rect x="0" y="40" width="70" height="30" class="box" />
+    <text x="35" y="56" class="label">sample / headspace</text>
+
+    <!-- 3 nostrils -->
+    <text x="75" y="56" class="label">▶ 3 × Ø6 nostrils</text>
+    <text x="75" y="68" class="tiny">bellmouth, pitch 26, z = 30</text>
+
+    <!-- Filter -->
+    <rect x="140" y="35" width="60" height="40" class="box" />
+    <text x="170" y="55" class="label">PTFE filter pack</text>
+    <text x="170" y="66" class="tiny">series, full-lane, pleated ≈100 cm²</text>
+    <text x="170" y="76" class="val">ΔP ≤ 2 Pa clean</text>
+
+    <!-- Chamber -->
+    <rect x="230" y="25" width="100" height="60" class="box" />
+    <text x="280" y="45" class="label">sensing chamber</text>
+    <text x="280" y="58" class="tiny">116 × 108 × 40 mm, ≈ 0.50 L</text>
+    <text x="280" y="69" class="tiny">digital row upstream · analog row downstream</text>
+
+    <!-- Fan -->
+    <rect x="360" y="35" width="55" height="30" class="box" />
+    <text x="387" y="50" class="label">40 mm PWM fan</text>
+    <text x="387" y="61" class="tiny">rear exhaust, outside chamber</text>
+
+    <!-- Flow arrows -->
+    <line x1="72" y1="55" x2="140" y2="55" class="flow" />
+    <line x1="200" y1="55" x2="230" y2="55" class="flow" />
+    <line x1="330" y1="55" x2="360" y2="55" class="flow" />
+    <line x1="415" y1="55" x2="445" y2="55" class="flow" />
+    <text x="447" y="58" class="tiny">exhaust</text>
+
+    <!-- Phase cycle note -->
+    <text x="0" y="120" class="label">three-phase cycle (≈ 40 s):</text>
+    <text x="0" y="134" class="tiny">INTAKE 10 s → HOLD 10 s → PURGE 20 s → report</text>
+    <text x="0" y="146" class="tiny">acquisition in HOLD · purge resets baseline</text>
+  </g>
+
+  <!-- ======================= ΔP BUDGET TABLE =========================== -->
+  <g transform="translate(280, 90)">
+    <rect x="0" y="0" width="135" height="150" stroke="#000" stroke-width="0.5" fill="#fafafa" />
+    <text x="67" y="16" class="hdr" text-anchor="middle">ΔP BUDGET @ 15 L/min</text>
+    <text x="8" y="30" class="cell">3 × Ø6 bellmouth nostrils</text>
+    <text x="122" y="30" class="cell">0.21 Pa</text>
+    <text x="8" y="43" class="cell">inlet plenum expansion</text>
+    <text x="122" y="43" class="cell">~0.01 Pa</text>
+    <text x="8" y="56" class="cell">PTFE filter pack (clean)</text>
+    <text x="122" y="56" class="cell">1.5 Pa</text>
+    <text x="8" y="69" class="cell">chamber duct</text>
+    <text x="122" y="69" class="cell">0.03 Pa</text>
+    <text x="8" y="82" class="cell">sensor row passage</text>
+    <text x="122" y="82" class="cell">~0.02 Pa</text>
+    <text x="8" y="95" class="cell">fan inlet + exhaust grille</text>
+    <text x="122" y="95" class="cell">~0.10 Pa</text>
+    <text x="8" y="108" class="bold">system total (design ≤ 5 Pa)</text>
+    <text x="122" y="108" class="bold">≈ 1.9 Pa</text>
+    <text x="8" y="121" class="cell">fan P_stall (4010-class)</text>
+    <text x="122" y="121" class="cell">≈ 17 Pa (≥ 3× margin)</text>
+    <text x="8" y="134" class="cell">design operating point Q</text>
+    <text x="122" y="134" class="cell">15 L/min</text>
+    <text x="8" y="147" class="cell">cavity time constant V/Q</text>
+    <text x="122" y="147" class="cell">≈ 2.0 s</text>
+  </g>
+
+  <!-- ======================= FAN OPERATING POINT ======================== -->
+  <g transform="translate(280, 260)">
+    <text x="0" y="12" class="hdr">FAN OPERATING POINT</text>
+    <text x="0" y="26" class="tiny">40 × 40 × 10 mm 5 V axial (Sunon 4010-class)</text>
+    <text x="0" y="38" class="tiny">free air 150–230 L/min · 4500–5000 RPM · ~15 dBA</text>
+    <text x="0" y="50" class="tiny">@ 1.9–5 Pa → 35–60 L/min at 20–30% PWM</text>
+    <text x="0" y="62" class="tiny">full-speed purge 100–150 L/min → τ ≈ 0.4–0.7 s</text>
+    <text x="0" y="74" class="tiny">99%+ cavity flush in < 3 s; 20 s purge window</text>
+    <text x="0" y="86" class="tiny">dominated by MOX desorption, not flush</text>
+  </g>
+
+  <!-- ======================= NOTES ====================================== -->
+  <g transform="translate(20, 220)">
+    <text x="0" y="12" class="hdr">NOTES:</text>
+    <text x="0" y="26" class="tiny">1. Single-pass flow, front → rear. No internal baffles except the sensor screen.</text>
+    <text x="0" y="38" class="tiny">2. Digital row upstream (small, cold breakouts, least blockage).</text>
+    <text x="0" y="50" class="tiny">3. Analog/MOX row downstream (~3.6 W heaters, VOC sink, desorbs in purge —</text>
+    <text x="18" y="62" class="tiny">   nothing sits behind it).</text>
+    <text x="0" y="74" class="tiny">4. Filter is a full-lane series element (bypassable filter is not a filter);</text>
+    <text x="18" y="86" class="tiny">   pleated PTFE mesh, permanent washable, zero recurring cost.</text>
+    <text x="0" y="98" class="tiny">5. All wetted faces PTFE-lined / inert — no silicone, PVC, carbon in series.</text>
+    <text x="0" y="110" class="tiny">6. Source: blueprint.md §3 · NF1–NF6 acceptance in docs/VALIDATION_PLAN.md.</text>
+  </g>
+</svg>

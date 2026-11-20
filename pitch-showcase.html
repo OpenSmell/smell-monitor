@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenSmell — Smell Monitor v1.1 · Animation-Level Hardware Spec</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1a1a1a; --line: #666; --red: #e11d48; --green: #15803d;
+    --amber: #d97706; --blue: #2563eb; --bg: #f7f7f7; --card: #ffffff;
+  }
+  html { background: var(--bg); color: var(--ink); font-family: Helvetica, Arial, sans-serif; }
+  body { max-width: 1000px; margin: 0 auto; padding: 24px; line-height: 1.5; }
+  h1 { font-size: 26px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 18px; }
+  h2 { font-size: 18px; margin: 26px 0 10px; color: var(--blue); }
+  p { margin: 8px 0; font-size: 14px; }
+  .badge { display:inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; color: #fff; }
+  .badge.red { background: var(--red); } .badge.green { background: var(--green); } .badge.amber { background: var(--amber); } .badge.blue { background: var(--blue); }
+  .stage { margin: 30px 0; padding: 20px; background: var(--card); border: 1px solid #ddd; border-radius: 8px; position: relative; overflow: hidden; }
+  .stage::before { content: attr(data-stage); position: absolute; top: -10px; left: 14px; background: var(--ink); color: #fff; font-size: 11px; font-weight: bold; padding: 2px 10px; border-radius: 10px; }
+  .anim-wrap { width: 100%; height: 230px; position: relative; margin-top: 14px; background: #eef2f7; border-radius: 8px; overflow: hidden; }
+  .chip { position: absolute; width: 110px; height: 70px; background: #fff; border: 1.5px solid #999; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #333; box-shadow: 2px 2px 6px rgba(0,0,0,0.15); transition: all 0.6s ease; }
+  .plugged { border-color: var(--green); box-shadow: 0 0 14px rgba(21,128,61,0.35); transform: scale(1.05); }
+  .powered { border-color: var(--blue); box-shadow: 0 0 14px rgba(37,99,235,0.35); }
+  .rail { position: absolute; width: 100%; height: 14px; background: #ccc; border-radius: 2px; }
+  .trace { position: absolute; height: 2px; background: var(--blue); border-radius: 1px; }
+  .fan { position: absolute; width: 44px; height: 44px; border: 2px solid var(--ink); border-radius: 50%; top: 10px; right: 10px; animation: spin 0.9s linear infinite; display: none; }
+  .fan.running { display: block; }
+  .fan::after { content:""; position: absolute; left: 50%; top: 50%; width: 6px; height: 22px; background: var(--ink); transform: translate(-50%, -50%); }
+  .blink { animation: blink 1.2s infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes slideL { from { transform: translateX(-140px); } to { transform: translateX(0); } }
+  @keyframes plugD { from { top: -150px; } to { top: 90px; } }
+  @keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 rgba(21,128,61,0); } 50% { transform: scale(1.03); box-shadow: 0 0 14px rgba(21,128,61,0.45); } }
+  .ok { animation: pulse 1.4s infinite; color: var(--green); font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 12px; }
+  th, td { border: 1px solid #bbb; padding: 5px 8px; text-align: left; }
+  th { background: #eef2f7; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .note { font-size: 12px; color: var(--line); font-style: italic; margin-top: 6px; }
+  .qc-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  .qc-pill { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; color: #fff; }
+  .qc-clean { background: #dcfce7; color: var(--green); border: 1px solid var(--green); }
+  .qc-flag { background: var(--red); color: #fff; animation: pulse 1s infinite; }
+  pre { background: #f3f4f6; border: 1px solid #ddd; padding: 10px; border-radius: 6px; font-size: 11px; overflow: auto; margin: 8px 0; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #bbb; font-size: 12px; color: var(--line); }
+</style>
+</head>
+<body>
+
+<h1>OpenSmell — Smell Monitor v1.1 · Animation-Level Hardware Spec</h1>
+<p><span class="badge red">inert flow path</span> <span class="badge green">permanent washable filter</span> <span class="badge amber">zero recurring cost</span> <span class="badge blue">OSM-1 cartridge standard</span></p>
+<p>A repeatable, controlled headspace presented to swappable gas sensors. Every phase is animated so a Seeed engineer can verify clearances, assembly order, plug-in, and the Osmograph QC loop without opening a CAD file.</p>
+
+<div class="stage" data-stage="STAGE 1 — ENCLOSURE &amp; INERT FLOW PATH">
+  <p>The shell is an open PETG tray (122 × 114 × 43 mm) + flat 6 mm screwed lid, four M3 screws into heat-set inserts. No baffle, no plenum, no disposable liner. Wetted faces are PTFE-lined — no smell memory builds up inside the chamber.</p>
+  <div class="anim-wrap">
+    <div class="rail" style="top:60px; left:20px; width:260px;"></div>
+    <div class="chip" id="s1-tray" style="left:20px; top:60px;">shell tray</div>
+    <div class="chip" id="s1-pcb" style="left:280px; top:60px;">PCB (chamber floor)</div>
+    <div class="chip" id="s1-lid" style="left:540px; top:60px;">flat lid</div>
+    <div class="chip" id="s1-filter" style="left:540px; top:150px;">washable PTFE filter</div>
+    <div class="fan running" style="right:10px; top:10px;"></div>
+  </div>
+  <div class="two-col">
+    <div>
+      <ul style="margin-left:18px;">
+        <li>Shell PETG FDM / AL 6061-T6 substitute · lid same spool</li>
+        <li>Board on four Ø6 standoffs; top face = chamber floor</li>
+        <li>Filter drawer starts 10.8 mm behind front wall (clears lid bosses)</li>
+        <li>Fan outside rear face on 4 mm plate — motor heat never enters sample</li>
+      </ul>
+    </div>
+    <div>
+      <p class="note">Assembly order: tray → PCB on standoffs → 8 cartridges → filter pad → lid → Osmograph. Service: lid off, modules lift straight out, ≤ 60 s, no tools.</p>
+    </div>
+  </div>
+</div>
+
+<div class="stage" data-stage="STAGE 2 — SENSOR PLUG-IN (OSM-1 CARTRIDGE)">
+  <p>Eight identical slots: keyed 5 V gas-cell socket (+5V GND AO DO 3V3 ID) + 3.3 V Qwiic/STEMMA QT port at every slot. Cartridges mount flat — right-angle header in a vertical socket, sensing face up — so a MOX can's end-face inlet points at its window, not its neighbour.</p>
+  <div class="anim-wrap">
+    <div class="rail" style="top:40px; left:60px; width:520px;"></div>
+    <div class="chip" id="s2-sock" style="left:60px; top:40px;">slot socket (keyed)</div>
+    <div class="chip" id="s2-cart" style="left:220px; top:-130px;">MOX cartridge</div>
+    <div class="chip" id="s2-qwiic" style="left:540px; top:40px;">Qwiic port</div>
+    <div class="chip" id="s2-id" style="left:540px; top:140px;">1-Wire ID EEPROM</div>
+  </div>
+  <div class="two-col">
+    <div>
+      <p style="margin-bottom:8px;">Pinout: <code>+5V GND AO DO 3V3 ID</code> · <code>ID</code> = 1-Wire EEPROM (pinout, calibration, exposure hours) · 10 kΩ series on every DO · Qwiic = JST-SH 4-pin @ 3.3 V</p>
+      <ul style="margin-left:18px;">
+        <li>4 analog (MOX / e-chem / NDIR-5V) downstream</li>
+        <li>4 digital (NDIR-I²C / VOC-index / T-RH) upstream</li>
+        <li>Uniform 24 mm pitch · 8 slots · fits existing 106 mm cavity</li>
+      </ul>
+    </div>
+    <div>
+      <div class="qc-row"><div class="qc-pill qc-clean">cartridge seated</div><div class="qc-pill qc-clean">keyed — wrong-bank impossible</div></div>
+      <div class="qc-row"><div class="qc-pill qc-clean">ID EEPROM read</div><div class="qc-pill qc-clean">calibration + exposure hours travel with cell</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="stage" data-stage="STAGE 3 — THREE-PHASE CYCLE &amp; FUNCTIONALITY">
+  <p>The device never passively sniffs. A deterministic cycle drives every measurement so each sample sees identical pneumatic history — comparability is the product.</p>
+  <div class="anim-wrap">
+    <div class="chip" id="s3-intake" style="left:40px; top:40px;">INTAKE<br><span style="font-size:10px;">fan ON ~50% · 10 s</span></div>
+    <div class="chip" id="s3-hold" style="left:190px; top:40px;">HOLD<br><span style="font-size:10px;">fan OFF · 10 s · acquire</span></div>
+    <div class="chip" id="s3-purge" style="left:340px; top:40px;">PURGE<br><span style="font-size:10px;">fan ON 100% · 20 s · flush</span></div>
+    <div class="chip" id="s3-report" style="left:490px; top:40px;">REPORT<br><span style="font-size:10px;">stream to Osmograph</span></div>
+    <div class="fan running" style="left:235px; top:120px;"></div>
+    <div class="trace" id="s3-trace" style="left:40px; top:150px; width:0;"></div>
+  </div>
+  <div class="two-col">
+    <div>
+      <table>
+        <tr><th>Phase</th><th>Fan</th><th>Duration</th><th>Purpose</th></tr>
+        <tr><td>Intake</td><td>ON ~50%</td><td>10 s</td><td>Draw sample through filter</td></tr>
+        <tr><td>Hold</td><td>OFF</td><td>10 s</td><td>Sensors equilibrate · acquire</td></tr>
+        <tr><td>Purge</td><td>ON 100%</td><td>20 s</td><td>Flush chamber · reset baseline</td></tr>
+        <tr><td>Report</td><td>—</td><td>—</td><td>Emit .osmell JSON over USB</td></tr>
+      </table>
+    </div>
+    <div>
+      <p class="note">Full cycle ≈ 40 s (meets G2 ≤ 60 s). Cavity ≈ 0.50 L · design flow 15 L/min · time constant V/Q ≈ 2.0 s · 20 s purge ≈ 10 exchanges ≥ 99% cavity exchange.</p>
+      <p class="note">MOX row last: heaters (~0.9 W/slot) and VOC sink sit downstream of everything so purge carries desorbed gas straight out the exhaust.</p>
+    </div>
+  </div>
+</div>
+
+<div class="stage" data-stage="STAGE 4 — OSMOGRAPH QC LOOP (RED PILL PROOF)">
+  <p>Every completed .osmell record hits five rule-based QC checks. A fault stamps the red pill live — no neural net, no black box, thresholds tunable against clean-air / known-bad data.</p>
+  <div class="anim-wrap">
+    <div class="chip" id="s4-stream" style="left:40px; top:40px;">.osmell stream</div>
+    <div class="chip" id="s4-qc" style="left:260px; top:40px;">QC engine</div>
+    <div class="chip" id="s4-pill" style="left:480px; top:40px;">QC clean</div>
+    <div class="chip" id="s4-alert" style="left:480px; top:140px;">QC: adc_saturation</div>
+  </div>
+  <div class="two-col">
+    <div>
+      <table>
+        <tr><th>Rule</th><th>Trigger</th><th>Flag</th></tr>
+        <tr><td>ADC saturation</td><td>0.0 V or 3.3 V × 2 cycles</td><td><span class="qc-pill qc-flag">adc_saturation</span></td></tr>
+        <tr><td>Baseline drift</td><td>hold-phase slope &gt; 0.05 mV/s</td><td><span class="qc-pill qc-flag">baseline_drift</span></td></tr>
+        <tr><td>SHT31 out-of-range</td><td>ΔT &gt; 5 °C or ΔRH &gt; 15 % / cycle</td><td><span class="qc-pill qc-flag">sht31_out_of_range</span></td></tr>
+        <tr><td>EEPROM mismatch</td><td>valid reading, no cartridge ID</td><td><span class="qc-pill qc-flag">eeprom_mismatch</span></td></tr>
+        <tr><td>Flow stagnation</td><td>intake flat × 2 cycles</td><td><span class="qc-pill qc-flag">flow_stagnation</span></td></tr>
+      </table>
+    </div>
+    <div>
+      <p class="note">Flags persist across the quiet `report` phase (sticky per cycle), reset on link adopt/drop. Clean stream stays green.</p>
+      <pre>.osmell record → JSON.parse → computeQcFlags() → qcFlags pill (red = show, pulse)</pre>
+    </div>
+  </div>
+</div>
+
+<div class="stage" data-stage="STAGE 5 — MANUFACTURING HAND-OFF (SEEED PACKAGE)">
+  <p>Turnkey for OSHW manufacturing + revenue share: fab files, MPN BOM, STEP, OSM-1 standard, pro manual, validation plan, demo spec.</p>
+  <table>
+    <tr><th>Artifact</th><th>Location</th><th>Status</th></tr>
+    <tr><td>Gerbers + drill + CPL</td><td><code>electrical/smell_monitor_v1_1/fab/</code></td><td><span class="qc-pill qc-clean">DRC-clean, exported</span></td></tr>
+    <tr><td>MPN BOM ($31.20 base, qty 10)</td><td><code>bom-costed.csv</code></td><td><span class="qc-pill qc-clean">orderable</span></td></tr>
+    <tr><td>Assembly STEP</td><td><code>mechanical/step/smell_monitor_assembly.step</code></td><td><span class="qc-pill qc-clean">committed</span></td></tr>
+    <tr><td>Drawing sheets OS-000…004</td><td><code>mechanical/drawings/sheets/</code></td><td><span class="qc-pill qc-clean">OS-003/004 authored</span></td></tr>
+    <tr><td>Pro-grade manual (B&W)</td><td><code>docs/MANUAL.md</code></td><td><span class="qc-pill qc-clean">committed</span></td></tr>
+    <tr><td>Blueprint / build spec</td><td><code>docs/blueprint.md</code></td><td><span class="qc-pill qc-clean">locked Rev O</span></td></tr>
+    <tr><td>Flow bench validation plan</td><td><code>docs/VALIDATION_PLAN.md</code></td><td><span class="qc-pill qc-clean">committed</span></td></tr>
+    <tr><td>HIL simulator + QC proof</td><td><code>tools/hil_simulator.py</code> / <code>osmograph-desktop/scripts/test-hil-qc.mjs</code></td><td><span class="qc-pill qc-clean">all 5 flags pass</span></td></tr>
+    <tr><td>.osmell schema v1.0</td><td><code>opensmell/schemas/osmell.v1.schema.json</code></td><td><span class="qc-pill qc-clean">locked</span></td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  OpenSmell · Smell Monitor v1.1 · Hardware: CERN-OHL-S-2.0 · Firmware: MIT · Seeed Studios OSHW pitch package · <b>No recurring consumables · PTFE-lined inert wetted path · Permanent washable filter · Zero breakout-board-coating mandate</b>
+</div>
+
+<script>
+  // Stage 1: assembly sequence
+  const seq = [
+    { el: 's1-tray',  cls: 'powered', delay: 400 },
+    { el: 's1-pcb',   cls: 'plugged', delay: 1100 },
+    { el: 's1-lid',   cls: 'plugged', delay: 1800 },
+    { el: 's1-filter',cls: 'plugged', delay: 2500 },
+  ];
+  seq.forEach(s => setTimeout(() => document.getElementById(s.el).classList.add(s.cls), s.delay));
+
+  // Stage 2: cartridge plugs in
+  setTimeout(() => {
+    const c = document.getElementById('s2-cart');
+    c.style.transition = 'all 0.8s ease';
+    c.style.top = '110px';
+    setTimeout(() => c.classList.add('plugged'), 400);
+  }, 700);
+  setTimeout(() => document.getElementById('s2-sock').classList.add('plugged'), 1400);
+  setTimeout(() => document.getElementById('s2-qwiic').classList.add('plugged'), 2100);
+  setTimeout(() => document.getElementById('s2-id').classList.add('plugged'), 2800);
+
+  // Stage 3: trace sweep
+  setTimeout(() => {
+    const t = document.getElementById('s3-trace');
+    t.style.transition = 'width 2.2s ease';
+    t.style.width = '450px';
+  }, 500);
+
+  // Stage 4: red pill alert after 3s
+  setTimeout(() => {
+    const p = document.getElementById('s4-pill');
+    p.textContent = 'QC: adc_saturation';
+    p.className = 'chip';
+    p.classList.add('qc-flag');
+    p.style.borderColor = 'var(--red)';
+    p.style.color = '#fff';
+    p.style.background = 'var(--red)';
+    const a = document.getElementById('s4-alert');
+    a.textContent = 'QC: adc_saturation (3.3 V rail)';
+    a.className = 'chip ok';
+  }, 3000);
+</script>
+</body>
+</html>
