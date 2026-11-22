@@ -5,14 +5,18 @@ Sibling of ``mechanical/constants.py``. Everything electrical that is
 *hard to vary* lives here and derives from the mechanical geometry, so the
 schematic, PCB and firmware cannot drift from the chamber:
 
-  * sensing-slot pinouts   (the product contract users design against)
+  * the standard slot pinout   (the product contract users design against)
   * I2C topology + device addresses
   * the MCU pin map, with a checked GPIO-closure budget
   * board <-> chamber header coordinates (from CONST)
 
-The architecture is the *contract*; the slot *count* is a configuration that
-follows the mechanical model. Run ``python tools/verify_electrical.py`` to
-check closure and consistency against CONST.
+One slot design, repeated eight times (OSM-1, docs/module-standard.md):
+a keyed 1x6 gas-cell socket and a Qwiic port on the same footprint.  A module
+is identified by its own 1-Wire ID, so the base never needs to know whether a
+slot holds a 5 V gas cell or a 3.3 V I2C module before it is plugged in.
+
+Run ``python tools/verify_electrical.py`` to check closure and consistency
+against CONST.
 """
 import os
 import sys
@@ -23,24 +27,29 @@ from constants import CONST  # noqa: E402
 
 
 # --- geometry-derived counts ----------------------------------------------
-N_ANALOG = len(CONST["A_X"])
-N_DIGITAL = len(CONST["D_X"])
+N_ANALOG = len(CONST["A_X"])      # downstream row (gas-cell row)
+N_DIGITAL = len(CONST["D_X"])     # upstream row
+N_SLOTS = N_ANALOG + N_DIGITAL
 
-# --- slot contracts (physical pin order; index 0 == header pin 1) ----------
-SLOT_ANALOG = ["+5V", "GND", "AO", "DO", "3V3"]
-SLOT_DIGITAL = ["3V3", "GND", "SDA", "SCL", "INT", "CTRL"]
-MUX_CHANNEL = {"SDA": "SDA", "SCL": "SCL"}  # routed through TCA9548A per slot
+# --- the standard slot (physical pin order; index 0 == header pin 1) --------
+# A 4-pin MQ-style module (VCC, GND, AO, DO) seats straight onto pins 1-4,
+# with power and ground adjacent.  3V3 is pin 5 so a 3.3 V analog module works,
+# and ID is the last pin so no signal can be mistaken for a rail.
+SLOT = ["+5V", "GND", "AO", "DO", "3V3", "ID"]
+
+# Qwiic / STEMMA QT, JST-SH 1.0 mm 4-pin (SparkFun channel order).
+QWIC = ["GND", "3V3", "SDA", "SCL"]
 
 # --- I2C address map (master bus must be unique) ---------------------------
-# Native 4+4 build populates only the first group; the expansion group is
-# added when the slot count is raised to 8+8 (second ADC + GPIO expander).
+# The ADS1115 pair gives eight single-ended analog channels, one per slot.
+# The TCA9548A gives one isolated downstream segment per Qwiic port, so eight
+# identical I2C modules cannot collide.
 I2C = {
-    "ADS1115": 0x48,
+    "ADS1115_A": 0x48,
+    "ADS1115_B": 0x49,
     "TCA9548A": 0x70,
     "SHT31": 0x44,
-    "OLED": 0x3C,
 }
-I2C_EXPANSION = {"ADS1115.2": 0x49, "MCP23017": 0x20}
 
 # --- ESP32-WROOM-32E usable pins -------------------------------------------
 PINS_BIDIR = [4, 13, 14, 16, 17, 18, 19, 23, 25, 26, 27, 32, 33]
@@ -48,54 +57,57 @@ PINS_IN_ONLY = [34, 35, 36, 39]
 PINS_STRAP = [0, 2, 5, 12, 15]          # boot strapping: avoided by design
 PINS_RESERVED = {"I2C_SDA": 21, "I2C_SCL": 22, "UART_TX": 1, "UART_RX": 3}
 
-_OUTPUT_FIXED = ["FAN_PWM", "BUZZER", "LED"]
-_INPUT_FIXED = ["BUTTON"]
+OUTPUTS = ["FAN_PWM", "BUZZER", "LED"]
+INPUTS = ["BUTTON"]
 
 
-def build_pinmap(n_analog=N_ANALOG, n_digital=N_DIGITAL):
+def build_pinmap(n_slots=N_SLOTS):
     """Assign every required signal to a concrete GPIO.
 
-    Interrupts (latency-critical) always stay on the MCU. The slow parallel
-    lines (analog DO read-back + digital CTRL enables) move to an I2C
-    expander only when the MCU pin budget cannot otherwise close.
+    The eight gas-cell DO lines and the three outputs stay directly on the MCU;
+    the per-slot identity bus is one shared 1-Wire net.  There is no I2C GPIO
+    expander in the OSM-1 build: eight DO lines plus one 1-Wire line fit the
+    WROOM's usable pins with three spare bidirectional pins.
     """
-    ints = ["INT%d" % i for i in range(n_digital)]
-    dos = ["DO%d" % i for i in range(n_analog)]
-    ctrls = ["CTRL%d" % i for i in range(n_digital)]
-
-    outputs = _OUTPUT_FIXED + ctrls
-    inputs = _INPUT_FIXED + ints + dos
-    mcu_signals = len(outputs) + len(inputs)
+    dos = ["DO%d" % i for i in range(n_slots)]
+    outputs = list(OUTPUTS)
+    inputs = list(INPUTS) + dos
+    need = len(outputs) + len(inputs) + 1          # + ONEWIRE
     capacity = len(PINS_BIDIR) + len(PINS_IN_ONLY)
 
     mcu = dict(PINS_RESERVED)
-    expander = {}
     warnings = []
+    if need > capacity:
+        warnings.append("INFEASIBLE: %d signals exceed %d usable pins"
+                        % (need, capacity))
+        return {
+            "mcu": mcu, "expander": {}, "needs_expander": False,
+            "mcu_signals": need, "capacity": capacity, "warnings": warnings,
+            "outputs": outputs, "inputs": inputs,
+        }
 
-    if mcu_signals <= capacity:
-        bidir = list(PINS_BIDIR)
-        in_only = list(PINS_IN_ONLY)
-        for name in outputs:
-            mcu[name] = bidir.pop(0)
-        for name in inputs:
-            mcu[name] = (bidir or in_only).pop(0)
-    elif (n_analog + n_digital) <= 16:
-        bidir = list(PINS_BIDIR)
-        for name in _OUTPUT_FIXED:
-            mcu[name] = bidir.pop(0)
-        for name in _INPUT_FIXED + ints:
-            mcu[name] = bidir.pop(0)
-        for i, name in enumerate(dos + ctrls):
-            expander[name] = i  # MCP23017 GPA0..GPB7
+    bidir = list(PINS_BIDIR)
+    in_only = list(PINS_IN_ONLY)
+    for s in outputs:
+        mcu[s] = bidir.pop(0)
+    for s in inputs:
+        mcu[s] = (bidir or in_only).pop(0)
+    # 1-Wire needs a bidirectional pin (the bus is open-drain).  If every
+    # bidirectional pin is consumed, fall back to an input-only pin with a
+    # warning: that still reads bus presence but cannot drive it.
+    if bidir:
+        mcu["ONEWIRE"] = bidir.pop(0)
+    elif in_only:
+        mcu["ONEWIRE"] = in_only.pop(0)
+        warnings.append("ONEWIRE on input-only pin %d" % mcu["ONEWIRE"])
     else:
-        warnings.append("INFEASIBLE: %d slots exceed even the expander budget"
-                        % (n_analog + n_digital))
+        warnings.append("INFEASIBLE: no pin left for ONEWIRE")
 
     return {
         "mcu": mcu,
-        "expander": expander,
-        "needs_expander": bool(expander),
-        "mcu_signals": mcu_signals,
+        "expander": {},
+        "needs_expander": False,
+        "mcu_signals": need,
         "capacity": capacity,
         "warnings": warnings,
         "outputs": outputs,
@@ -124,10 +136,12 @@ ANALOG_HEADERS = [board_xy(x, ANALOG_ROW_Y) for x in CONST["A_X"]]
 DIGITAL_HEADERS = [board_xy(x, DIGITAL_ROW_Y) for x in CONST["D_X"]]
 
 # --- rail budgets (design average, ampere; ESP32 peak ~0.5 A transient) -----
+# 5 V: eight 150 mA MOX heaters + fan + buzzer.  The USB-C input and the board
+# net are sized for 1.5 A continuous; a 5 V/2 A source is the stated supply.
 RAILS = {
-    "5V": {"MOX heaters": 0.15 * N_ANALOG, "fan": 0.15, "buzzer": 0.03},
-    "3V3": {"ESP32 (avg)": 0.15, "digital slots": 0.05 * N_DIGITAL,
-            "adc+mux+oled+sht31": 0.10},
+    "5V": {"MOX heaters": 0.15 * N_SLOTS, "fan": 0.15, "buzzer": 0.03},
+    "3V3": {"ESP32 (avg)": 0.15, "Qwiic modules": 0.05 * N_SLOTS,
+            "adc+mux+sht31": 0.10},
 }
 
 
@@ -137,7 +151,8 @@ def railtotals():
 
 def summary():
     return {
-        "n_analog": N_ANALOG, "n_digital": N_DIGITAL,
+        "n_slots": N_SLOTS, "n_analog": N_ANALOG, "n_digital": N_DIGITAL,
+        "slot": SLOT, "qwic": QWIC,
         "analog_headers": [(round(x, 2), round(y, 2)) for x, y in ANALOG_HEADERS],
         "digital_headers": [(round(x, 2), round(y, 2)) for x, y in DIGITAL_HEADERS],
         "board_origin": (round(PCB_X0, 2), round(PCB_Y0, 2)),
@@ -151,9 +166,9 @@ def summary():
 if __name__ == "__main__":
     import json
     print(json.dumps(summary(), indent=2))
-    for a, d in [(4, 4), (6, 6), (8, 8)]:
-        pm = build_pinmap(a, d)
+    for n in (4, 8, 12, 16):
+        pm = build_pinmap(n)
         tag = "expander" if pm["needs_expander"] else "MCU-only"
-        print("%d+%d: %2d signals / %d capacity -> %s %s"
-              % (a, d, pm["mcu_signals"], pm["capacity"], tag,
+        print("%2d slots: %2d signals / %d capacity -> %s %s"
+              % (n, pm["mcu_signals"], pm["capacity"], tag,
                  pm["warnings"] or ""))

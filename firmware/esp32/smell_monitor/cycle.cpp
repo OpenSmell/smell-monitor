@@ -14,6 +14,11 @@
 #include <math.h>
 #include <esp_arduino_version.h>
 
+static CycleConfig g_cfg = {
+  FAN_DUTY_INTAKE, FAN_DUTY_OFF, FAN_DUTY_PURGE,
+  T_INTAKE_MS, T_HOLD_MS, T_PURGE_MS, HOLD_SWEEP_MS, false
+};
+
 static uint8_t  g_phase = PH_IDLE;
 static uint32_t g_phase_start = 0;
 static bool     g_request = false;
@@ -22,8 +27,8 @@ static uint16_t g_cycle = 0;
 // Acquired during HOLD, published at the end of PURGE.
 static Record   g_last;
 static uint16_t g_sweeps = 0;
-static double   g_acc_ao[4];
-static double   g_acc_adc[4];
+static double   g_acc_ao[8];
+static double   g_acc_adc[8];
 static uint32_t g_last_sweep = 0;
 
 // Latest SHT31 reading, refreshed at 1 Hz in every phase (blueprint 7.4).
@@ -32,7 +37,10 @@ static float    g_env_rh = NAN;
 static uint32_t g_last_env = 0;
 
 // ---------------------------------------------------------------------------
+static bool g_fan_ready = false;
+
 static void fan_set(uint8_t duty) {
+  if (!g_fan_ready) return;              // settings can load before fan_begin()
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ledcWrite(OS_PIN_FAN_PWM, duty);
 #else
@@ -47,13 +55,14 @@ static void fan_begin() {
   ledcSetup(FAN_PWM_CH, FAN_PWM_HZ, FAN_PWM_BITS);
   ledcAttachPin(OS_PIN_FAN_PWM, FAN_PWM_CH);
 #endif
+  g_fan_ready = true;
   fan_set(FAN_DUTY_OFF);
 }
 
 // ---------------------------------------------------------------------------
 // Digital-slot identity.
 //
-// The *master* bus (ESP32, ADS1115 0x48, SHT31 0x44, OLED 0x3C, mux 0x70) is
+// The *master* bus (ESP32, ADS1115 0x48/0x49, SHT31 0x44, mux 0x70) is
 // always present behind an enabled mux channel - the TCA9548A only switches
 // the downstream segment.  So master addresses must never be used to identify
 // a plugged module; probe the known digital-sensor addresses instead.
@@ -83,13 +92,15 @@ static void detect_digital(uint8_t channel, char out[16]) {
 // Acquisition - accumulate sweeps across the whole HOLD window.
 static void acquire_begin() {
   memset(&g_last, 0, sizeof(g_last));
-  for (int i = 0; i < 4; i++) { g_acc_ao[i] = 0.0; g_acc_adc[i] = 0.0; }
+  g_last.ph_slot = -1;                  // no ISFET cartridge detected this cycle
+  g_last.ph_value = NAN;
+  for (int i = 0; i < 8; i++) { g_acc_ao[i] = 0.0; g_acc_adc[i] = 0.0; }
   g_sweeps = 0;
   g_last_sweep = 0;
 }
 
 static void acquire_sweep() {
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 8; i++) {
     int16_t c = Adc::read_avg(i);
     g_acc_adc[i] += c;
     // Slot voltage = 2 x the ADC node (fixed 2:1 divider), blueprint 4.1.
@@ -103,11 +114,11 @@ static void acquire_finish() {
   if (!g_sweeps) return;
   g_last.ts = millis();
   g_last.cycle_id = g_cycle;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 8; i++) {
     g_last.adc[i] = (int16_t)(g_acc_adc[i] / g_sweeps);
     g_last.ao[i]  = (float)(g_acc_ao[i] / g_sweeps);
   }
-  for (int i = 0; i < 4; i++) detect_digital(i, g_last.digital[i]);
+  for (int i = 0; i < 8; i++) detect_digital(i, g_last.digital[i]);
   g_last.t  = g_env_t;
   g_last.rh = g_env_rh;
 }
@@ -115,18 +126,16 @@ static void acquire_finish() {
 static void report() {
   Record r = g_last;
   r.phase = PH_REPORT;                 // "a completed measurement"
-  char buf[2048];
+  char buf[4096];                  // eight full OSM-1 slot entries + pH + T/H
   if (proto_to_json(&r, buf, sizeof(buf)) > 0) net_publish(buf);
   ui_show(r.phase, r.t, r.rh, r.ao[0], net_wifi_on(), net_ble_on());
-  ui_beep(120);
+  if (!g_cfg.muted) ui_beep(120);
 }
 
 // ---------------------------------------------------------------------------
 void cycle_begin() {
   fan_begin();
-  for (int i = 0; i < 4; i++) pinMode(OS_PIN_DO[i], INPUT);
-  for (int i = 0; i < 4; i++) pinMode(OS_PIN_INT[i], INPUT);
-  for (int i = 0; i < 4; i++) pinMode(OS_PIN_CTRL[i], OUTPUT);
+  for (int i = 0; i < 8; i++) pinMode(OS_PIN_DO[i], INPUT);
   pinMode(OS_PIN_BUTTON, INPUT_PULLUP);
   g_phase = PH_IDLE;
   g_phase_start = millis();
@@ -136,14 +145,22 @@ void cycle_request() { g_request = true; }
 bool cycle_busy() { return g_phase != PH_IDLE; }
 uint8_t cycle_phase() { return g_phase; }
 
+void cycle_set_config(const CycleConfig &cfg) {
+  g_cfg = cfg;
+  if (g_phase == PH_INTAKE) fan_set(g_cfg.fan_intake);
+  else if (g_phase == PH_HOLD) fan_set(g_cfg.fan_hold);
+  else if (g_phase == PH_PURGE) fan_set(g_cfg.fan_purge);
+}
+CycleConfig cycle_get_config() { return g_cfg; }
+
 static void enter(uint8_t p) {
   g_phase = p;
   g_phase_start = millis();
   switch (p) {
-    case PH_INTAKE: fan_set(FAN_DUTY_INTAKE); break;
-    case PH_HOLD:   fan_set(FAN_DUTY_OFF);  acquire_begin(); break;
-    case PH_PURGE:  fan_set(FAN_DUTY_PURGE); break;
-    default:        fan_set(FAN_DUTY_OFF);   break;
+    case PH_INTAKE: fan_set(g_cfg.fan_intake); break;
+    case PH_HOLD:   fan_set(g_cfg.fan_hold);   acquire_begin(); break;
+    case PH_PURGE:  fan_set(g_cfg.fan_purge);  break;
+    default:        fan_set(FAN_DUTY_OFF);     break;
   }
 }
 
@@ -169,17 +186,17 @@ void cycle_loop() {
       if (g_request) { g_request = false; g_cycle++; enter(PH_INTAKE); }
       break;
     case PH_INTAKE:
-      if (dt >= T_INTAKE_MS) enter(PH_HOLD);
+      if (dt >= g_cfg.t_intake_ms) enter(PH_HOLD);
       break;
     case PH_HOLD:
-      if (now - g_last_sweep >= HOLD_SWEEP_MS) {
+      if (now - g_last_sweep >= g_cfg.sweep_ms) {
         g_last_sweep = now;
         acquire_sweep();
       }
-      if (dt >= T_HOLD_MS) { acquire_finish(); enter(PH_PURGE); }
+      if (dt >= g_cfg.t_hold_ms) { acquire_finish(); enter(PH_PURGE); }
       break;
     case PH_PURGE:
-      if (dt >= T_PURGE_MS) { report(); enter(PH_IDLE); }
+      if (dt >= g_cfg.t_purge_ms) { report(); enter(PH_IDLE); }
       break;
     default:
       enter(PH_IDLE);

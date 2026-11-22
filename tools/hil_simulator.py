@@ -25,8 +25,7 @@ import time
 HARDWARE_ID = "OpenSmell_Monitor_v1.1"
 CYCLE_S = {"intake": 10.0, "hold": 10.0, "purge": 20.0}
 PHASES = ["intake", "hold", "purge", "report"]
-SLOTS = 8
-ANALOG_SLOTS = 4  # slots 0-3 are analog MOX; 4-7 are digital MEMS
+SLOTS = 8       # eight identical OSM-1 slots; no analog/digital bank split
 # Real MOX cells are never perfectly flat. Small intake-phase noise keeps a
 # healthy clean-air stream from looking like a stuck cell to the QC rules,
 # while injected anomalies deliberately override it. Noise is intake-only so
@@ -50,31 +49,28 @@ BASE_V = {
 }
 
 
-def make_slot(i, phase, analog_v, digital_value, eeprom_id, sensor_model):
-    """Build one slot entry matching the locked .osmell v1.0 shape."""
-    analog = i < ANALOG_SLOTS
-    slot = {
+def make_slot(i, analog_v, adc_counts, digital_value, i2c_model,
+              eeprom_id, sensor_model):
+    """Build one OSM-1 slot entry matching the locked .osmell v1.0 shape.
+
+    Slot index tells the host where the slot sits in the cascade (0..3
+    downstream, 4..7 upstream); it does not say what kind of module is fitted.
+    """
+    return {
         "index": i,
-        "sensor_type": "MOX" if analog else "MEMS",
-        "sensor_model": sensor_model,
+        "flow_position": "downstream" if i < 4 else "upstream",
+        "sensor_type": "I2C" if i2c_model else "ANALOG",
+        "sensor_model": sensor_model or i2c_model,
         "eeprom_id": eeprom_id,
         "calibration_date": None,
-        "readings": {},
+        "readings": {
+            "analog_value_v": round(analog_v, 3),
+            "adc_counts": adc_counts,
+            "digital_value": digital_value,
+            "unit": "V",
+        },
         "qc_flags": [],
     }
-    if analog:
-        slot["readings"] = {
-            "analog_value_v": round(analog_v, 3),
-            "digital_value": None,
-            "unit": "V",
-        }
-    else:
-        slot["readings"] = {
-            "analog_value_v": None,
-            "digital_value": digital_value,
-            "unit": "ppm",
-        }
-    return slot
 
 
 def make_record(cycle_id, phase, ts_ms, temp_c, rh_pct, slots, anomaly_flags):
@@ -91,6 +87,10 @@ def make_record(cycle_id, phase, ts_ms, temp_c, rh_pct, slots, anomaly_flags):
             "humidity_pct": round(rh_pct, 2),
             "sensor_id": "SHT31",
         },
+        # Gas + pH + T/H travel together.  The base has no pH sensor, so the
+        # simulator leaves the field null just like the firmware does until an
+        # ISFET cartridge supplies a value.
+        "ph": {"value": None, "slot": None, "unit": "pH"},
         "slots": slots,
         "user_metadata": anomaly_flags.get("user_metadata", {}),
     }
@@ -115,7 +115,7 @@ def main():
     ap.add_argument(
         "--inject-saturation",
         action="store_true",
-        help="Force analog_value_v to 3.3V rail on all analog slots (adc_saturation).",
+        help="Force analog_value_v to the 3.3V rail on all slots (adc_saturation).",
     )
     ap.add_argument(
         "--inject-drift",
@@ -195,22 +195,23 @@ def main():
             eeprom_id = None if args.inject_eeprom else "EEPROM-1234"
             sensor_model = "TGS-2600" if (phase == "intake" and not args.inject_eeprom) else None
 
-            # Build slots
+            # Build eight uniform slots.  A mix is simulated here (analog MOX
+            # everywhere, I2C model on the downstream four), but the *schema*
+            # is identical for every position: index carries flow position,
+            # not module type.
             slots = []
             for i in range(SLOTS):
-                analog = i < ANALOG_SLOTS
-                if analog:
-                    # Non-target analog slots also get intake-only noise so a
-                    # clean stream never reads as a stuck cell.
-                    av = slot_v if i == slot_idx else base_v + (
-                        intake_noise(cycle_id, i) if phase == "intake" else 0.0
-                    )
-                    dv = None
-                else:
-                    av = None
-                    dv = 400 + i * 10  # ppm
+                # Non-target slots also get intake-only noise so a clean stream
+                # never reads as a stuck cell.
+                av = slot_v if i == slot_idx else base_v + (
+                    intake_noise(cycle_id, i) if phase == "intake" else 0.0
+                )
+                counts = int(av / 4.096 * 32768 / 2)
+                i2c_model = "SCD40" if i >= 4 else None
+                dv = 400 + i * 10 if i2c_model else None
                 slots.append(
-                    make_slot(i, phase, av, dv, eeprom_id, sensor_model)
+                    make_slot(i, av, counts, dv, i2c_model,
+                              eeprom_id, sensor_model)
                 )
 
             ts_ms = int(sim_t * 1000)

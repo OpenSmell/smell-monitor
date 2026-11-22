@@ -12,6 +12,5 @@ profiles:
     platforms:
       - platform: esp32:esp32
     libraries:
-      - U8g2 (2.36.19)
       - PubSubClient (2.8.0)
 default_profile: default

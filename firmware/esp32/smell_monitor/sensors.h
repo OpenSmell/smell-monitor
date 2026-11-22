@@ -6,15 +6,16 @@
 // ---- TCA9548A I2C multiplexer (digital slots) -----------------------------
 namespace Mux {
   bool begin();
-  void select(uint8_t channel);   // 0..3; >=8 deselects
+  void select(uint8_t channel);   // 0..7; >=8 deselects (channel n <-> slot n)
   void disable();
   uint8_t address();              // scanned 0x70..0x77
 }
 
-// ---- ADS1115 16-bit ADC (analog slots) ------------------------------------
+// ---- ADS1115 pair: 8 single-ended analog channels, one per slot -----------
 namespace Adc {
   bool begin();
-  // Read one single-ended channel (0..3) in raw counts, PGA = +/-4.096 V.
+  // Read one single-ended channel (0..7; channels 0-3 on ADS1115_A, 4-7 on
+  // ADS1115_B) in raw counts, PGA = +/-4.096 V.
   int16_t read_raw(uint8_t channel);
   // Averaged raw reading over ADC_AVG samples.
   int16_t read_avg(uint8_t channel);

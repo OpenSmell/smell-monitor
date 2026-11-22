@@ -4,6 +4,7 @@
 // by default (idle < 1 W, blueprint 7.5); enable with a button / command.
 #include "net.h"
 #include "config.h"
+#include "cycle.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
@@ -35,7 +36,7 @@ static char g_broker[64] = "";
 static uint16_t g_broker_port = 1883;
 static char g_topic[48] = "opensmell/record";
 
-static char g_latest[2048] = "{}";
+static char g_latest[4096] = "{}";   // one full 8-slot .osmell record
 static NetCommandFn g_on_command = nullptr;
 
 // BLE writes arrive on the BLE stack task; hand them to the main loop instead
@@ -57,6 +58,18 @@ static void load_cfg() {
   prefs.getString("broker", g_broker, sizeof(g_broker));
   g_broker_port = prefs.getUShort("port", 1883);
   prefs.getString("topic", g_topic, sizeof(g_topic));
+
+  CycleConfig c = cycle_get_config();
+  c.fan_intake  = prefs.getUChar ("fan_in",  c.fan_intake);
+  c.fan_hold    = prefs.getUChar ("fan_hold", c.fan_hold);
+  c.fan_purge   = prefs.getUChar ("fan_purge",c.fan_purge);
+  c.t_intake_ms = prefs.getUInt  ("t_in",    c.t_intake_ms);
+  c.t_hold_ms   = prefs.getUInt  ("t_hold",  c.t_hold_ms);
+  c.t_purge_ms  = prefs.getUInt  ("t_purge", c.t_purge_ms);
+  c.sweep_ms    = prefs.getUShort("sweep",   c.sweep_ms);
+  c.muted       = prefs.getBool  ("muted",   c.muted);
+  cycle_set_config(c);
+
   prefs.end();
 }
 
@@ -67,6 +80,17 @@ static void save_cfg() {
   prefs.putString("broker", g_broker);
   prefs.putUShort("port", g_broker_port);
   prefs.putString("topic", g_topic);
+
+  CycleConfig c = cycle_get_config();
+  prefs.putUChar ("fan_in",  c.fan_intake);
+  prefs.putUChar ("fan_hold", c.fan_hold);
+  prefs.putUChar ("fan_purge",c.fan_purge);
+  prefs.putUInt  ("t_in",    c.t_intake_ms);
+  prefs.putUInt  ("t_hold",  c.t_hold_ms);
+  prefs.putUInt  ("t_purge", c.t_purge_ms);
+  prefs.putUShort("sweep",   c.sweep_ms);
+  prefs.putBool  ("muted",   c.muted);
+
   prefs.end();
 }
 
@@ -110,17 +134,81 @@ void net_dispatch(const char *cmd) {
     return;
   }
 
+  // "fan <intake|hold|purge> <0-255>" - PWM duty, persisted in NVS.
+  if (!strncmp(cmd, "fan ", 4)) {
+    char area[12];
+    unsigned v = 0;
+    if (sscanf(cmd + 4, "%11s %u", area, &v) == 2 && v <= 255) {
+      CycleConfig c = cycle_get_config();
+      if      (!strcmp(area, "intake")) c.fan_intake = (uint8_t)v;
+      else if (!strcmp(area, "hold"))   c.fan_hold   = (uint8_t)v;
+      else if (!strcmp(area, "purge"))  c.fan_purge  = (uint8_t)v;
+      else { Serial.print("?fan area: intake|hold|purge\n"); return; }
+      cycle_set_config(c);
+      save_cfg();
+    } else {
+      Serial.print("?fan <intake|hold|purge> <0-255>\n");
+    }
+    return;
+  }
+
+  // "rate <ms>" - ADC read interval during HOLD (20..5000 ms).
+  if (!strncmp(cmd, "rate ", 5)) {
+    unsigned ms = (unsigned)atoi(cmd + 5);
+    if (ms >= 20 && ms <= 5000) {
+      CycleConfig c = cycle_get_config();
+      c.sweep_ms = (uint16_t)ms;
+      cycle_set_config(c);
+      save_cfg();
+    } else {
+      Serial.print("?rate <20-5000>\n");
+    }
+    return;
+  }
+
+  // "timing <intake_ms> <hold_ms> <purge_ms>" - phase lengths (0.1..300 s).
+  if (!strncmp(cmd, "timing ", 7)) {
+    unsigned a = 0, h = 0, p = 0;
+    if (sscanf(cmd + 7, "%u %u %u", &a, &h, &p) == 3 &&
+        a >= 100 && a <= 300000 && h >= 100 && h <= 300000 &&
+        p >= 100 && p <= 300000) {
+      CycleConfig c = cycle_get_config();
+      c.t_intake_ms = a; c.t_hold_ms = h; c.t_purge_ms = p;
+      cycle_set_config(c);
+      save_cfg();
+    } else {
+      Serial.print("?timing <100-300000> <100-300000> <100-300000>\n");
+    }
+    return;
+  }
+
+  if (!strcmp(cmd, "mute") || !strcmp(cmd, "unmute")) {
+    CycleConfig c = cycle_get_config();
+    c.muted = (cmd[0] == 'm');
+    cycle_set_config(c);
+    save_cfg();
+    return;
+  }
+
   if (!strcmp(cmd, "measure") || !strcmp(cmd, "start")) {
     if (g_on_command) g_on_command("measure");
     return;
   }
 
   if (!strcmp(cmd, "status")) {
-    char b[160];
+    CycleConfig c = cycle_get_config();
+    char b[320];
     snprintf(b, sizeof(b),
              "{\"fw\":\"" FW_VERSION "\",\"wifi\":%d,\"ble\":%d,"
-             "\"ssid\":\"%s\",\"broker\":\"%s\"}\n",
-             g_wifi_on, g_ble_on, g_ssid, g_broker);
+             "\"ssid\":\"%s\",\"broker\":\"%s\","
+             "\"fan\":[%u,%u,%u],\"timing_ms\":[%lu,%lu,%lu],"
+             "\"rate_ms\":%u,\"muted\":%d}\n",
+             g_wifi_on, g_ble_on, g_ssid, g_broker,
+             (unsigned)c.fan_intake, (unsigned)c.fan_hold,
+             (unsigned)c.fan_purge,
+             (unsigned long)c.t_intake_ms, (unsigned long)c.t_hold_ms,
+             (unsigned long)c.t_purge_ms,
+             (unsigned)c.sweep_ms, c.muted ? 1 : 0);
     Serial.print(b);
     return;
   }

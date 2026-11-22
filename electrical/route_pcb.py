@@ -25,6 +25,8 @@ Notes
 * ``-mp`` has to be high enough for the autorouter to reach 0 unrouted before
   the optimizer stage starts, because the optimizer is skipped entirely on an
   incomplete board.  This design finishes at pass 6; the default here is 12.
+  Set ``FREEROUTING_PASSES`` to shorten a development re-route; the committed
+  board is produced with the default.
 * The autorouter is multi-threaded, so the exact copper is not bit-stable
   between runs.  What is stable is the outcome, and that is what the gate in
   ``tools/verify_pcb.py`` checks: 0 unconnected, no track below the 0.15 mm
@@ -46,7 +48,7 @@ import pcbnew  # noqa: E402
 
 PROJECT = "smell_monitor_v1_1"
 PCB = os.path.join(HERE, PROJECT, PROJECT + ".kicad_pcb")
-PASSES = 12
+PASSES = int(os.environ.get("FREEROUTING_PASSES", "12"))
 
 
 def find_jar():
@@ -108,6 +110,10 @@ def main():
             raise SystemExit("SES import failed")
         left = board.GetConnectivity().GetUnconnectedCount(False)
         if left:
+            dbg = os.environ.get("ROUTE_DEBUG_SAVE", "")
+            if dbg:
+                board.Save(dbg)
+                print("  saved partially routed board to %s" % dbg)
             raise SystemExit("%d connections still unrouted - not saving" % left)
         board.Save(PCB)
     finally:

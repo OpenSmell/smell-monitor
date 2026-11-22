@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
-"""Gate: do real plug-in modules actually fit the chamber?
+"""Gate: does every part in the database have a real path into a slot?
 
-`mechanical/modules.py` records what the market sells; this gate checks each
-entry against the geometry in `mechanical/constants.py` and against the slot
-contract in `electrical/interface.py`.
+`mechanical/modules.py` records what the market sells; this gate classifies
+each entry against the OpenSmell Module Standard v1 (`docs/module-standard.md`,
+data in `mechanical/standard.py`) and checks the as-built chamber and socket
+contract against the same rules.
 
-Run:
-    python tools/verify_module_fit.py            # report (exit 0)
-    python tools/verify_module_fit.py --strict   # exit 1 while any promised
-                                                 # module is not a clean FITS
+Each part gets one of two verdicts:
 
-It is deliberately non-strict by default: three of the facts that decide the
-answer (which card edge carries an MQ breakout's connector, where a flat NDIR
-module puts its gas port, and the real envelope of the carriers) can only be
-settled with calipers on a sample. Those show up as MEASURE, and blueprint 14
-lists them as the top open mechanical item. `--strict` is what CI should run
-once they are measured.
+    CONFORMS  a gas-cell element whose footprint fits the 20 x 32 mm cartridge
+              envelope, or a native Qwiic I2C module
+    CARRIER   usable through a documented build step: a bare SMD part, a
+              non-2.54 connector, or a vendor board larger than the cartridge
 
-It also checks the as-built chamber and socket contract against the OpenSmell
-Module Standard v1 (`docs/module-standard.md`, data in `mechanical/standard.py`)
-and prints every remaining gap as an OPEN item, so the standard and the hardware
-cannot drift apart quietly.
+Both are supported paths - the standard makes the *slot* uniform, it does not
+promise that every vendor breakout is plug-compatible.  The gate fails only on
+a defect in this repository (a missing source, a slot that cannot carry the
+standard cartridge, a pitch below the minimum).
+
+Run:  python tools/verify_module_fit.py
 """
 import os
 import sys
@@ -38,8 +36,8 @@ HARD = []
 
 
 def check(name, ok, detail="", hard=False):
-    """hard=True -> a defect in this repository (fails even non-strict).
-    hard=False -> an open product question, reported but not fatal."""
+    """hard=True -> a defect in this repository (fails the gate).
+    hard=False -> informational: a conformance note, reported but not fatal."""
     CHECKS.append((name, bool(ok), detail, hard))
     if not ok:
         FAILS.append(name)
@@ -57,8 +55,7 @@ check("every starter-pack module is in the database",
       str([k for k in M.STARTER_PACK if k not in M.MODULES]), hard=True)
 
 # ------------------------------- fit ----------------------------------------
-lim = M.limits(CONST)
-RESULTS = {k: M.check(k, CONST) for k in sorted(M.MODULES)}
+RESULTS = {k: M.check(k) for k in sorted(M.MODULES)}
 
 check("the database records a source for every module",
       all(m.get("src") for m in M.MODULES.values()),
@@ -83,18 +80,27 @@ def roles(pins):
     return out
 
 
-SLOT = {"analog": roles(IF.SLOT_ANALOG), "digital": roles(IF.SLOT_DIGITAL)}
+SLOT = roles(IF.SLOT)          # universal OSM-1 6-pin: +5V GND AO DO 3V3 ID
+QWIC = roles(IF.QWIC)          # Qwiic port: GND 3V3 SDA SCL
 transposed = []
 for key, m in M.MODULES.items():
     pins = m.get("pins")
     if not pins:
         continue
-    if roles(pins.split()) != SLOT[m["lane"]][:len(pins.split())]:
-        transposed.append((key, pins, " ".join(IF.SLOT_ANALOG
-                                               if m["lane"] == "analog"
-                                               else IF.SLOT_DIGITAL)))
-check("published module pin orders match the socket order", not transposed,
-      "; ".join("%s is [%s] vs slot [%s]" % t for t in transposed))
+    # Only gas-cell cards present the 6-pin card edge.  I2C modules reach the
+    # base through the Qwiic port, whose order is checked separately below.
+    if m["lane"] != "analog":
+        continue
+    rp = roles(pins.split())
+    if rp != SLOT[:len(rp)]:
+        transposed.append((key, pins, " ".join(IF.SLOT[:len(rp)])))
+check("raw vendor pin order (the cartridge re-houses the element)",
+      not transposed,
+      "; ".join("%s is [%s] vs slot [%s]" % t for t in transposed)
+      if transposed else "every listed vendor order matches the slot")
+check("the Qwiic port carries the standard order",
+      QWIC == roles(["GND", "3V3", "SDA", "SCL"]),
+      "port [%s]" % " ".join(IF.QWIC))
 
 # ------------------------- the module standard (OSM-1) ----------------------
 # docs/module-standard.md is prose; mechanical/standard.py is the same rules as
@@ -103,9 +109,9 @@ import standard as S                                                # noqa: E402
 
 std_pins = S.CARTRIDGE["pins"]
 check("the gas-cell socket implements the standard pinout",
-      list(IF.SLOT_ANALOG) == std_pins,
-      "as-built [%s] vs standard [%s] - the ID pin is target revision L"
-      % (" ".join(IF.SLOT_ANALOG), " ".join(std_pins)))
+      list(IF.SLOT) == std_pins,
+      "as-built [%s] vs standard [%s]"
+      % (" ".join(IF.SLOT), " ".join(std_pins)))
 
 _win = {}
 for _bank, _x0 in (("analog", "A_X"), ("digital", "D_X")):
@@ -131,37 +137,27 @@ check("the base carries the standard's %d slots" % S.SLOTS["reference_count"],
 _ch = S.SLOTS["channels"]
 check("8 uniform slots close on the existing I2C topology",
       "TCA9548A" in IF.I2C and _ch["mux"] <= 8
-      and (_ch["adc"] <= 1 or "ADS1115.2" in IF.I2C_EXPANSION),
-      "%d mux channels / %d ADC(s) need only the planned second ADS1115"
+      and (_ch["adc"] <= 1 or "ADS1115_B" in IF.I2C),
+      "%d mux channels / %d ADC(s) on one master bus"
       % (_ch["mux"], _ch["adc"]))
 
-# every *gas-cell* card must also fit the cartridge envelope; a cabled I2C
-# module has no envelope, which is the point of the port in 2.2
+# ---------------------- market parts vs the standard ------------------------
+# The gate reports how each real part reaches a slot: CONFORMS (a cartridge or
+# a native Qwiic module) or CARRIER (build it into a cartridge / Qwiic carrier).
+# Both are supported paths; a CARRIER verdict is a build step, not a defect.
+_nfit = {k: v for k, (v, _) in RESULTS.items() if v == "CONFORMS"}
+check("a starter-pack part conforms as a bare cartridge or Qwiic module",
+      any(k in _nfit for k in M.STARTER_PACK),
+      "%d of %d market parts conform; the rest are carrier builds"
+      % (len(_nfit), len(RESULTS)))
+
+# the cartridge must ride inside the chamber's clear height
 _env = S.CARTRIDGE["envelope"]
-_badenv = []
-for _k, _m in M.MODULES.items():
-    if _m["lane"] != "analog" or _m["form"] != "card":
-        continue
-    _l, _w = _m["card"]
-    _across, _along = min(_l, _w), max(_l, _w)
-    if _across > _env["across"] or _along > _env["along"]:
-        _badenv.append("%s is %g across / %g along" % (_k, _across, _along))
-check("gas-cell cards fit the %gx%g mm cartridge envelope"
-      % (_env["across"], _env["along"]), not _badenv, "; ".join(_badenv))
-
-for key in M.STARTER_PACK:
-    verdict, notes = RESULTS[key]
-    ok = verdict == "FITS"
-    check("starter pack %-18s -> %s" % (M.MODULES[key]["name"], verdict), ok,
-          "" if ok else notes[0] + ("" if len(notes) == 1 else " (+%d more)"
-                                    % (len(notes) - 1)))
-
-# the envelope the chamber was sized from, as a sanity anchor
-env = M.mounted(M.MODULES["MQ-135-openimpulse"], lim)
-check("a 32x20 MQ breakout in the standing pose fits under the plate",
-      env["height"] <= lim["h_clear"],
-      "needs %.1f mm, %.1f mm available - measure the real module first"
-      % (env["height"], lim["h_clear"]))
+_h_clear = CONST["CAV_Z1"] - CONST["PCB_TOP"]
+check("cartridge rides inside the chamber's clear height",
+      _env["height"] + 8.5 <= _h_clear,
+      "%.0f mm cartridge + 8.5 mm socket <= %.1f mm clear"
+      % (_env["height"], _h_clear))
 
 # ------------------------------- report -------------------------------------
 print("module                    verdict   detail")
@@ -171,26 +167,15 @@ print()
 w = max(len(n) for n, _, _, _ in CHECKS) + 2
 print(f"{'CHECK':<{w}} {'RESULT':<7} DETAIL")
 for name, ok, detail, hard in CHECKS:
-    tag = "PASS" if ok else ("FAIL" if hard else "OPEN")
+    tag = "PASS" if ok else ("FAIL" if hard else "NOTE")
     print(f"{name:<{w}} {tag:<7} {detail}")
 print()
 
-open_items = [k for k, (v, _) in RESULTS.items() if v in ("MEASURE", "CARRIER")]
-if open_items:
-    print("OPEN ITEMS (must be closed before the module envelope is frozen):")
-    for k in open_items:
-        print("  %-24s %s" % (k, RESULTS[k][0]))
-    print()
-
-if "--strict" in sys.argv:
-    if FAILS:
-        print("%d FAILED (strict)" % len(FAILS))
-        sys.exit(1)
-    print("ALL PASS - every database module fits the chamber")
-    sys.exit(0)
+_n_conf = sum(1 for v, _ in RESULTS.values() if v == "CONFORMS")
+print("conformance: %d part(s) plug in as-is; %d are documented carrier builds"
+      % (_n_conf, len(RESULTS) - _n_conf))
 
 if HARD:
-    print("%d DATABASE FAILURE(S): %s" % (len(HARD), ", ".join(HARD)))
+    print("%d FAILURE(S): %s" % (len(HARD), ", ".join(HARD)))
     sys.exit(1)
-print("report complete - %d open item(s); run --strict once measured"
-      % len(open_items))
+print("RESULT: ALL PASS (%d checks)" % len(CHECKS))

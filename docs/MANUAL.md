@@ -1,7 +1,8 @@
 # OpenSmell Smell Monitor — User Manual
 
 **Document:** OSM-UM-001  
-**Revision:** A  
+**Revision:** B  
+**Date:** 2026-11-22  
 **Product:** Smell Monitor v1.1  
 **Firmware:** v1.1  
 **Companion software:** Osmograph desktop  
@@ -17,9 +18,10 @@ not a calibrated safety monitor. It does not identify smells on its own and is
 not intended for use in explosive atmospheres, life-safety applications, or as
 a substitute for certified industrial hygiene equipment.
 
-All wetted surfaces — the tray, the lid, and the filter drawer — are PTFE-lined
-so that no smell memory builds up inside the chamber. The filter mesh is
-permanent and washable; it is never a consumable.
+The tray and lid are sealed PETG; a PTFE liner is an optional upgrade. The inlet
+filter is a **thin woven PTFE mesh** — cleanable, and replaced only if torn or
+permanently clogged. The instrument is **headless**: there is no display on the
+device, and all readings appear in Osmograph on the host.
 
 ---
 
@@ -29,13 +31,13 @@ permanent and washable; it is never a consumable.
 flowchart TB
     subgraph sample ["Sample enters"]
         N[3 × Ø6 nostrils<br/>front wall]
-        F[Washable inert mesh filter<br/>front drawer]
+        F[Thin woven PTFE mesh filter<br/>front drawer]
     end
 
-    subgraph chamber ["Chamber (PTFE-lined)"]
-        D1[Digital row upstream<br/>slots 5–8]
-        D2[MOX row downstream<br/>slots 1–4]
-        S[SHT31 T/RH<br/>reference]
+    subgraph chamber ["Sealed chamber"]
+        FR[Front row: slots 5–8 (J6–J9)<br/>upstream, 22 mm spacing]
+        RR[Rear row: slots 1–4 (J2–J5)<br/>downstream, 26 mm spacing]
+        S[SHT31 T/RH<br/>reference on base]
     end
 
     subgraph exhaust ["Exhaust"]
@@ -44,7 +46,7 @@ flowchart TB
 
     subgraph base ["Base board (chamber floor)"]
         MCU[ESP32-WROOM-32E]
-        ADC[ADS1115 16-bit ADC<br/>4 analog channels]
+        ADC[ADS1115 ×2<br/>8 analog channels]
         Mux[TCA9548A I²C mux<br/>8 channels]
     end
 
@@ -52,7 +54,7 @@ flowchart TB
         UI[.osmell record stream<br/>QC flags<br/>User labels & notes]
     end
 
-    N --> F --> D1 --> D2 --> Fan
+    N --> F --> FR --> RR --> Fan
     S -.-> MCU
     MCU --> ADC
     MCU --> Mux
@@ -61,14 +63,15 @@ flowchart TB
 ```
 
 **What the device does.** Draws a controlled air sample through three front
-nostrils, over interchangeable sensor cartridges, and records each response as a
-`.osmell` record streamed over USB-C. Every record carries temperature,
-humidity, slot index, flow position, module identity, calibration, and five
-automatic quality flags.
+nostrils, over eight interchangeable OSM-1 sensor cartridges, and records each
+response as a `.osmell` stream over USB-C. Every record fuses gas + pH + T/H:
+`ao[8]`, `adc[8]`, `do_[8]`, `digital[8]`, temperature, humidity, slot index and
+QC flags. Gas values come from the eight slots; T/H comes from the soldered
+SHT31; pH is reported only when an ISFET cartridge is fitted.
 
 **What it is not.** It does not classify smells. It does not measure pH in the
 gas path (pH is a liquid measurement; an optional ISFET pH cartridge plugs into
-any slot for fermentation, brine, and wort users).
+any slot for fermentation, brine and wort users) and is not on the base board.
 
 ---
 
@@ -76,13 +79,13 @@ any slot for fermentation, brine, and wort users).
 
 | Item | Qty | Purpose |
 |------|-----|---------|
-| Smell Monitor base unit (PCB + PTFE-lined tray + lid) | 1 | Main instrument |
-| Washable inert mesh filter (sintered stainless steel or PTFE) | 1 | Stops dust/hair; permanent |
+| Smell Monitor base unit (PCB + sealed PETG tray + lid) | 1 | Main instrument |
+| Thin woven PTFE mesh filter | 1 | Stops droplets and dust; front drawer |
 | USB-C data cable, 1 m | 1 | Power + data to host |
 | USB-C panel pigtail, 0.3 m | 1 | Bulkhead feedthrough (seals rear wall hole) |
 | M3 screws | 4 | Lid retention |
 | Heat-set inserts | 4 | Lid threads in tray |
-| Quick-reference card | 1 | PINout + cycle states |
+| Quick-reference card | 1 | Pinout + cycle states |
 
 **Not included:** sensor cartridges. You supply the modules that match your use
 case (MOX, MEMS, NDIR, electrochemical, piezo, QCM — any OSM-1-conforming
@@ -96,18 +99,18 @@ cartridge fits any slot).
                     3 × Ø6 nostrils
                  (sample enters here)
                 ┌─────────────────┐
-                │   FILTER DRAWER │  ← washable inert mesh, slides in front
+                │   FILTER DRAWER │  ← thin woven PTFE mesh, front
                 │   (removable)   │
                 ├─────────────────┤
-                │  SLOT 1  SLOT 2 │  ← digital row (upstream)
-                │  SLOT 3  SLOT 4 │     Qwiic + gas-cell socket each
+                │ SLOT 5  SLOT 6  │  ← front row, upstream (J6–J9)
+                │ SLOT 7  SLOT 8  │     slots 5–8, 22 mm spacing
                 ├─────────────────┤
-                │  SLOT 5  SLOT 6 │  ← MOX row (downstream)
-                │  SLOT 7  SLOT 8 │
+                │ SLOT 1  SLOT 2  │  ← rear row, downstream (J2–J5)
+                │ SLOT 3  SLOT 4  │     slots 1–4, 26 mm spacing
                 ├─────────────────┤
-                │   SHT31 T/RH    │  ← reference, fixed on base
+                │   SHT31 T/RH    │  ← reference, fixed between rows
                 ├─────────────────┤
-                │   ESP32 + ADC   │  ← base board = chamber floor
+                │   ESP32 + 2×ADC │  ← base board = chamber floor
                 └─────────────────┘
                          │
                     40 mm fan (exhaust)
@@ -116,13 +119,16 @@ cartridge fits any slot).
                     USB-C (power + data)
 ```
 
+All eight slots are identical: gas-cell socket **and** Qwiic port at every
+position. Flow order is fixed front → rear; slot assignment is yours.
+
 | Part | What it is |
 |------|------------|
 | **Nostrils** | Three Ø6 holes in the front wall. Air enters here. |
-| **Filter drawer** | Slides into the front. Holds the permanent washable inert mesh. Remove, rinse, reinsert. |
-| **Slots 1–8** | Keyed 1×6 gas-cell socket + Qwiic/STEMMA QT port on every slot. Any OSM-1 cartridge plugs in any slot. |
-| **SHT31** | Fixed temperature/humidity reference on the base board, upstream of the MOX row. |
-| **Base board** | ESP32, ADS1115 ADC, TCA9548A I²C mux. Its top face *is* the chamber floor. |
+| **Filter drawer** | Holds the cleanable thin woven PTFE mesh. Lift out with the lid off; rinse, dry, reinsert. |
+| **Slots 1–8** | Keyed 1×6 gas-cell socket `+5V GND AO DO 3V3 ID` + Qwiic/STEMMA QT port `GND 3V3 SDA SCL` at every slot. Any OSM-1 cartridge fits any slot. |
+| **SHT31** | Fixed temperature/humidity reference on the base board, soldered to the main I²C bus, logged at 1 Hz. |
+| **Base board** | ESP32-WROOM-32E, two ADS1115s (8 channels), TCA9548A (8 channels). Its top face *is* the chamber floor. |
 | **Fan** | 40 mm PWM exhaust on the rear wall, outside the chamber. Pulls air through. |
 | **USB-C** | Power in, data out. Always-on serial at 115200 baud. Wi-Fi and BLE optional. |
 
@@ -132,15 +138,31 @@ cartridge fits any slot).
 
 **Step 1 — Power.** Plug the USB-C cable into the Smell Monitor and into your computer. The status LED gives one slow blink (idle).
 
-**Step 2 — Open Osmograph.** Launch Osmograph on your computer. It opens the serial port at 115200 baud automatically.
+**Step 2 — Open Osmograph.** Launch Osmograph on your computer. It opens the serial port at 115200 baud automatically. There is no display on the device.
 
 **Step 3 — Insert cartridges.** Open the lid (four M3 screws). Plug your sensor cartridges into any slots. Close the lid.
 
-**Step 4 — Measure.** Press the MEASURE button or click "Measure" in Osmograph. The LED breathes while sampling (≈40 s: 10 s intake / 10 s hold / 20 s purge), then goes solid when results are ready.
+**Step 4 — Measure.** Press the MEASURE button or click "Measure" in Osmograph. The LED is solid while the ≈40 s cycle runs (10 s intake / 10 s hold / 20 s purge), then gives a brief fast blink and a buzzer beep when results are ready.
 
 **Step 5 — Read the record.** Osmograph displays the `.osmell` record: slot values, temperature, humidity, and any QC flags. A red QC flag means "check this reading," not "the device is broken."
 
 **First-time tip:** Run three clean-air cycles before your first measurement so the chamber and sensors reach a stable baseline.
+
+### Customising timing, fan and buzzer
+
+Osmograph can change these over the same serial / Wi-Fi / BLE link used for
+readings. Send one command per line; settings persist across power cycles.
+`status` reports the current values.
+
+| Command | Effect |
+|---------|--------|
+| `fan intake <0-255>` | PWM duty while drawing the sample in (default `128`) |
+| `fan hold <0-255>` | PWM duty while sensors equilibrate (default `0`, still air) |
+| `fan purge <0-255>` | PWM duty while flushing the chamber (default `255`) |
+| `rate <20-5000>` | ADC read interval during HOLD in ms (default `125`) |
+| `timing <intake> <hold> <purge>` | Phase lengths in ms (defaults `10000 10000 20000`) |
+| `mute` / `unmute` | Disable / enable the end-of-cycle beep |
+| `status` | Report firmware version, radios and all current settings |
 
 ---
 
@@ -157,11 +179,14 @@ Every slot carries both interfaces side by side:
 Gas-cell socket pinout (looking at the base):
   Pin 1: +5V   (heater rail, ≤150 mA per slot)
   Pin 2: GND
-  Pin 3: AO    (cell output, 0–5 V, divided into ADC)
-  Pin 4: DO    (comparator output or TTL serial RX, 3.3 V GPIO)
+  Pin 3: AO    (cell output, 0–5 V, divided 10k/10k into the ADC)
+  Pin 4: DO    (comparator output or TTL serial RX, 3.3 V GPIO via 10k series)
   Pin 5: 3V3   (≤50 mA for cell converter)
-  Pin 6: ID    (1-Wire cartridge identity EEPROM)
+  Pin 6: ID    (1-Wire cartridge identity EEPROM; one shared bus)
 ```
+
+Each Qwiic port is one channel of the TCA9548A (channel *n* = slot *n*), so two
+modules with the same I²C address can be used at once.
 
 **How to swap a cartridge:**
 1. Power down (unplug USB-C).
@@ -169,9 +194,11 @@ Gas-cell socket pinout (looking at the base):
 3. Lift the cartridge straight out of its socket.
 4. Align the new cartridge's pin-1 chamfer with the socket key; press straight down.
 5. Replace the lid, tighten four M3 screws.
-6. Power on. Osmograph detects the new module via its ID EEPROM within one cycle.
+6. Power on. Osmograph reads the cartridge ID when present; a blank or unreadable EEPROM is reported as uncalibrated, not as an error.
 
-**No tools beyond a 2.5 mm hex key.** A swap takes under 60 seconds. Calibration and exposure history travel with the cartridge on its EEPROM; the base never needs re-calibration when you move cartridges between bases.
+**No tools beyond a 2.5 mm hex key.** A swap takes under 60 seconds. Calibration
+and exposure history travel with the cartridge on its EEPROM; the base never
+needs re-calibration when you move cartridges between bases.
 
 ---
 
@@ -181,7 +208,7 @@ Osmograph evaluates every record and appends red QC flags to affected slots. Fla
 
 | Flag | What it means | What to check |
 |------|---------------|---------------|
-| `adc_saturation` | Slot voltage at 0 V or 3.3 V rail for two consecutive cycles | Disconnected or shorted sensor; check wiring, reseat cartridge |
+| `adc_saturation` | Slot voltage sits at 0 V or the ADC rail (2.5 V at the ADC = 5 V at the slot) for two consecutive cycles | Disconnected or shorted sensor; check wiring, reseat cartridge |
 | `baseline_drift` | Hold-phase voltage slope exceeds 0.05 mV/s | Sensor warming up; allow 10 min warm-up; check for temperature changes |
 | `sht31_out_of_range` | Temperature or humidity jumped more than threshold in one cycle | Fan failure, seal leak, or rapid ambient change; check fan is spinning |
 | `eeprom_mismatch` | Readings present but no cartridge EEPROM ID | Blank or missing ID chip; data still works, flagged as uncalibrated |
@@ -193,11 +220,12 @@ Osmograph evaluates every record and appends red QC flags to affected slots. Fla
 
 ## 7. Maintenance
 
-The Smell Monitor has **no recurring-cost consumables.**
+The Smell Monitor has **no scheduled consumables**; the inlet mesh is cleanable
+and is replaced only if damaged or permanently clogged.
 
 | Task | Interval | How |
 |------|----------|-----|
-| Rinse filter mesh | When visibly dusty, or after smoke/dust exposure | Remove drawer, rinse mesh under tap water, air-dry, reinsert |
+| Rinse filter mesh | When visibly dusty, or after smoke/dust exposure | Lift the lid, remove the drawer, rinse the woven PTFE mesh under tap water, air-dry, reinsert |
 | Wipe chamber interior | Annually, or after strong odor events | Dry lint-free cloth only; no solvents |
 | Check fan | If `flow_stagnation` appears | Verify fan spins freely; check connector |
 | Recalibrate cartridge | Per its exposure-history log | Follow the cartridge maker's procedure; history lives on the EEPROM |
@@ -210,20 +238,21 @@ The Smell Monitor has **no recurring-cost consumables.**
 
 | Parameter | Value |
 |-----------|-------|
-| Power | USB-C 5 V (≥1.5 A needed, 3 A source assumed) |
+| Power | USB-C 5 V (1.38 A worst case; 3 A source assumed) |
 | Idle power | < 1 W |
-| Loaded power | ≈ 5 W with four MOX modules (heaters dominate) |
-| Sensor ports | 4 analog (5 V gas cell) + 4 digital (3.3 V Qwiic), any mix |
+| Loaded power | ≈ 5 W starter pack; up to ≈ 8 W worst case (MOX heaters dominate) |
+| Sensor ports | **8 identical OSM-1 slots**: 1×6 gas-cell socket + Qwiic port at each; any mix |
+| Acquisition | 2 × ADS1115 (8 channels), TCA9548A (8 channels), SHT31 at 1 Hz |
 | Cycle time | ≈ 40 s (10 s intake / 10 s hold / 20 s purge) |
 | Airflow | 15 L/min design purge |
-| Filter | Permanent washable sintered stainless steel or PTFE mesh |
-| Wetted surfaces | PTFE-lined tray, lid, filter drawer |
-| Enclosure | 122 × 128 × 49 mm (including rear fan) |
+| Filter | Thin woven PTFE mesh, cleanable; front drawer |
+| Wetted surfaces | Sealed PETG tray, lid and filter drawer; PTFE liner optional |
+| Enclosure | 122 × 114 × 49 mm (128 mm deep with rear fan) |
 | Mass | ≈ 240 g |
 | Operating range | 5–40 °C, 20–80% RH |
 | Serial | USB-C 115200 baud (always on) |
 | Wireless | Wi-Fi 2.4 GHz + Bluetooth LE (optional, same data) |
-| Data format | `.osmell` v1.0 (locked schema) |
+| Data format | `.osmell` v1.0 (gas + pluggable pH cartridge + T/H) |
 | Safety | Research instrument; 5 V USB-C; not for explosive atmospheres; keep from liquids |
 
 ---
@@ -238,4 +267,4 @@ repository: github.com/OpenSmell/smell-monitor
 
 ---
 
-*End of manual — OSM-UM-001 Rev A*
+*End of manual — OSM-UM-001 Rev B*

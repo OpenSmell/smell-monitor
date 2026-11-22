@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""OpenSmell rev-B board model - components and nets (single source).
+"""OpenSmell v1.1 board model - components and nets (single source).
 
-`interface.py` fixes the *contract* (slot pinouts, I2C map, GPIO map, rails).
+`interface.py` fixes the *contract* (slot pinout, I2C map, GPIO map, rails).
 This module turns that contract plus the static topology of blueprint section 5
 into an explicit **netlist**: the parts fitted to the board and the net every
 pin lands on. It is the common origin for three deliverables, so they cannot
@@ -12,6 +12,11 @@ drift from each other:
                                      `electrical/route_pcb.py` to route it)
   * the BOM                         (KiCad BOM export; `bom.csv` is regenerated,
                                      never hand-counted - hand counts drift)
+
+One slot design, repeated (OSM-1): every slot is a 1x6 keyed gas-cell socket
+plus a Qwiic port.  Analog output goes to one of eight ADS1115 channels; the
+digital output goes through a series resistor to the MCU; identity is a single
+shared 1-Wire bus.  I2C modules hang off their slot's TCA9548A segment.
 
 Design notes that are *choices*, not contract, are marked ``CALL:`` and listed
 in the docstring of ``DECISIONS`` so a reviewer can veto them cheaply.
@@ -36,6 +41,9 @@ NETS = {}           # net -> [(ref, pin), ...]
 _PIN_CACHE = {}     # libId -> [(number, name), ...]
 _PIN_MIRROR = {}    # libId -> {name: [numbers]}
 
+# Qwiic / STEMMA QT: JST-SH 1.0 mm, top entry (SparkFun's standard part).
+QWIIC_FP = "Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal"
+
 
 def part(ref, lib, value, footprint):
     """Register a fitted component."""
@@ -48,15 +56,6 @@ def part(ref, lib, value, footprint):
 def connect(net, ref, pin):
     """Connect one pin (unambiguous) to a net."""
     NETS.setdefault(net, []).append((ref, str(pin)))
-
-
-def connect_all(net, ref, name):
-    """Connect every pin of `ref` whose *name* is `name` (e.g. many GNDs)."""
-    nums = _PIN_MIRROR.get(_lib_of(ref), {}).get(name)
-    if not nums:
-        raise KeyError("%s has no pin named %r" % (ref, name))
-    for n in nums:
-        NETS.setdefault(net, []).append((ref, n))
 
 
 def _lib_of(ref):
@@ -144,7 +143,7 @@ def connect_name(net, ref, name):
     """Connect the single pin of `ref` named `name` to `net`."""
     matches = [n for n, nm in pin_numbers(_lib_of(ref)) if nm == name]
     if not matches:
-        raise KeyError("%s (%s) has no pin named %r" % (ref, _lib_of(ref), name))
+        raise KeyError("%s (%s) has no pin named %r" % (ref, name, _lib_of(ref)))
     if len(matches) > 1:
         raise ValueError("%s has %d pins named %r; use connect_all()"
                          % (ref, len(matches), name))
@@ -155,7 +154,7 @@ def connect_all(net, ref, name):
     """Connect *every* pin of `ref` named `name` (e.g. the several GNDs)."""
     matches = [n for n, nm in pin_numbers(_lib_of(ref)) if nm == name]
     if not matches:
-        raise KeyError("%s (%s) has no pin named %r" % (ref, _lib_of(ref), name))
+        raise KeyError("%s (%s) has no pin named %r" % (ref, name, _lib_of(ref)))
     for m in matches:
         connect(net, ref, m)
 
@@ -164,31 +163,39 @@ def connect_all(net, ref, name):
 # human-readable record of every judgement call made in this netlist
 # ---------------------------------------------------------------------------
 DECISIONS = [
-    "U3 CH340C USB-UART bridge: blueprint 5.2/5.7 say USB-C carries "
-    "'power + serial' and firmware (661/664/670) speaks JSON-over-USB-UART, but "
-    "bom.csv has no bridge and notes J1 as 'USB-C Power' only. Added U3 so the "
-    "documented interface actually exists.",
+    "OSM-1 slot: every position is one 1x6 keyed socket (+5V, GND, AO, DO, "
+    "3V3, ID) plus one Qwiic port.  There is no analog/digital bank split, so "
+    "a module cannot be plugged into the wrong row.  Contract owner: "
+    "interface.SLOT / QWIC.",
+    "Eight analog outputs need two ADS1115s (0x48 / 0x49); the second one is "
+    "U8 and its ADDR pin is tied to +3V3.  The pair is cheaper and simpler "
+    "than an 8-channel external mux and keeps every channel single-ended.",
+    "Eight digital outputs fit the WROOM directly (GPIO 17..32 plus 16 for the "
+    "shared 1-Wire ID bus), so the OSM-1 build carries no GPIO expander.  "
+    "This is checked by interface.build_pinmap and verify_electrical.",
+    "1-Wire ID: all eight slot ID pins are one open-drain bus with a single "
+    "4.7k pull-up.  Every DS2431/AT21CS01 carries a unique 64-bit ROM, so no "
+    "address strapping and no second mux are needed (module-standard 2.3).",
+    "DO series 10k per slot: a module's open-collector/TTL output can be "
+    "pulled to 5 V by a fault; the series resistor bounds the current into "
+    "the 3.3 V GPIO.  Analog threshold behaviour is unaffected.",
+    "U3 CH340C USB-UART bridge: the module-side contract is JSON over a "
+    "serial port, and native USB is not exposed by the WROOM footprint.  V3 "
+    "is the bridge's own regulator output and is never tied to +3V3.",
     "BOOT (GPIO0) + RESET (EN) + MEASURE (GPIO23) buttons: no auto-reset "
-    "transistors, so flashing = hold BOOT, tap RESET. blueprint 5.5 puts the "
-    "user button on GPIO23 (a non-strapping pin per interface.PINS_STRAP); "
-    "line 664's 'button (GPIO0)' is stale - GPIO0 is the BOOT button only.",
+    "transistors, so flashing = hold BOOT, tap RESET.",
     "USB-C CC1/CC2 5.1k pulldowns (R1, R2): required to draw VBUS from a "
-    "C-to-C cable or any Type-C source; bom.csv carries them as 5.1k.",
-    "I2C pull-ups 4.7k (master + per TCA9548A channel) per blueprint 5.4; "
-    "bom.csv carries R15, R16 and R21-R28 as 4.7k.  10k is marginal at "
-    "400 kHz, so the BOM value is the one that matters.",
+    "C-to-C cable or any Type-C source.",
+    "I2C pull-ups 4.7k on the master bus and on every TCA9548A channel.  A "
+    "Qwiic module normally brings its own pull-ups; the board's per-channel "
+    "pair keeps a bare module working without loading any other segment.",
     "AO input divider 10k/10k: maps the 0-5 V slot output to <=2.5 V at the "
-    "ADS1115 (blueprint 5.3), one divider per analog slot.",
-    "Analog slot order set to +5V/GND/AO/DO/3V3 (was +5V/3V3/GND/AO/DO) so a "
-    "4-pin MQ-style module (VCC,GND,AO,DO) seats straight onto pins 1-4 with "
-    "power and ground adjacent; the old order put a naive 4-pin plug's GND onto "
-    "3V3. 3V3 moves to pin 5 for the rare 3.3 V analog module. Contract owner: "
-    "interface.SLOT_ANALOG.",
+    "ADS1115, one divider per slot.",
+    "The on-board OLED is not fitted: v1 is headless and the UI is Osmograph. "
+    "Removing it also removes the only display library dependency.",
 ]
 
-N = IF.N_ANALOG
-DM = IF.N_DIGITAL
-PM = IF.PINMAP
+N = IF.N_SLOTS
 
 
 def build():
@@ -199,30 +206,35 @@ def build():
     # --- actives -----------------------------------------------------------
     part("U1", "RF_Module:ESP32-WROOM-32E", "ESP32-WROOM-32E",
          "RF_Module:ESP32-WROOM-32E")
-    part("U2", "Analog_ADC:ADS1115IDGS", "ADS1115",
+    part("U2", "Analog_ADC:ADS1115IDGS", "ADS1115", 
          "Package_SO:MSOP-10_3x3mm_P0.5mm")
     part("U3", "Interface_USB:CH340C", "CH340C", "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm")
     part("U4", "Interface_Expansion:TCA9548APWR", "TCA9548A",
          "Package_SO:TSSOP-24_4.4x7.8mm_P0.65mm")
-    part("U5", "Sensor_Humidity:SHT31-DIS", "SHT31-DIS-B", "Sensor_Humidity:Sensirion_DFN-8-1EP_2.5x2.5mm_P0.5mm_EP1.1x1.7mm")
-    part("U6", "Display_Graphic:ER_OLEDM0.91_1x-I2C", "SSD1306-B",
-         "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
+    part("U5", "Sensor_Humidity:SHT31-DIS", "SHT31-DIS-B",
+         "Sensor_Humidity:Sensirion_DFN-8-1EP_2.5x2.5mm_P0.5mm_EP1.1x1.7mm")
     part("U7", "Regulator_Linear:AMS1117CD-3.3", "AMS1117-3.3",
          "Package_TO_SOT_SMD:SOT-223-3_TabPin2")
+    part("U8", "Analog_ADC:ADS1115IDGS", "ADS1115",
+         "Package_SO:MSOP-10_3x3mm_P0.5mm")
 
     part("J1", "Connector:USB_C_Receptacle_USB2.0_16P", "USB_C_16P",
          "Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal")
+    # Eight identical sensing sockets: J2..J5 = downstream row, J6..J9 =
+    # upstream row.  Order is slot 0..7, matching the chamber contract.
     for k in range(N):
-        part("J%d" % (2 + k), "Connector_Generic:Conn_01x05", "1x05 female",
-             "Connector_PinSocket_2.54mm:PinSocket_1x05_P2.54mm_Vertical")
-    for k in range(DM):
-        part("J%d" % (6 + k), "Connector_Generic:Conn_01x06", "1x06 female",
+        part("J%d" % (2 + k), "Connector_Generic:Conn_01x06", "1x06 female",
              "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Vertical")
     part("J10", "Connector_Generic:Conn_01x02", "JST-PH 2P fan",
          "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical")
+    # One Qwiic port per slot, J11..J18.
+    for k in range(N):
+        part("J%d" % (11 + k), "Connector_Generic:Conn_01x04", "Qwiic",
+             QWIIC_FP)
 
     part("Q1", "Transistor_FET:Q_NMOS_GSD", "AO3400A", "Package_TO_SOT_SMD:SOT-23")
     part("Q2", "Transistor_BJT:Q_NPN_BCE", "MMBT3904", "Package_TO_SOT_SMD:SOT-23")
+    part("D1", "Device:D", "SS14", "Diode_SMD:D_SOD-123")
     part("BZ1", "Device:Buzzer", "MBT-12A05", "Buzzer_Beeper:Buzzer_12x9.5RM7.6")
     part("LED1", "Device:LED", "Red", "LED_SMD:LED_0603_1608Metric")
     part("SW1", "Switch:SW_Push", "MEASURE", "Button_Switch_SMD:SW_SPST_TL3342")
@@ -236,27 +248,27 @@ def build():
     connect_name("BOOT", "U1", "IO0")
     connect_name("I2C_SDA", "U1", "IO21")
     connect_name("I2C_SCL", "U1", "IO22")
-    connect_name("FAN_PWM", "U1", "IO4")
-    connect_name("BUZZER", "U1", "IO13")
-    connect_name("LED", "U1", "IO14")
-    connect_name("MEASURE", "U1", "IO23")
+    connect_name("FAN_PWM", "U1", _gpio_name("FAN_PWM"))
+    connect_name("BUZZER", "U1", _gpio_name("BUZZER"))
+    connect_name("LED", "U1", _gpio_name("LED"))
+    connect_name("MEASURE", "U1", _gpio_name("BUTTON"))
     connect_name("UART_TX", "U1", "TXD0/IO1")
     connect_name("UART_RX", "U1", "RXD0/IO3")
-    # DO0..DO3 and INT/CTRL come from the frozen pin map, resolved by name
+    connect_name("ONEWIRE", "U1", _gpio_name("ONEWIRE"))
+    # DO lines and the shared 1-Wire bus come from the frozen pin map.
     for i in range(N):
         connect_name("DO%d" % i, "U1", _gpio_name("DO%d" % i))
-    for i in range(DM):
-        connect_name("INT%d" % i, "U1", _gpio_name("INT%d" % i))
-        connect_name("CTRL%d" % i, "U1", _gpio_name("CTRL%d" % i))
 
-    # --- U2 ADS1115 --------------------------------------------------------
-    connect_name("GND", "U2", "GND")
-    connect_name("+3V3", "U2", "VDD")
-    connect_name("I2C_SDA", "U2", "SDA")
-    connect_name("I2C_SCL", "U2", "SCL")
-    connect_name("GND", "U2", "ADDR")          # 0x48
-    for i in range(N):
-        connect_name("AIN%d" % i, "U2", "AIN%d" % i)
+    # --- U2 / U8 ADS1115 ---------------------------------------------------
+    # Channels 0..3 on U2 (0x48), channels 4..7 on U8 (0x49).
+    for ref, addr, base in (("U2", "GND", 0), ("U8", "+3V3", 4)):
+        connect_name("GND", ref, "GND")
+        connect_name("+3V3", ref, "VDD")
+        connect_name("I2C_SDA", ref, "SDA")
+        connect_name("I2C_SCL", ref, "SCL")
+        connect_name(addr, ref, "ADDR")
+        for i in range(4):
+            connect_name("AIN%d" % (base + i), ref, "AIN%d" % i)
 
     # --- U3 CH340C ---------------------------------------------------------
     # Powered from 5 V (per CH340C datasheet: VCC=5 V, V3 = internal 3.3 V
@@ -278,21 +290,17 @@ def build():
     connect_name("MUX_RESET", "U4", "~{RESET}")
     for a in ("A0", "A1", "A2"):
         connect_name("GND", "U4", a)           # 0x70
-    for i in range(DM):
+    for i in range(N):
         connect_name("SD%d" % i, "U4", "SD%d" % i)
         connect_name("SC%d" % i, "U4", "SC%d" % i)
 
-    # --- U5 SHT31 / U6 OLED -----------------------------------------------
+    # --- U5 SHT31 ----------------------------------------------------------
     connect_name("+3V3", "U5", "VDD")
     connect_all("GND", "U5", "VSS")
     connect_name("I2C_SDA", "U5", "SDA")
     connect_name("I2C_SCL", "U5", "SCL")
     connect_name("GND", "U5", "ADDR")          # 0x44
     connect_name("+3V3", "U5", "~{RESET}")
-    connect_name("GND", "U6", "GND")
-    connect_name("+3V3", "U6", "VCC")
-    connect_name("I2C_SCL", "U6", "SCL")
-    connect_name("I2C_SDA", "U6", "SDA")
 
     # --- U7 LDO ------------------------------------------------------------
     connect_name("GND", "U7", "GND")
@@ -313,39 +321,44 @@ def build():
         connect(net, r, "1")
         connect("GND", r, "2")
 
-    # --- sensing slots -----------------------------------------------------
-    a_map = {n: i for i, n in enumerate(IF.SLOT_ANALOG)}
-    d_map = {n: i for i, n in enumerate(IF.SLOT_DIGITAL)}
+    # --- sensing slots (OSM-1) ---------------------------------------------
+    # Slot k: 6-pin socket J(2+k), Qwiic J(11+k).  Build AO first, then DO, so
+    # the reference designators stay grouped by function (dividers R3..R18,
+    # DO series R19..R26) and a reviewer can read the schematic by block.
+
+    # analog output + 2:1 divider, slots 0..7
+    for k in range(N):
+        raw = "SLOT%d_AO" % k
+        connect(raw, "J%d" % (2 + k),
+                IF.SLOT.index("AO") + 1)
+        _divider(raw, "AIN%d" % k)
+
+    # digital output + 10k series, slots 0..7
+    for k in range(N):
+        raw = "SLOT%d_DO" % k
+        connect(raw, "J%d" % (2 + k),
+                IF.SLOT.index("DO") + 1)
+        r = new_r("10k")
+        connect(raw, r, "1")
+        connect("DO%d" % k, r, "2")
+
+    # rails + identity on the 6-pin socket, and the slot's Qwiic port
     for k in range(N):
         ref = "J%d" % (2 + k)
-        for pin_no, name in enumerate(IF.SLOT_ANALOG, start=1):
+        for pin_no, name in enumerate(IF.SLOT, start=1):
             if name == "+5V":
                 connect("+5V", ref, pin_no)
+            elif name == "GND":
+                connect("GND", ref, pin_no)
             elif name == "3V3":
                 connect("+3V3", ref, pin_no)
-            elif name == "GND":
-                connect("GND", ref, pin_no)
-            elif name == "AO":
-                ao = "SLOT%d_AO" % k
-                connect(ao, ref, pin_no)
-                _divider(ao, "AIN%d" % k)
-            elif name == "DO":
-                connect("DO%d" % k, ref, pin_no)
-    for k in range(DM):
-        ref = "J%d" % (6 + k)
-        for pin_no, name in enumerate(IF.SLOT_DIGITAL, start=1):
-            if name == "3V3":
-                connect("+3V3", ref, pin_no)
-            elif name == "GND":
-                connect("GND", ref, pin_no)
-            elif name == "SDA":
-                connect("SD%d" % k, ref, pin_no)
-            elif name == "SCL":
-                connect("SC%d" % k, ref, pin_no)
-            elif name == "INT":
-                connect("INT%d" % k, ref, pin_no)
-            elif name == "CTRL":
-                connect("CTRL%d" % k, ref, pin_no)
+            elif name == "ID":
+                connect("ONEWIRE", ref, pin_no)
+        qref = "J%d" % (11 + k)
+        for name, pin_no in zip(IF.QWIC, (1, 2, 3, 4)):
+            net = {"GND": "GND", "3V3": "+3V3",
+                   "SDA": "SD%d" % k, "SCL": "SC%d" % k}[name]
+            connect(net, qref, pin_no)
 
     # --- fan (J10) + Q1 ----------------------------------------------------
     connect("+5V", "J10", "1")
@@ -358,6 +371,10 @@ def build():
     # --- buzzer + Q2 -------------------------------------------------------
     connect("+5V", "BZ1", "1")
     connect("BUZZ_NEG", "BZ1", "2")
+    # D1 catches the buzzer coil's inductive kick when Q2 turns off, so the
+    # spike cannot couple into the shared 5 V / ground used by the ADCs.
+    connect("+5V", "D1", "1")                  # K
+    connect("BUZZ_NEG", "D1", "2")              # A
     connect("BUZZ_NEG", "Q2", "2")             # C
     connect("GND", "Q2", "3")                  # E
     r = new_r("10k"); connect("BUZZER", r, "1"); connect("BUZZ_BASE", r, "2")
@@ -377,14 +394,15 @@ def build():
     connect("BOOT", "SW2", "1");    connect("GND", "SW2", "2")
     connect("EN", "SW3", "1");      connect("GND", "SW3", "2")
 
-    # --- pull-ups / housekeeping ------------------------------------------
+    # --- pull-ups / housekeeping -------------------------------------------
     pull("I2C_SDA", "+3V3", "4.7k")
     pull("I2C_SCL", "+3V3", "4.7k")
     pull("MUX_RESET", "+3V3")
     pull("EN", "+3V3")
     pull("BOOT", "+3V3")
     pull("MEASURE", "+3V3")
-    for i in range(DM):                        # per-channel bus pull-ups
+    pull("ONEWIRE", "+3V3", "4.7k")
+    for i in range(N):                        # per-channel bus pull-ups
         pull("SD%d" % i, "+3V3", "4.7k")
         pull("SC%d" % i, "+3V3", "4.7k")
 
@@ -392,7 +410,7 @@ def build():
     c = new_c("100nF"); connect("EN", c, "1"); connect("GND", c, "2")
 
     # --- decoupling --------------------------------------------------------
-    for ref in ("U1", "U2", "U4", "U5", "U6"):
+    for ref in ("U1", "U2", "U4", "U5", "U8"):
         decouple("+3V3")
     decouple("+5V")                            # U3 bridge runs from 5 V
     c = new_c("100nF"); connect("U3_V3", c, "1"); connect("GND", c, "2")
@@ -414,11 +432,7 @@ def _divider(ao, ain):
     r2 = new_r("10k"); connect(ain, r2, "1"); connect("GND", r2, "2")
 
 
-def _drop(net, ref, pin):
-    """Remove a previously made (ref, pin) connection from `net`."""
-    NETS.setdefault(net, [])
-    NETS[net][:] = [(r, p) for r, p in NETS[net] if not (r == ref and p == str(pin))]
-
+PM = IF.PINMAP
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +461,7 @@ def validate():
                               % (ref, pin, seen[key], net))
             seen[key] = net
 
-    for req in ("+5V", "+3V3", "GND", "I2C_SDA", "I2C_SCL"):
+    for req in ("+5V", "+3V3", "GND", "I2C_SDA", "I2C_SCL", "ONEWIRE"):
         if not NETS.get(req):
             errors.append("required net %r missing/empty" % req)
 
@@ -458,26 +472,25 @@ def validate():
             errors.append("part %s (%s) has no connections"
                           % (ref, PARTS[ref]["value"]))
 
-    # the frozen contract must be honoured end-to-end
-    a_map = {n: i for i, n in enumerate(IF.SLOT_ANALOG)}
-    d_map = {n: i for i, n in enumerate(IF.SLOT_DIGITAL)}
-    for k in range(IF.N_ANALOG):
+    # the frozen contract must be honoured end-to-end: every slot pin, every
+    # Qwiic pin, and the AO/DO/ID nets.
+    for k in range(N):
         ref = "J%d" % (2 + k)
-        pin_no = a_map["DO"] + 1
-        net = seen.get((ref, str(pin_no)))
-        if net != "DO%d" % k:
-            errors.append("analog slot %d DO -> %r, expected DO%d" % (k, net, k))
-        pin_no = a_map["AO"] + 1
-        if seen.get((ref, str(pin_no))) != "SLOT%d_AO" % k:
-            errors.append("analog slot %d AO not on SLOT%d_AO" % (k, k))
-    for k in range(IF.N_DIGITAL):
-        ref = "J%d" % (6 + k)
-        pin_no = d_map["INT"] + 1
-        if seen.get((ref, str(pin_no))) != "INT%d" % k:
-            errors.append("digital slot %d INT not on INT%d" % (k, k))
-        pin_no = d_map["CTRL"] + 1
-        if seen.get((ref, str(pin_no))) != "CTRL%d" % k:
-            errors.append("digital slot %d CTRL not on CTRL%d" % (k, k))
+        for pin_no, name in enumerate(IF.SLOT, start=1):
+            net = seen.get((ref, str(pin_no)))
+            want = {"+5V": "+5V", "GND": "GND", "3V3": "+3V3", "ID": "ONEWIRE",
+                    "AO": "SLOT%d_AO" % k, "DO": "SLOT%d_DO" % k}[name]
+            if net != want:
+                errors.append("slot %d pin %d (%s) -> %r, expected %r"
+                              % (k, pin_no, name, net, want))
+        qref = "J%d" % (11 + k)
+        for name, pin_no in zip(IF.QWIC, (1, 2, 3, 4)):
+            net = seen.get((qref, str(pin_no)))
+            want = {"GND": "GND", "3V3": "+3V3",
+                    "SDA": "SD%d" % k, "SCL": "SC%d" % k}[name]
+            if net != want:
+                errors.append("Qwiic %d pin %d (%s) -> %r, expected %r"
+                              % (k, pin_no, name, net, want))
 
     return errors
 

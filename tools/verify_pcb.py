@@ -82,26 +82,36 @@ oy = min(p[1] for p in edge)
 
 # what must land on a chamber well is the header's connector line (the pad
 # centre), not the footprint origin
-def pad_centre(fp):
+def pad_extent(fp):
     pts = [p.GetPosition() for p in fp.Pads()]
-    return (sum(mm(p.x) for p in pts) / len(pts) - ox,
-            sum(mm(p.y) for p in pts) / len(pts) - oy)
+    xs = [mm(p.x) for p in pts]
+    ys = [mm(p.y) for p in pts]
+    return (sum(xs) / len(xs) - ox, sum(ys) / len(ys) - oy,
+            max(xs) - min(xs), max(ys) - min(ys))
 
 
+SOCKET_SPAN = 5 * 2.54                 # 1x6 at 2.54 pitch = 12.7 mm
 rows = {"analog": IF.ANALOG_HEADERS, "digital": IF.DIGITAL_HEADERS}
 for bank, want in rows.items():
     refs = [f"J{i}" for i in (range(2, 6) if bank == "analog" else range(6, 10))]
     got = []
     for ref in refs:
         fp = board.FindFootprintByReference(ref)
-        got.append(None if fp is None
-                   else (pad_centre(fp) + (fp.GetOrientationDegrees(),)))
+        got.append(None if fp is None else pad_extent(fp))
     ok = all(g is not None for g in got) and all(
         abs(g[0] - x) <= 0.01 and abs(g[1] - (CONST["PCB_Y"] - y)) <= 0.01
-        and g[2] == 0.0
         for g, (x, y) in zip(got, want))
-    check(f"{bank} headers J{refs[0][1]}..J{refs[-1][1]} on the chamber contract",
-          ok, "" if ok else str([(g[0], round(CONST["PCB_Y"] - g[1], 2))
+    check(f"{bank} sockets J{refs[0][1]}..J{refs[-1][1]} on the chamber contract",
+          ok, "" if ok else str([(round(g[0], 2), round(CONST["PCB_Y"] - g[1], 2))
+                                 for g in got if g]))
+
+    # The pin line must run ACROSS the flow (x).  With the line along the flow
+    # a 20 mm cartridge cannot sit on a pitch below 22 mm and still reach 32 mm
+    # downstream: the centre position is unchanged, so only the span catches it.
+    across = all(g is not None and abs(g[2] - SOCKET_SPAN) <= 0.05
+                 and g[3] <= 2.2 for g in got)
+    check(f"{bank} socket pin line runs across the flow", across,
+          "" if across else str([(round(g[2], 2), round(g[3], 2))
                                  for g in got if g]))
 
 # ------------------------------ fabrication ---------------------------------
@@ -173,6 +183,16 @@ check("one net per board.py net",
 check("every net fully routed (0 unconnected)",
       board.GetConnectivity().GetUnconnectedCount(False) == 0,
       str(board.GetConnectivity().GetUnconnectedCount(False)))
+
+# The 5 V trunk is a 0.30 mm trace (IPC-2221 ~21 C rise at 1.4 A); the return
+# path is a filled B.Cu pour so ADC/mux/I2C references do not share trace R.
+# tools/add_ground_pour.py is the reproducible step that creates it.
+gnd_pours = [z for z in board.Zones()
+             if z.GetLayer() == pcbnew.B_Cu and z.GetNetname() == "GND"]
+check("filled bottom-layer GND return pour",
+      len(gnd_pours) == 1 and gnd_pours[0].IsFilled(),
+      f"{len(gnd_pours)} pour(s), filled="
+      f"{gnd_pours[0].IsFilled() if gnd_pours else False}")
 
 # --------------------------------- DRC --------------------------------------
 def kicad_cli():

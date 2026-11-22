@@ -1,7 +1,7 @@
 // smell_monitor.ino - OpenSmell v1.1 ESP32-WROOM-32E firmware entry point.
 //
-// Reads 4 analog slots (ADS1115) + 4 digital slots (TCA9548A) + SHT31, drives
-// the fan/LED/buzzer/OLED, and streams one JSON record per cycle over USB
+// Reads eight identical OSM-1 slots (two ADS1115s + TCA9548A) + SHT31, drives
+// the fan/LED/buzzer, and streams one JSON record per cycle over USB
 // serial (default), Wi-Fi (MQTT + HTTP) and BLE.
 #include "config.h"
 #include "sensors.h"

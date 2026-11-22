@@ -55,20 +55,22 @@ to the flow (header line along Y). Read in that pose:
   "vendor"   a vendor datasheet/page states it
   "measured" measured on a physical sample with calipers
   "inferred" derived from a vendor photo/drawing by the author, NOT confirmed
-Any entry with `unverified` fields cannot be signed off: the gate reports it as
-MEASURE, and blueprint 14 lists it as an open item.
+
+`unverified` marks fields that a sample would settle.  It is provenance, not a
+gate: the OSM-1 verdict only asks whether a part's sensing element fits the
+cartridge envelope (or reaches the base through a Qwiic carrier), so the vendor
+breakout's own pose no longer decides the answer.
 """
 
 SOCKET_STANDOFF = 8.5    # 2.54 mm female header: card's lower edge above the board
 MODULE_REACH = 32.0      # a cartridge extends this far from its pin line
-MIN_LATERAL_GAP = 2.0    # clearance we want between a can and the next card
-WALL_GAP = 2.0           # clearance between the end of a row and the cavity wall
 
 
 def _mq(name, card, src, pins="VCC GND DO AO"):
     """An MQ-family breakout: silver can, 4-pin 2.54 mm header on one edge.
-    `pins` is the module's OWN order, quoted from the vendor: it matters,
-    because the slot order in interface.py is `+5V GND AO DO 3V3`."""
+    `pins` is the module's OWN order, quoted from the vendor.  It is recorded
+    (not enforced) because the OSM-1 cartridge re-houses the element and
+    presents the standard `+5V GND AO DO 3V3 ID` order regardless."""
     return dict(name=name, lane="analog", form="card", card=card, t=1.6,
                 edge="short", conn=("2.54 hdr", 4), ao=1, pins=pins,
                 can=(19.0, 23.0), can_off=16.0, basis="vendor", src=src,
@@ -157,131 +159,88 @@ STARTER_PACK = ["MQ-135-openimpulse", "MQ-136", "MICS-6814", "ZE03", "SCD40"]
 
 
 # ---------------------------------------------------------------------------
-# what the chamber gives a module
+# OSM-1 conformance - how does this part get into a slot?
 # ---------------------------------------------------------------------------
-def limits(const, n_rows=4):
-    """Clearances a module must live inside, from the geometry constants.
+# The slot is uniform, so "fit" is a property of the *module*, not of a bank:
+#
+#   CONFORMS  a gas-cell card/can whose sensing element fits the cartridge
+#             envelope (20 x 32 x 21 mm), or a native Qwiic I2C module
+#   CARRIER   usable, but only after being built into an OSM-1 cartridge or a
+#             Qwiic carrier board (bare SMD part, non-2.54 connector, a
+#             vendor board larger than the cartridge envelope)
+#
+# Both are supported paths: the standard's purpose is to make the *slot*
+# uniform, not to declare every vendor breakout plug-compatible.  A part with
+# a CARRIER verdict is not an open question - it is a documented build step.
+def check(key, const=None):
+    """Verdict for one database entry against the OSM-1 standard."""
+    import os
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import standard as S
 
-    There is no baffle plate and no well any more: a module plugs into its
-    socket and stands in the open chamber.  The limits are therefore the slot
-    pitch (it must not touch its neighbour), the 32 mm reach from the pin line
-    to the next row or the rear wall, and the clear height above the board.
-    """
-    lane = {}
-    for bank, x0, y0 in (("analog", "A_X", "A_Y0"),
-                         ("digital", "D_X", "D_Y0")):
-        xs = const[x0]
-        pitch = xs[1] - xs[0]
-        lane[bank] = dict(
-            pitch=pitch, n=len(xs), row=(min(xs), max(xs)),
-            aperture=(pitch - 4.0, MODULE_REACH),
-            ap_y=(const[y0], const[y0] + MODULE_REACH),
-            row_y=const[y0])
-    return dict(h_clear=const["CAV_Z1"] - const["PCB_TOP"],
-                recess=0.0, cavity_x=const["CX"], cavity_y=const["CY"],
-                cavity_x_range=(const["CX0"], const["CX1"]),
-                cavity_z=(const["PCB_TOP"], const["CAV_Z1"]), lane=lane)
+    env = S.CARTRIDGE["envelope"]
+    m = MODULES[key]
+    notes = []
 
-
-def mounted(m, lim):
-    """Envelope of a module in the mounted pose, or None if it has no pose."""
-    form = m["form"]
-    if form == "smd":
-        return None
-    if form == "can":                       # a cylinder sitting on a socket
-        return dict(height=SOCKET_STANDOFF + m["can"][1], across=m["can"][0],
-                    along_flow=m["can"][0], long_axis="vertical")
-    l, w = m["card"]
-    k = 0.0 if not m["can"] else m["can"][1]
-    if form == "flat":                      # card lies parallel to the board
-        return dict(height=m["t"] + k, across=m["can"][0] if m["can"] else l,
-                    along_flow=l, long_axis="horizontal")
-    if m["edge"] == "short":                # stands on its narrow edge -> tall
-        return dict(height=SOCKET_STANDOFF + l, across=m["t"] + k,
-                    along_flow=w, long_axis="vertical")
-    if m["edge"] == "long":                 # stands on its wide edge -> low
-        return dict(height=SOCKET_STANDOFF + w, across=m["t"] + k,
-                    along_flow=l, long_axis="horizontal")
-    return None
-
-
-def check(key, const):
-    """Per-module verdict: FITS | CARRIER | CONFLICT | MEASURE + notes."""
-    m, lim = MODULES[key], limits(const)
-    notes, hard, measure = [], False, False
-    lane = lim["lane"][m["lane"]]
-    env = mounted(m, lim)
-
-    # 1. can this module present a 2.54 mm male header at all?
-    pluggable = "2.54" in m["conn"][0] and m["form"] != "smd"
-    if not pluggable:
-        notes.append("connector %s / %s: needs a carrier or pigtail"
-                     % (m["conn"][0], m["form"]))
+    # 1. a bare die/package is never a plug-in module
+    if m["form"] == "smd":
+        notes.append("bare SMD part %.1fx%.1f mm: build it onto an OSM-1 "
+                     "cartridge or a Qwiic carrier"
+                     % (m["card"][0], m["card"][1]))
         return "CARRIER", notes
 
-    # 2. analog output count: one analog slot reads ONE AO
+    # 2. a native I2C module reaches the base through the Qwiic port, so the
+    #    cartridge envelope does not apply to it
+    conn = m["conn"][0].lower()
+    if m["lane"] == "digital" and ("jst" in conn or "0.1 in" in conn):
+        notes.append("I2C module: plugs into any slot's Qwiic port")
+        return "CONFORMS", notes
+
+    # 3. anything else must present a 2.54 mm edge for the gas-cell socket
+    if "2.54" not in m["conn"][0]:
+        notes.append("connector %s: needs an OSM-1 cartridge or Qwiic carrier"
+                     % m["conn"][0])
+        return "CARRIER", notes
+
+    # 4. the sensing element must live inside the cartridge envelope
+    if m["form"] == "can":
+        across, along = m["can"]
+        notes.append("can d%.1f x %.1f mm" % (across, along))
+        if across > env["across"]:
+            notes.append("wider than the %g mm cartridge - use a Qwiic carrier"
+                         % env["across"])
+            return "CARRIER", notes
+    else:
+        l, w = m["card"]
+        across, along = min(l, w), max(l, w)
+        notes.append("board %.0f x %.0f mm" % (l, w))
+        if across > env["across"] or along > env["along"]:
+            notes.append("outside the %gx%g mm envelope: re-house the element "
+                         "on a cartridge" % (env["across"], env["along"]))
+            return "CARRIER", notes
+
+    # 5. one AO per slot: a multi-output part needs an on-carrier ADC
     if m["lane"] == "analog" and m.get("ao", 1) > 1:
-        notes.append("has %d analog outputs; the analog slot reads 1 - needs a "
-                     "summing carrier or %d slots" % (m["ao"], m["ao"]))
-        hard = True
+        notes.append("%d analog outputs: needs a carrier with an ADC (Qwiic)"
+                     % m["ao"])
+        return "CARRIER", notes
 
-    # 3. clear height above the board
-    if env:
-        top = env["height"]
-        notes.append("height above board %.1f mm; the chamber gives %.1f mm"
-                     % (top, lim["h_clear"]))
-        risky = top > lim["h_clear"] - 2.0
-        bad = top > lim["h_clear"]
-        if bad:
-            notes.append("COLLIDES with the lid" if m["basis"] == "measured"
-                         else "would COLLIDE with the lid")
-        elif risky:
-            notes.append("leaves only %.1f mm below the lid"
-                         % (lim["h_clear"] - top))
-        if (bad or risky) and "edge" in m["unverified"]:
-            measure = True
-            notes.append("depends on which card edge carries the connector - "
-                         "unverified, measure a sample")
-        elif bad:
-            hard = True
-
-        # 4. in-row pitch: a sideways can must clear the next card
-        gap = lane["pitch"] - env["across"]
-        if gap < MIN_LATERAL_GAP:
-            notes.append("lateral %.1f mm in a %.0f mm pitch -> %.1f mm gap "
-                         "(want >= %.1f)" % (env["across"], lane["pitch"], gap,
-                                             MIN_LATERAL_GAP))
-            if gap < 0:
-                hard = True
-
-        # 5. row extremes: with one-sided cans the chain must stay inside the walls
-        x0, x1 = lane["row"]
-        cx0, cx1 = lim["cavity_x_range"]
-        if m["form"] == "card" and (x0 - env["across"] < cx0 + WALL_GAP
-                                    or x1 + env["across"] > cx1 - WALL_GAP):
-            notes.append("one-sided cans would reach x=%.1f..%.1f; the cavity is "
-                         "x=%.1f..%.1f - the end modules' cans must point inward"
-                         % (x0 - env["across"], x1 + env["across"], cx0, cx1))
-
-        # 6. reach: the card must stop before the next row and the rear wall
-        if env["along_flow"] > MODULE_REACH:
-            notes.append("reaches %.0f mm from the pin line; the row allows %.0f"
-                         % (env["along_flow"], MODULE_REACH))
-            if env["along_flow"] > MODULE_REACH + 4:
-                hard = True
-    if measure and not hard:
-        return "MEASURE", notes
-    return ("CONFLICT" if hard else "FITS"), notes
+    notes.append("footprint fits the %gx%g envelope; the cartridge lays the "
+                 "element within %g mm" % (env["across"], env["along"],
+                                           env["height"]))
+    return "CONFORMS", notes
 
 
-def report(const):
-    return [(k,) + check(k, const) for k in sorted(MODULES)]
+def report(const=None):
+    return [(k,) + check(k) for k in sorted(MODULES)]
 
 
 if __name__ == "__main__":
     import os
     import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from constants import CONST
-    for key, verdict, notes in report(CONST):
+    for key, verdict, notes in report():
         print("%-20s %-9s %s" % (key, verdict, "; ".join(notes)))

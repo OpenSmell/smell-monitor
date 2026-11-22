@@ -1,11 +1,12 @@
 # OpenSmell Module Standard v1 (OSM-1)
 
-Status: **draft — target: the OSM-1 re-lay.** The module rules below are settled; the
-board in the tree is still the as-built revision that predates them (§9 lists
-exactly what does not match yet). `mechanical/standard.py` is the same rules as
+Status: **as built (OSM-1).** The board in the tree implements every rule below:
+eight uniform keyed 1×6 sockets (J2–J9) and eight Qwiic ports (J11–J18), two
+ADS1115s, 10 kΩ `DO` series resistors and a shared 1-Wire `ID` bus. §9 records
+the conformance of that board. `mechanical/standard.py` is the same rules as
 data, and `tools/verify_module_fit.py` checks the chamber, the socket contract
-and the module database against it and prints the remaining gap — so this
-document and the hardware cannot drift apart quietly.
+and the module database against it, so this document and the hardware cannot
+drift apart quietly.
 
 ## 1. Why a standard exists
 
@@ -31,7 +32,7 @@ by side on the same footprint:
 | Interface | Serves | Connector | Rail |
 |-----------|--------|-----------|------|
 | **Gas cell** | anything that outputs an analog voltage or TTL serial: MOX (SnO₂), electrochemical, NDIR with a Vout, catalytic, PID | 2.54 mm keyed 1×6 header | **5 V** (heater capable) |
-| **I²C port** | anything with its own converter: NDIR CO₂, T/RH, VOC index, particulate | **Qwiic / STEMMA QT**, JST-SH 1.0 mm 4-pin, plus 0.1 in pads in parallel | **3.3 V** |
+| **I²C port** | anything with its own converter: NDIR CO₂, T/RH, VOC index, particulate | **Qwiic / STEMMA QT**, JST-SH 1.0 mm 4-pin (J11–J18 as built) | **3.3 V** |
 
 The user fills slots with whatever chemistry the job needs, in any mix, and
 never has to know which slot is "the analog row". The module's identity decides
@@ -97,7 +98,7 @@ already gives it.
 | `0x00` | 4 | magic `"OSM1"` |
 | `0x04` | 1 | standard revision (1) |
 | `0x05` | 1 | kind (1 gas cell, 2 I²C module) |
-| `0x06` | 1 | class (1 MOX, 2 EC, 3 NDIR, 4 PID, 5 T/RH, 6 PM, 7 other) |
+| `0x06` | 1 | class (1 MOX, 2 EC, 3 NDIR, 4 PID, 5 T/RH, 6 PM, 7 other, 8 pH/ISFET) |
 | `0x07` | 1 | flags: heater, needs purge, needs 5 V |
 | `0x08` | 8 | part number, ASCII |
 | `0x10` | 4 | lot / serial |
@@ -131,6 +132,7 @@ This is the TEDS idea from IEEE 1451, in 1 kbit and one wire.
 | EC | sensitivity nA/ppm, zero offset, temperature coefficient |
 | NDIR | factory span check value, pressure reference |
 | T/RH | manufacturer ID plus last field check |
+| pH/ISFET | two-point buffer calibration (offset at pH 7, slope mV/pH), last buffer date and temperature |
 
 ### 3.4 Behaviour with no ID (the "just works" rule)
 
@@ -155,9 +157,9 @@ up, and comes out upward. Flat is not cosmetic:
 |----------|-------|
 | Cartridge outline | ≤ **20 mm** across the row × ≤ **32 mm** along the flow |
 | Cartridge height (its own board plus the tallest cell) | ≤ **21 mm** |
-| On the socket | the cartridge sits ≈8.5 mm up, so its top lands ≈34 mm above the board, under a lid at 43 mm |
+| On the socket | the cartridge sits ≈8.5 mm up, so its top lands 29.5 mm above the board (z = 38.1), leaving a 4.9 mm flow hood under the lid at z = 43 |
 | Sensing element | anywhere on the card, on the slot centre line; it only needs clear air above it |
-| Slot pitch | a **base parameter** (26 / 21 mm as built); a cartridge must be ≤ 20 mm wide so it clears a 22 mm pitch |
+| Slot pitch | **22 mm** front row (slots 4–7, J6–J9) / **26 mm** rear row (slots 0–3, J2–J5); a cartridge is ≤ 20 mm wide so it clears both |
 | Keying | pin-1 chamfer plus a polarising slot in the socket wall |
 
 The base socket is a **vertical 2.54 mm receptacle**; the cartridge carries a
@@ -194,9 +196,10 @@ paper or card, foam.
 **Allowed:** PTFE, PFA/FEP, PVDF, borosilicate glass, 316 stainless, gold- or
 nickel-plated contacts, PTFE-insulated wire, non-silicone epoxy outside the path.
 
-**Gas path:** a filter whose spec is set by blueprint §3.6 — hydrophobic PTFE
-media (WEP ≥ 350 mbar) behind a 5–20 µm particulate pre-filter, pleated to
-≥ 70 cm², spanning the **full lane cross-section** so no stream bypasses it.
+**Gas path:** a **thin woven PTFE mesh** filter (hydrophobic, WEP ≥ 350 mbar)
+with a 5–20 µm particulate pre-screen, spanning the full inlet cross-section so
+no stream bypasses it; cleanable, and replaced only if torn or clogged (blueprint
+§3.6).
 
 **There is deliberately no carbon in series with the sample.** Carbon is what
 would remove silicone and sulfur — and the analytes too, which is the whole
@@ -216,13 +219,13 @@ in three ways that do not cost sensitivity:
 
 | Quantity | Reference base |
 |----------|----------------|
-| Slots | **8** — two rows of four, upstream row first |
-| Slot pitch | 26 mm analog / 21 mm digital (a base parameter) |
+| Slots | **8 identical** — front row (slots 4–7) upstream, rear row (slots 0–3) downstream |
+| Slot pitch | 22 mm front row / 26 mm rear row (a base parameter) |
 | Interfaces per slot | keyed 5 V gas-cell socket + 3.3 V Qwiic port |
 | Chamber | 116 × 108 × 40, board top as the floor, lid as the ceiling |
 | Mux / ADC / 1-Wire channels | 8 / 2 / 1 |
 
-Four slots at these pitches span 82 / 63 mm inside the 116 mm cavity, so there
+Four slots at these spacings span 86 / 98 mm inside the 116 mm cavity, so there
 is room for the flow to spread at both ends. That is also what makes it cheap to
 manufacture: one socket, one standoff, one repeat unit, eight times, with no
 machined parts and no windows to align.
@@ -262,7 +265,7 @@ same schema.
 | Qwiic / STEMMA QT port (JST-SH 4-pin) | $0.15–0.25 |
 | Keyed 2.54 mm 1×6 socket | $0.10 |
 | 10 kΩ series resistor on `DO` | $0.005 |
-| 0.1 in pads in parallel | — |
+| JST-SH port as built; 0.1 in pads are a carrier option | — |
 | 1-Wire pull-up (one, for the whole base) | — |
 | **Base overhead per slot** | **≈ $0.30** |
 | 1-Wire EEPROM — *on the cartridge, not the base* | $0.15–0.50 |
@@ -271,23 +274,25 @@ Eight slots therefore add roughly $2.50 to the base. The cost that matters sits
 on the module side, and it is one EEPROM, which is what makes per-cell
 calibration possible.
 
-## 9. What the current board does not match yet
+## 9. As-built conformance (OSM-1 board)
 
-`tools/verify_module_fit.py` reports these against the as-built revision; the
-board rows are the OSM-1 re-lay work, in this order:
+`tools/verify_module_fit.py` checks the chamber, the socket contract and the
+module database. The four gaps that existed before OSM-1 are closed on the board
+in the tree:
 
-| Gap | As-built | Standard |
-|-----|----------|----------|
-| `ID` pin on the gas-cell socket | 5 pins, no ID | 6 pins, §2.1 |
-| Qwiic port at every slot | digital row only, 0.1 in headers | one JST-SH port per slot |
-| Series protection on `DO` | direct to the GPIO | 10 kΩ in series |
-| Analog inputs | one 4-channel ADC | two (8 slots) |
+| Earlier gap | As-built OSM-1 board |
+|-------------|----------------------|
+| `ID` pin on the gas-cell socket | 1×6 keyed socket at all eight slots (J2–J9), pin 6 `ID` on one shared 1-Wire bus with one 4.7 kΩ pull-up (GPIO 33), §2.1 |
+| Qwiic port at every slot | J11–J18, one JST-SH 4-pin port per slot, each on its own TCA9548A channel |
+| Series protection on `DO` | 10 kΩ in series per slot before the ESP32 GPIO |
+| Analog inputs | two ADS1115s: U2 `0x48` slots 0–3, U8 `0x49` slots 4–7, with 10 k/10 k AO dividers |
 
-The board outline is no longer a gap: `Edge.Cuts` carries the four boss cut-outs
+The board outline fits the tray: `Edge.Cuts` carries the four boss cut-outs
 (r = 4.3 mm) and `J1` sits at (14, 6) behind the Ø12 bulkhead hole. Both are
-measured by `tools/verify_pcb.py`.
+measured by `tools/verify_pcb.py`. The board is headless: no OLED is fitted.
 
-The cartridge pose is the module maker's side of the same contract, not a base
-board change: the base's vertical sockets already take a right-angle header, so
-a module that ships a straight header stands up and points its inlet at its
-neighbour. §4 is where that rule lives.
+What remains is on the module side, not the base board: three caliper numbers per
+module are a module maker's conformance check, and a bare SMD part, a TO-5 can or
+a Ø23.5 mm Winsen can goes on an OSM-1 carrier. The base's vertical sockets take
+a right-angle header, so a module that ships a straight header stands up and
+points its inlet at its neighbour; §4 is where that rule lives.

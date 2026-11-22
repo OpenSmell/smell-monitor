@@ -79,20 +79,24 @@ namespace {
 }
 
 bool Adc::begin() {
-  if (!i2c_present(ADDR_ADS1115)) return false;
-  // Point the pointer at the config register once; conversions use it below.
-  Wire.beginTransmission(ADDR_ADS1115);
-  Wire.write(0x01);
-  Wire.endTransmission();
+  if (!i2c_present(ADDR_ADS1115_A) || !i2c_present(ADDR_ADS1115_B)) return false;
+  // Point each device's pointer at the config register once; conversions use
+  // it below.  Channels 0-3 live on A (0x48), 4-7 on B (0x49).
+  for (uint8_t a : {ADDR_ADS1115_A, ADDR_ADS1115_B}) {
+    Wire.beginTransmission(a);
+    Wire.write(0x01);
+    Wire.endTransmission();
+  }
   return true;
 }
 
 int16_t Adc::read_raw(uint8_t channel) {
+  const uint8_t addr = (channel < 4) ? ADDR_ADS1115_A : ADDR_ADS1115_B;
   // MUX bits 14..12: 100..111 = AIN0..AIN3 single-ended vs GND.
   uint16_t cfg = ADS_OS | ADS_MODE | ADS_PGA | ADS_SPS | ADS_COMP
                | (uint16_t)((0x04 + (channel & 0x03)) << 12);
 
-  Wire.beginTransmission(ADDR_ADS1115);
+  Wire.beginTransmission(addr);
   Wire.write(0x01);
   Wire.write((uint8_t)(cfg >> 8));
   Wire.write((uint8_t)(cfg & 0xFF));
@@ -101,10 +105,10 @@ int16_t Adc::read_raw(uint8_t channel) {
   // Wait for the single-shot conversion (128 SPS is ~7.8 ms).
   delay(9);
 
-  Wire.beginTransmission(ADDR_ADS1115);
+  Wire.beginTransmission(addr);
   Wire.write(0x00);
   if (Wire.endTransmission(false) != 0) return 0;
-  if (Wire.requestFrom((int)ADDR_ADS1115, 2) != 2) return 0;
+  if (Wire.requestFrom((int)addr, 2) != 2) return 0;
   uint8_t hi = Wire.read();
   uint8_t lo = Wire.read();
   return (int16_t)((hi << 8) | lo);

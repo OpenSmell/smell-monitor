@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Generate the OpenSmell v1.1 PCB from the validated board model (board.py).
 
 The board model owns the truth (which part, which pin, which net, which
@@ -19,6 +19,13 @@ Run with KiCad's own Python (it ships pcbnew):
 import math
 import os
 import sys
+
+# KiCad ships its own interpreter, so the user site (kiutils, used by
+# electrical/board.py) is not on its path by default: add every one we find.
+import glob
+for _p in glob.glob(os.path.expandvars(r"%APPDATA%\Python\Python3*\site-packages")):
+    if os.path.isdir(_p):
+        sys.path.append(_p)
 
 sys.path.insert(0, r"C:\Users\PRAISE\AppData\Roaming\Python\Python313\site-packages")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -41,14 +48,24 @@ PCB_W, PCB_D = CONST["PCB_X"], CONST["PCB_Y"]
 # from the chamber contract; everything else is grouped by subsystem.
 # ---------------------------------------------------------------------------
 PLACE = {
-    # --- sensing headers: exactly on the chamber wells ---------------------
-    # Flow order is front -> rear, so the digital row is the UPSTREAM row
-    # (board y 28.5 ~ shell y 33) and the analog row is downstream of it
-    # (board y 70.5 ~ shell y 75).  Y from interface.ANALOG/DIGITAL_HEADERS.
-    "J2": (18.0, 70.5, 0), "J3": (44.0, 70.5, 0),
-    "J4": (70.0, 70.5, 0), "J5": (96.0, 70.5, 0),
-    "J6": (25.5, 28.5, 0), "J7": (46.5, 28.5, 0),
-    "J8": (67.5, 28.5, 0), "J9": (88.5, 28.5, 0),
+    # --- sensing sockets: exactly on the chamber contract ------------------
+    # Flow order is front -> rear, so J6..J9 are the UPSTREAM row (board
+    # y 28.5 ~ shell y 33) and J2..J5 are downstream (board y 70.5 ~ shell
+    # y 75).  Y comes from interface.ANALOG/DIGITAL_HEADERS.
+    # 90 deg: the pin line runs ACROSS the flow, so a 20 mm cartridge can sit
+    # on the 22 mm front-row pitch and reach 32 mm downstream (standard).
+    "J2": (18.0, 70.5, 90), "J3": (44.0, 70.5, 90),
+    "J4": (70.0, 70.5, 90), "J5": (96.0, 70.5, 90),
+    "J6": (25.5, 28.5, 90), "J7": (47.5, 28.5, 90),
+    "J8": (69.5, 28.5, 90), "J9": (91.5, 28.5, 90),
+    # --- Qwiic ports: one per slot, in front of its socket ----------------
+    # The cartridge plugs into the socket and extends rearward, so the strip
+    # in front of each socket is open: the Qwiic plug goes in with the module
+    # seated, and the cable stays inside the module's own footprint.
+    "J11": (18.0, 64.0, 0), "J12": (44.0, 64.0, 0),
+    "J13": (70.0, 64.0, 0), "J14": (96.0, 64.0, 0),
+    "J15": (25.5, 22.0, 0), "J16": (47.5, 22.0, 0),
+    "J17": (69.5, 22.0, 0), "J18": (91.5, 22.0, 0),
     # --- USB + power, front strip ------------------------------------------
     # J1 is 14 mm in, not 10: the tray's front-left boss needs an r = 4.3 mm
     # cut-out, and a USB-C receptacle whose courtyard reaches x = 4.7 would sit
@@ -57,44 +74,57 @@ PLACE = {
     "J1": (14.0, 6.0, 0),
     "R1": (21.0, 6.0, 0), "R2": (24.0, 6.0, 0),
     "U7": (31.0, 8.0, 0),
-    "C7": (42.0, 6.0, 0), "C9": (46.0, 6.0, 0),
+    "C9": (42.0, 6.0, 0), "C12": (46.0, 6.0, 0),
     "C10": (50.0, 6.0, 0), "C11": (54.0, 6.0, 0),
-    "C12": (58.0, 6.0, 0), "C8": (62.0, 6.0, 0),
     "SW1": (74.0, 12.0, 0), "SW2": (83.0, 12.0, 0), "SW3": (92.0, 12.0, 0),
-    "R11": (102.0, 16.0, 0),
-    # --- ADC + sensor + mux, centre band ----------------------------------
-    "U2": (14.0, 50.0, 0), "C3": (19.0, 50.0, 0),
-    "U5": (14.0, 44.0, 0), "C5": (19.0, 44.0, 0),
-    "U4": (34.0, 50.0, 0), "C4": (40.0, 50.0, 0),
-    "U3": (100.0, 50.0, 90), "C6": (100.0, 43.0, 0),
-    "U6": (108.0, 46.0, 0),
-    "C1": (78.0, 54.0, 0), "C2": (78.0, 44.0, 0),
-    "R18": (84.0, 54.0, 0), "R19": (88.0, 54.0, 0), "R20": (92.0, 54.0, 0),
-    "R15": (36.0, 59.0, 0), "R16": (39.5, 59.0, 0), "R17": (43.0, 59.0, 0),
-    # --- analog dividers (slot AO -> ADS1115) -----------------------------
-    # 39 mm, not 41: at 41 their part numbers collide with U5/C5 silkscreen
-    # (DRC silk_overlap) and there is nothing else in the 35-42 mm band.
-    "R3": (14.0, 39.0, 0), "R4": (17.5, 39.0, 0),
-    "R5": (21.0, 39.0, 0), "R6": (24.5, 39.0, 0),
-    "R7": (28.0, 39.0, 0), "R8": (31.5, 39.0, 0),
-    "R9": (35.0, 39.0, 0), "R10": (38.5, 39.0, 0),
-    # --- digital-channel pull-ups (SD/SC) ---------------------------------
-    "R21": (8.0, 57.0, 0), "R22": (11.5, 57.0, 0),
-    "R23": (15.0, 57.0, 0), "R24": (18.5, 57.0, 0),
-    "R25": (22.0, 57.0, 0), "R26": (25.5, 57.0, 0),
-    "R27": (29.0, 57.0, 0), "R28": (32.5, 57.0, 0),
+    # --- AO dividers + DO series, left of the centre line ------------------
+    # Three shallow rows under the upstream cartridges: DO series nearest the
+    # sockets (short 5 V stub), then the two divider rows.
+    "R19": (8.0, 33.0, 0), "R20": (11.5, 33.0, 0),
+    "R21": (15.0, 33.0, 0), "R22": (18.5, 33.0, 0),
+    "R23": (22.0, 33.0, 0), "R24": (25.5, 33.0, 0),
+    "R25": (29.0, 33.0, 0), "R26": (32.5, 33.0, 0),
+    "R3": (8.0, 37.0, 0), "R4": (11.5, 37.0, 0),
+    "R5": (15.0, 37.0, 0), "R6": (18.5, 37.0, 0),
+    "R7": (22.0, 37.0, 0), "R8": (25.5, 37.0, 0),
+    "R9": (29.0, 37.0, 0), "R10": (32.5, 37.0, 0),
+    "R11": (8.0, 40.5, 0), "R12": (11.5, 40.5, 0),
+    "R13": (15.0, 40.5, 0), "R14": (18.5, 40.5, 0),
+    "R15": (22.0, 40.5, 0), "R16": (25.5, 40.5, 0),
+    "R17": (29.0, 40.5, 0), "R18": (32.5, 40.5, 0),
+    # --- ADC pair + sensor + mux, centre band ------------------------------
+    "U5": (12.0, 48.0, 0), "C5": (17.0, 48.0, 0),
+    "U2": (26.0, 48.0, 0), "C3": (31.0, 48.0, 0),
+    "U8": (38.0, 48.0, 0), "C6": (43.0, 48.0, 0),
+    "U4": (52.0, 48.0, 0), "C4": (58.0, 48.0, 0),
+    "U3": (100.0, 50.0, 90), "C7": (109.5, 50.0, 0),
+    "C8": (109.5, 44.0, 0),
+    # --- bus pull-ups + housekeeping --------------------------------------
+    "R31": (36.0, 58.0, 0), "R32": (39.5, 58.0, 0),
+    "R33": (43.0, 58.0, 0), "R37": (46.5, 58.0, 0),
+    "R38": (8.0, 53.0, 0), "R39": (11.5, 53.0, 0),
+    "R40": (15.0, 53.0, 0), "R41": (18.5, 53.0, 0),
+    "R42": (22.0, 53.0, 0), "R43": (25.5, 53.0, 0),
+    "R44": (29.0, 53.0, 0), "R45": (32.5, 53.0, 0),
+    "R46": (8.0, 59.0, 0), "R47": (11.5, 59.0, 0),
+    "R48": (15.0, 59.0, 0), "R49": (18.5, 59.0, 0),
+    "R50": (22.0, 59.0, 0), "R51": (25.5, 59.0, 0),
+    "R52": (29.0, 59.0, 0), "R53": (32.5, 59.0, 0),
+    "R34": (84.0, 54.0, 0), "R35": (88.0, 54.0, 0), "R36": (92.0, 54.0, 0),
     # --- controller: at the top edge, antenna overhangs the board ---------
     # 94.4, not 95.0: at 95.0 the module outline silk pokes 0.18 mm past the
     # top Edge.Cuts and trips silk_edge_clearance.  The antenna keep-out still
     # overhangs the edge by >20 mm either way, so nothing electrical changes.
     "U1": (68.0, 94.4, 0),
+    "C1": (46.0, 92.0, 0), "C2": (50.0, 92.0, 0),
     # --- outputs, rear strip -----------------------------------------------
     # BZ1 moved from the rear-left corner (12, 93): the rear-left boss needs an
     # r = 4.3 cut-out and the buzzer's 10.2 mm body sat inside it.
-    "BZ1": (12.0, 84.0, 0), "Q2": (24.0, 92.0, 0),
-    "R12": (29.0, 90.0, 0), "R13": (32.0, 90.0, 0),
-    "LED1": (40.0, 94.0, 0), "R14": (36.5, 94.0, 0),
-    "Q1": (100.0, 88.0, 0), "J10": (108.0, 88.0, 90),
+    "BZ1": (12.0, 84.0, 0), "D1": (12.0, 92.0, 0),
+    "Q2": (24.0, 92.0, 0),
+    "R28": (29.0, 90.0, 0), "R29": (32.0, 90.0, 0),
+    "LED1": (40.0, 94.0, 0), "R30": (36.5, 94.0, 0),
+    "Q1": (100.0, 88.0, 0), "J10": (108.0, 88.0, 90), "R27": (96.0, 88.0, 0),
 }
 
 
@@ -148,6 +178,13 @@ def set_rules(board):
     spots, so a 0.15 mm nominal would let it draw 0.075 mm traces.  At 0.30 mm
     nominal the narrowest trace it produces is 0.15 mm, i.e. still above the
     fab minimum.
+
+    Current: eight 150 mA gas cells plus the fan put up to 1.4 A on the 5 V
+    trunk.  IPC-2221 for a 0.30 mm external trace of 1 oz copper gives about
+    21 C rise at that current (the fan moves air through the chamber), so no
+    narrower class is used and the ground return is poured rather than routed.
+    A 0.50 mm class does not route on this 2-layer board: FreeRouting leaves 15
+    connections open, so the width is a routing constraint, not a preference.
     """
     ds = board.GetDesignSettings()
     ds.m_MinClearance = pcbnew.FromMM(0.15)

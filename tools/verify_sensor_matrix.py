@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Numeric acceptance gate for the OpenSmell sensor matrix.
 
-Fails (exit 1) if the sensor pool is malformed, if a sensor cannot be placed in
-any bank (iface/bank inconsistency), if the recommended pack does not cover
-every persona axis, if it overruns the fixed 4+4 bank, or if the resulting rail
-draw exceeds the supply. Mirrors tools/verify_electrical.py and
+Fails (exit 1) if the sensor pool is malformed, if a sensor cannot be placed on
+a slot's connection class (iface inconsistency), if the recommended pack does
+not cover every persona axis, if it overruns the uniform 8-slot base, or if the
+resulting rail draw exceeds the supply. Mirrors tools/verify_electrical.py and
 tools/verify_cad.py: a green run is the gate before the BOM is trusted.
 
 Run:  python tools/verify_sensor_matrix.py
@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(ROOT, "electrical"))
 import sensor_matrix as SM  # noqa: E402
 from sensor_data import GASES as _GASES  # noqa: E402
 
-SLOT_COUNT = sum(SM.BANK_CAP.values())   # derived from CONST (4 analog + 4 digital)
+SLOT_COUNT = SM._N_SLOTS            # all slots are identical (OSM-1)
 MIN_PRINCIPLES = 4       # MOX + EC + NDIR + T/RH across pack + base
 
 # --- system rail constants (blueprint 5.8) ---------------------------------
@@ -52,7 +52,7 @@ def main():
               "+".join(s["axes"]) if s["axes"] else "NONE")
         check(s.get("principle") and s.get("iface") in ("analog", "i2c"),
               "iface hostable: %s" % s["name"],
-              "%s (no UART/SPI bank exists)" % s.get("iface"))
+              "%s (no UART/SPI slot exists)" % s.get("iface"))
         check(s["power"] > 0 and s["cost"] > 0,
               "power/cost positive: %s" % s["name"])
     # a profile key outside GASES is silently dropped by orthogonality.matrix,
@@ -73,22 +73,22 @@ def main():
     check(not bad_inf, "inferred keys are subset of profile",
           "" if not bad_inf else str(bad_inf))
 
-    print("== slot placement (iface vs physical bank) ==")
+    print("== slot placement (iface vs connection class) ==")
     for s in SM.SENSORS:
         slot = s.get("slot")
         check(slot in ("analog", "digital", "base"),
               "slot declared: %s" % s["name"], str(slot))
         if slot == "analog":
-            # analog bank: 5V|3V3|GND + AO + DO -- no SDA/SCL, no UART pin, so
+            # socket: 5V|3V3|GND + AO + DO -- no SDA/SCL, no UART pin, so
             # a UART-only module cannot be read here (MH-Z19C/ZE03 expose Vout
             # and are therefore encoded iface="analog").
             check(s["iface"] == "analog",
-                  "analog bank hostable: %s" % s["name"],
+                  "socket hostable: %s" % s["name"],
                   "%s (via AO; no UART/I2C pins)" % s["iface"])
         elif slot == "digital":
-            # digital bank: 3V3|GND + SDA|SCL|INT|CTRL -- no 5 V, no UART
+            # Qwiic: 3V3|GND + SDA|SCL -- no 5 V, no UART
             check(s["iface"] == "i2c",
-                  "digital bank hostable: %s" % s["name"],
+                  "Qwiic hostable: %s" % s["name"],
                   "%s (needs 3.3 V I2C; no 5 V here)" % s["iface"])
         elif slot == "base":
             check(s["iface"] == "i2c",
@@ -98,7 +98,7 @@ def main():
     check(bool(SM.BASE_SENSORS), "base present", ", ".join(SM.BASE_SENSORS))
     check(set(SM.BASE_SENSORS) <= set(names), "base sensors exist in pool")
 
-    print("== persona coverage (within starter pack, 4+4 banks) ==")
+    print("== persona coverage (within starter pack) ==")
     starter = set(SM.RECOMMENDED_PACK)
     pack_cov = SM.covered(starter) | SM.base_axes()
     for p, axes in SM.PERSONAS.items():
@@ -108,14 +108,14 @@ def main():
               "starter pack covers persona: %s" % p,
               "" if set(axes) <= pack_cov
               else "MISS %s" % sorted(set(axes) - pack_cov))
-        # ... and its pack-subset is solvable inside the banks.
+        # ... and its pack-subset fits the 8 identical slots.
         got, miss = SM.select(axes, within=SM.RECOMMENDED_PACK)
         na = sum(1 for n in got if SM._BYNAME[n]["slot"] == "analog")
         nd = sum(1 for n in got if SM._BYNAME[n]["slot"] == "digital")
-        fits = na <= SM.BANK_CAP["analog"] and nd <= SM.BANK_CAP["digital"]
+        fits = na + nd <= SLOT_COUNT
         subset = set(got) <= starter
         check(not miss and fits and subset,
-              "persona subset in pack/banks: %s" % p,
+              "persona subset in pack: %s" % p,
               "%d module(s) A%d/D%d" % (len(got), na, nd)
               if not miss else "MISS %s" % miss)
 
@@ -127,11 +127,11 @@ def main():
           "covers union of all personas (incl. base)",
           "" if not SM.RECOMMENDED_MISSING else "MISS %s" % SM.RECOMMENDED_MISSING)
     check(len(d) <= SLOT_COUNT,
-          "fits the fixed 8-slot bank", "%d <= %d slots" % (len(d), SLOT_COUNT))
-    check(na <= SM.BANK_CAP["analog"],
-          "analog bank within cap", "%d <= %d" % (na, SM.BANK_CAP["analog"]))
-    check(nd <= SM.BANK_CAP["digital"],
-          "digital bank within cap", "%d <= %d" % (nd, SM.BANK_CAP["digital"]))
+          "fits the uniform 8-slot base", "%d <= %d slots" % (len(d), SLOT_COUNT))
+    check(na <= SLOT_COUNT,
+          "socket modules within the slot count", "%d <= %d" % (na, SLOT_COUNT))
+    check(nd <= SLOT_COUNT,
+          "Qwiic modules within the slot count", "%d <= %d" % (nd, SLOT_COUNT))
     system = d + SM.BASE_SENSORS
     check(MIN_PRINCIPLES <= SM.principle_diversity(system),
           "principle diversity >= %d (pack + base)" % MIN_PRINCIPLES,

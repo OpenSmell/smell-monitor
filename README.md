@@ -1,13 +1,13 @@
 # Smell Monitor — Open-Source Digital Olfaction Hardware
 
-**Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced. The module interface is fixed by **`docs/module-standard.md`** (OpenSmell Module Standard v1, OSM-1, blueprint §4.9); the board in the tree is still the revision that predates it, and `tools/verify_module_fit.py` prints every remaining gap as an open item.
+**Status:** Design locked and consolidated in the single source of truth — **`docs/blueprint.md`** (OS-BP-001). Schematic ERC-clean, PCB placed + routed + **DRC-clean** (reproducible pipeline), firmware compiling, model + HLR drawing set produced. The board implements **`docs/module-standard.md`** (OpenSmell Module Standard v1, OSM-1, blueprint §4.9): eight identical slots, each with a keyed 1×6 gas-cell socket and a Qwiic port.
 
 The enclosure is the simple one a builder can hold in their head: an open tray,
 a board on four standoffs, modules plugged into eight headers, a flat lid with
 four M3 screws, a filter pad that drops into the front, and a 40 mm fan on the
 back. No baffle, no plenum, no separate panel. Service is four screws.
 
-The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$50–150 BOM), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
+The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$37 base + $60–110 for a starter sensor pack), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
 
 **You** choose the sensors. **It** supplies the repeatable pneumatic environment, clean power, 16-bit acquisition, and logged temperature/humidity to make their outputs comparable.
 
@@ -15,7 +15,7 @@ The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. I
 
 | | Smell Monitor | Commercial e-noses |
 |---|---|---|
-| Price | ~$50–150 BOM | $8k–100k+ |
+| Price | ~$37 base + sensor pack | $8k–100k+ |
 | Architecture | Open, modular, sensor-agnostic | Closed, proprietary |
 | Sensors | You plug in whatever fits a slot | Vendor-locked array |
 | Users | Researchers, makers, small business | Large enterprise / regulated QC |
@@ -24,20 +24,41 @@ We're not competing on certified precision. We're building the *Arduino of noses
 
 ## Key features
 
-- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md); rewiring the board in the tree to it is the OSM-1 re-lay.
-- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), a chamber with PTFE-lined wetted surfaces (no smell memory), a permanent washable inert mesh filter (zero recurring cost), and the board itself as the chamber floor.
+- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md).
+- **Repeatable measurements:** active three-phase cycle (intake → hold → purge), a chamber with PTFE-lined wetted surfaces (no smell memory), a permanent washable woven-PTFE mesh filter (zero recurring cost), and the board itself as the chamber floor.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
 - **Open:** KiCad source, orderable BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. `bom-costed.csv` carries the manufacturer part numbers, supplier and an indicative qty-10 price for every line; `electrical/bom.csv` is the designator/value/footprint/qty view the build uses.
 
 ## How it works, in one paragraph
 
 Air is pulled through three Ø6 nostrils in the front wall, through a serviceable
-filter pad, over the flat module row (digital upstream, the hot MOX row last)
-and out through a 40 mm fan in the back. There is no baffle and no well: a
-module plugs into its header and its sensing face looks straight into the moving
-sample. Readings stay comparable because the cycle is driven (intake → hold →
-purge) and every record carries slot index, flow position, temperature,
-humidity, and the module's identity and calibration from its 1-Wire EEPROM.
+filter pad, over the near module row and then the far module row, and out through
+a 40 mm fan in the back. There is no baffle and no well: a module plugs into its
+header and its sensing face looks straight into the moving sample. Readings stay
+comparable because the cycle is driven (intake → hold → purge) and every record
+carries slot index, flow position, temperature, humidity, and the module's
+identity and calibration from its 1-Wire EEPROM.
+
+## See it in 3D
+
+These are generated from `mechanical/constants.py` by
+`python tools/visualize_assembly.py` — not hand-drawn. In the PCB top view,
+**air enters at the bottom of the screen** (three front nostrils) and exits at
+the **top** (rear fan). The cartridge pin lines run left↔right; the cartridges
+lie flat and point downstream (up-screen).
+
+| View | File |
+|---|---|
+| Exploded isometric | `docs/figures/cad/assembly_exploded_iso.png` |
+| Exploded top | `docs/figures/cad/assembly_exploded_top.png` |
+| Exploded side | `docs/figures/cad/assembly_exploded_side.png` |
+| Assembled | `docs/figures/cad/assembly_assembled_iso.png` |
+| Airflow top | `docs/figures/cad/assembly_flow_top.png` |
+| Assembly animation (GIF) | `docs/figures/cad/assembly_animation.gif` |
+
+![Exploded assembly](docs/figures/cad/assembly_exploded_iso.png)
+
+![Airflow top view](docs/figures/cad/assembly_flow_top.png)
 
 ## Product Specification — Assembly & Functionality
 
@@ -91,13 +112,15 @@ openings penetrate the chamber.
 Eight OSM-1 cartridges plug into keyed 1×6 gas-cell sockets, one per slot.
 Every slot also carries a Qwiic/STEMMA QT port. Cartridges mount flat
 (right-angle header in a vertical socket), sensing face up, looking straight
-into the moving sample. Digital row upstream; MOX row downstream. Tool-free
-swap in under 60 seconds.
+into the moving sample. Any module goes in any slot: the front row sees the
+sample first, the rear row last, and every record names the slot it came from.
+Tool-free swap in under 60 seconds.
 
 ### Step 4 — Filter
-A washable sintered stainless-steel or PTFE mesh filter drops into the front
-drawer. It stops dust and hair only — it does not strip analytes and it never
-needs replacing. Rinse under tap water, dry, reinsert.
+A washable woven-PTFE mesh drops into the front drawer. It is thin and open
+enough that a 40 mm fan pulls through it without meaningful pressure loss; it
+stops dust and hair only, does not strip analytes, and never needs replacing.
+Rinse under tap water, dry, reinsert.
 
 ### Step 5 — Lid
 A flat 6 mm PETG lid seals the chamber with four M3 screws into heat-set
@@ -115,13 +138,13 @@ labels/notes. Wi-Fi and BLE are optional (same data over the air).
 ### Pneumatic flow path
 
 ```
-  3 × Ø6 nostrils → washable inert filter → digital row (upstream)
-                                              → MOX row (downstream)
-                                              → 40 mm fan exhaust (rear)
+  3 × Ø6 nostrils → washable woven-PTFE mesh filter → near row (upstream)
+                                                   → far row (downstream)
+                                                   → 40 mm fan exhaust (rear)
 ```
 
-Air is pulled through the front, crosses the filter, passes the digital row
-then the hot MOX row last, and exits through the rear fan. No baffle, no plenum,
+Air is pulled through the front, crosses the filter, passes the near module row
+then the far module row, and exits through the rear fan. No baffle, no plenum,
 no well — a plugged-in cartridge already has unobstructed air over its sensing
 face.
 
@@ -135,15 +158,16 @@ not prices.
 
 | Item | ~ |
 |---|---|
-| PCB, 114 × 105 mm, 2-layer, 5 pcs | $3 |
-| Board parts: ESP32-WROOM, ADC, I²C mux, LDO, passives, connectors | $16 |
-| 8 × keyed 1×6 gas-cell sockets + 8 × Qwiic ports | $4 |
-| SHT31 reference module | $4 |
-| 40 mm 5 V PWM fan | $6 |
-| Permanent washable inert mesh filter (sintered SS or PTFE) | $2 |
-| PETG + PTFE-lined stock | $8 |
-| M3 thumb screws + heat-set inserts | $3 |
-| **Base, no sensors** | **≈ $48** |
+| PCB, 114 × 105 mm, 2-layer, 5 pcs | $3.50 |
+| Board parts: ESP32-WROOM, 2 × ADC, I²C mux, LDO, passives | $19.50 |
+| 8 × keyed 1×6 gas-cell sockets + 8 × Qwiic ports | $3.80 |
+| SHT31 reference sensor | $3.60 |
+| 40 mm 5 V PWM fan | $3.50 |
+| Permanent washable woven-PTFE mesh filter | $2 |
+| PETG + PTFE-lined stock | $3.50 |
+| M3 thumb screws + heat-set inserts | $0.60 |
+| USB-C bulkhead pigtail + cable | $4.50 |
+| **Base, no sensors** | **≈ $37** |
 | Starter pack: MQ-135, MQ-136, MICS-6814 carrier, ZE03-C2H4, SCD40 | $60–110 |
 
 ## Repository layout
@@ -213,8 +237,7 @@ hand-verified numbers:
 - [x] Enclosure CAD — `mechanical/step/smell_monitor_assembly.step` exported (FreeCAD model + shell/lid STEPs alongside); PTFE-lined tray + lid per `docs/blueprint.md` §15; `mechanical/constants.py` is the single source
 - [x] Physical flow bench validation plan — `docs/VALIDATION_PLAN.md` (NF1 flow bench, tracer breakthrough, purge completeness, row-to-row cascade, pass/fail t63/t90)
 - [x] HIL → Osmograph integration test — `tools/hil_simulator.py` + `osmograph-desktop/scripts/test-hil-qc.mjs`; all 5 QC flags raise the correct red pill against the live frontend, clean stream stays green
-- [x] Animation-level hardware spec — `pitch-showcase.html` (assembly → plug-in → cycle → QC loop → manufacturing hand-off)
-- [ ] Fabrication pass (send Gerbers to board house)
+- [x] Fabrication package generated — Gerbers, Excellon drill, CPL and BOM in `electrical/smell_monitor_v1_1/fab/`
 
 ## Contributing
 

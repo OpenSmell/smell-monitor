@@ -51,7 +51,7 @@ CONST = {
     # two rows cannot touch.  Pitch is a BASE parameter (26 / 21 mm here), not a
     # module rule: a module only has to fit the socket and the envelope.
     "A_X": [22.0, 48.0, 74.0, 100.0], "A_Y0": 75.0,   # analog row, downstream
-    "D_X": [29.5, 50.5, 71.5, 92.5], "D_Y0": 33.0,    # digital row, upstream
+    "D_X": [29.5, 51.5, 73.5, 95.5], "D_Y0": 33.0,   # digital row, upstream
     "SOCK_N": 6, "SOCK_P": 2.54, "SOCK_H": 8.5,
     # nostrils: 3 x d6 on the front wall, pitch 26, centred, above the modules
     "NO_R": 3.0, "NO_Z": 30.0, "NO_PITCH": 26.0,
@@ -60,8 +60,11 @@ CONST = {
     # X is pinned to J1's board position plus the board origin (14 + 4), so the
     # pigtail plugs straight into the receptacle instead of jogging sideways.
     "USB_R": 6.0, "USB_X": 18.0, "USB_Z": 10.0,
-    # filter drawer: a 110 x 4 x 23 pad slides down between two side rails and
-    # is held by the lid.  It is the only consumable, and it costs cents.
+    # filter drawer: a 110 wide x 4 deep x 23 tall slot slides down between two
+    # side rails and is held by the lid.  It carries THIN WOVEN PTFE MESH (the
+    # 4 mm is the drawer depth, not a sintered panel); the mesh is the only
+    # consumable and costs cents.  A 4 mm sintered panel would drop ~3.8 kPa at
+    # 15 L/min against ~50 Pa of fan head, so it is physically impossible here.
     "FILT_Z0": 20.0, "FILT_T": 4.0,
     "RAIL_W": 3.0, "RAIL_D": 5.0,
     # fan: d40 x t10 on the rear plate, axis +Y, pulling air out of the box

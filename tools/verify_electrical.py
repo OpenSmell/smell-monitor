@@ -32,14 +32,15 @@ def main():
     pm = IF.PINMAP
 
     print("== closure ==")
-    for a, d in [(4, 4), (6, 6), (8, 8)]:
-        p = IF.build_pinmap(a, d)
+    for n in (4, 8, 12, 16):
+        p = IF.build_pinmap(n)
         tag = "I2C expander" if p["needs_expander"] else "MCU only"
-        print("   %dA+%dD: %2d signals vs %d pins -> %-12s %s"
-              % (a, d, p["mcu_signals"], p["capacity"], tag,
+        print("   %2d slots: %2d signals vs %d pins -> %-12s %s"
+              % (n, p["mcu_signals"], p["capacity"], tag,
                  p["warnings"] or ""))
 
     print("== pin map ==")
+    pm = IF.PINMAP
     gpio = list(pm["mcu"].values())
     check(len(gpio) == len(set(gpio)), "MCU GPIO assignments unique")
     check(all(g not in IF.PINS_STRAP for g in gpio),
@@ -51,11 +52,6 @@ def main():
           "no input-only pin used as output",
           str(sorted(set(out_pins) & set(IF.PINS_IN_ONLY))))
     check(not pm["warnings"], "pin budget closes without warnings")
-
-    if pm["expander"]:
-        lines = list(pm["expander"].values())
-        check(len(lines) == len(set(lines)) and max(lines) < 16,
-              "expander line count <= 16", "%d lines" % len(lines))
 
     print("== i2c ==")
     addrs = list(IF.I2C.values())

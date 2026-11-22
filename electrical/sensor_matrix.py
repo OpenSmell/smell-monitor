@@ -29,10 +29,12 @@ from sensor_data import AXES, SENSORS, BY_NAME as _BYNAME
 
 _AX = {s["name"]: set(s["axes"]) for s in SENSORS}
 
-# physical slot banks: capacity per bank derived from the mechanical model
-# (the single source), and the base (always-present) set. Changing A_X / D_X
-# in constants.py changes the bank here -- nothing re-types the count.
-BANK_CAP = {"analog": len(CONST["A_X"]), "digital": len(CONST["D_X"])}
+# Slot capacity.  The base is OSM-1: all slots are identical, so either
+# connection class (5 V analog cell or 3.3 V I2C module) can fill any slot.
+# The solver caps each class at the total slot count and the total at
+# max_slots, which is the real constraint.
+_N_SLOTS = len(CONST["A_X"]) + len(CONST["D_X"])
+BANK_CAP = {"analog": _N_SLOTS, "digital": _N_SLOTS}
 BASE_SENSORS = [s["name"] for s in SENSORS if s["slot"] == "base"]
 
 # --- personas: which axes a given user actually needs to distinguish --------
@@ -110,14 +112,14 @@ def _subsets(pool, cap, max_size):
 
 
 def select(required, max_slots=8, allow=None, prefer=None, within=None):
-    """Exact minimum set cover under the 4+4 bank capacities.
+    """Exact minimum set cover over the uniform slot base.
 
     Base sensors (SHT31) are always present and consume no slot; their axes are
-    pre-covered. Searches every (analog subset, digital subset) pair within the
-    bank capacities and returns the smallest pack. ``prefer`` (module names) is
-    a tie-break *after* count: among packs of equal size, the one using more of
-    ``prefer`` wins, then the cheaper one. ``within`` restricts the search to a
-    given module set (used to show a persona's subset of the starter pack).
+    pre-covered. Searches every (analog subset, digital subset) pair whose total
+    fits ``max_slots`` and returns the smallest pack. ``prefer`` (module names)
+    is a tie-break *after* count: among packs of equal size, the one using more
+    of ``prefer`` wins, then the cheaper one. ``within`` restricts the search to
+    a given module set (used to show a persona's subset of the starter pack).
 
     Returns (names, uncovered_axes).
     """
