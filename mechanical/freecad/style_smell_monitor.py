@@ -7,9 +7,8 @@ and colour) must be set through the real GUI application:
     "C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe" style_smell_monitor.py
 
 Run this AFTER build_smell_monitor.py whenever the model is rebuilt. The outer
-shell is painted translucent; everything else keeps an opaque or light
-translucent colour so the cavity, baffle, plenum, filter, nostrils, duct and
-fan read at a glance.
+shell is painted translucent; the lid, board, filter drawer, fan and screws keep
+distinct colours so the open tray reads at a glance.
 """
 import os
 
@@ -21,18 +20,20 @@ path = os.path.join(HERE, "smell_monitor.FCStd")
 d = App.openDocument(path)
 
 style = {
-    "Shell":    ((0.72, 0.74, 0.78), 55),  # translucent grey outer shell
-    "Baffle":   ((0.95, 0.62, 0.10), 0),   # amber sensor baffle
-    "PCB":      ((0.10, 0.50, 0.20), 0),   # green PCB lid
-    "Nostrils": ((0.85, 0.18, 0.18), 0),   # red intake bores
-    "Plenum":   ((0.35, 0.62, 0.95), 35),  # translucent blue plenum
-    "Filter":   ((0.90, 0.80, 0.30), 25),  # translucent yellow filter pack
-    "Duct":     ((0.55, 0.55, 0.60), 30),  # translucent grey taper duct
-    "Fan":      ((0.20, 0.35, 0.80), 20),  # translucent blue fan + shroud
+    "Shell":  ((0.72, 0.74, 0.78), 55),  # translucent grey outer shell
+    "Lid":    ((0.62, 0.68, 0.76), 45),  # translucent grey lid
+    "PCB":    ((0.10, 0.50, 0.20), 0),   # green chamber floor
+    "Filter": ((0.90, 0.80, 0.30), 25),  # translucent yellow mesh drawer
+    "Fan":    ((0.20, 0.35, 0.80), 20),  # translucent blue fan + shroud
+    "Screws": ((0.55, 0.55, 0.60), 0),   # steel M3 screws
 }
 
 for name, (color, transparency) in style.items():
-    vp = d.getObject(name).ViewObject
+    obj = d.getObject(name)
+    if obj is None:
+        print("skip (not in model):", name)
+        continue
+    vp = obj.ViewObject
     vp.ShapeColor = color
     vp.Transparency = transparency
     vp.LineColor = (0.15, 0.15, 0.15)

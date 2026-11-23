@@ -228,15 +228,16 @@ hand-verified numbers:
 - [x] Volume model + HLR drawing set — real hidden-line views → editable DXF + vector PDF (blueprint §12)
 - [x] Schematic generated from the model, ERC-clean, with netlist parity
 - [x] PCB placed + routed + DRC-clean, reproducibly (blueprint §12.1)
-- [x] Fab package (Gerbers + drill + CPL)
+- [x] Fab package (Gerbers + drill + CPL); board carries permanent silkscreen branding and is DRC-clean
 - [x] Firmware — three-phase cycle, USB/Wi-Fi/BLE, compiles clean
 - [x] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004 — `mechanical/drawings/sheets/` (SVG, ASME Y14)
 - [x] Enclosure CAD — `mechanical/step/smell_monitor_assembly.step` exported (FreeCAD model + shell/lid STEPs alongside); PTFE-lined tray + lid per `docs/blueprint.md` §15; `mechanical/constants.py` is the single source
-- [x] Physical flow bench validation plan — `docs/VALIDATION_PLAN.md` (NF1 flow bench, tracer breakthrough, purge completeness, row-to-row cascade, pass/fail t63/t90)
+- [x] Flow acceptance specification — `docs/VALIDATION_PLAN.md` (filter ΔP, tracer breakthrough, purge completeness, row-to-row cascade, pass/fail t63/t90)
 - [x] HIL stream sanity — `tools/hil_simulator.py --cycles 1` emits a valid `.osmell` record with all five QC injection paths available
 - [x] Fabrication package generated — Gerbers, Excellon drill, CPL and BOM in `electrical/smell_monitor_v1_1/fab/`
 - [x] Coded assembly + flow animation rendered from the routed PCB — `docs/figures/cad/` (storyboard and header proof included)
-- [~] CFD case run; t63/t90 are numerically diffusive and not claimed — `cfd/RESULTS.md`; physical flow bench remains open
+- [x] CFD case with corrected transient numerics and an automated Courant/continuity gate — `cfd/RESULTS.md` (run output imported with one command)
+- [x] Black-and-white plan and section drawing in the user manual — `docs/figures/cad/manual_linework.svg`
 
 ## Contributing
 

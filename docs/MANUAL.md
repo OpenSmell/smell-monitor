@@ -1,8 +1,8 @@
 # OpenSmell Smell Monitor — User Manual
 
 **Document:** OSM-UM-001  
-**Revision:** B  
-**Date:** 2026-11-22  
+**Revision:** C  
+**Date:** 2026-11-23  
 **Product:** Smell Monitor v1.1  
 **Firmware:** v1.1  
 **Companion software:** Osmograph desktop  
@@ -62,6 +62,15 @@ flowchart TB
     MCU -.->|Wi-Fi / BLE| UI
 ```
 
+![Figure 1 — Plan and longitudinal section of the sample path](figures/cad/manual_linework.png)
+
+**Figure 1.** The enclosure in plan (lid removed) and in section along the flow.
+Air enters through three Ø6 nostrils, passes the cleanable woven PTFE mesh,
+crosses the upstream row and then the downstream row in the 4.9 mm flow hood
+under the lid, and exits through the rear 40 mm fan. All eight sockets are
+identical; the top face of the base board is the chamber floor. The vector
+original is `figures/cad/manual_linework.svg`.
+
 **What the device does.** Draws a controlled air sample through three front
 nostrils, over eight interchangeable OSM-1 sensor cartridges, and records each
 response as a `.osmell` stream over USB-C. Every record fuses gas + pH + T/H:
@@ -95,29 +104,7 @@ cartridge fits any slot).
 
 ## 3. Hardware Tour
 
-```
-                    3 × Ø6 nostrils
-                 (sample enters here)
-                ┌─────────────────┐
-                │   FILTER DRAWER │  ← thin woven PTFE mesh, front
-                │   (removable)   │
-                ├─────────────────┤
-                │ SLOT 5  SLOT 6  │  ← front row, upstream (J6–J9)
-                │ SLOT 7  SLOT 8  │     slots 5–8, 22 mm spacing
-                ├─────────────────┤
-                │ SLOT 1  SLOT 2  │  ← rear row, downstream (J2–J5)
-                │ SLOT 3  SLOT 4  │     slots 1–4, 26 mm spacing
-                ├─────────────────┤
-                │   SHT31 T/RH    │  ← reference, fixed between rows
-                ├─────────────────┤
-                │   ESP32 + 2×ADC │  ← base board = chamber floor
-                └─────────────────┘
-                         │
-                    40 mm fan (exhaust)
-                    out the rear wall
-                         │
-                    USB-C (power + data)
-```
+Figure 1 shows the layout and the flow path; the parts are listed here.
 
 All eight slots are identical: gas-cell socket **and** Qwiic port at every
 position. Flow order is fixed front → rear; slot assignment is yours.
@@ -268,4 +255,4 @@ repository: github.com/OpenSmell/smell-monitor
 
 ---
 
-*End of manual — OSM-UM-001 Rev B*
+*End of manual — OSM-UM-001 Rev C*

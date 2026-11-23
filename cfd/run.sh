@@ -33,7 +33,7 @@ echo "converged field at t=$latest"
 echo "== tracer (unit step at the inlets) =="
 cp "$latest/U" 0/U
 cp system/controlDict.tracer system/controlDict
-scalarTransportFoam > log.tracer 2>&1
-tail -n 5 log.tracer
+scalarTransportFoam > log.scalarTransportFoam 2>&1
+tail -n 5 log.scalarTransportFoam
 
 python3 report.py

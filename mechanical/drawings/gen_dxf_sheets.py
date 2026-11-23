@@ -22,7 +22,7 @@ PDF/PNG are only plots.
 Outputs (mechanical/drawings/sheets/)
   OS-000.dxf / .png     assembly + exploded view + BOM
   OS-001.dxf / .png     shell
-  OS-002.dxf / .png     baffle plate
+  OS-002.dxf / .png     lid
   OpenSmell_v1.1_sheets.pdf        (3 pages, exact A3, vector)
 
 Pipeline:  FreeCAD build (model + HLR + axes)  ->  this script (sheets).

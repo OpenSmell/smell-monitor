@@ -97,17 +97,15 @@ def main():
     silk = []
     for d in b.GetDrawings():
         layer = b.GetLayerName(d.GetLayer())
-        line = polyline(d)
         if layer == "Edge.Cuts":
-            outline.append(line)
+            outline.append(polyline(d))
         elif layer == "F.Silkscreen":
-            if line:
-                silk.append(line)
-            elif hasattr(d, "GetText"):
-                try:
-                    silk.append({"text": d.GetText(), "pos": pt(d.GetPosition())})
-                except Exception:
-                    pass
+            if isinstance(d, pcbnew.PCB_TEXT):
+                silk.append({"text": d.GetText(), "pos": pt(d.GetPosition())})
+            elif isinstance(d, pcbnew.PCB_SHAPE):
+                line = polyline(d)
+                if line:
+                    silk.append(line)
 
     print("  outline/silk done", len(outline), len(silk), flush=True)
     tracks = []

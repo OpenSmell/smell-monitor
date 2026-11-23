@@ -1,38 +1,42 @@
-# CFD run status
+# CFD results
 
-**Case:** `cfd/` (OpenFOAM v10/v11, generated from `mechanical/constants.py`)
+**Case:** `cfd/` — OpenFOAM v10/v11, geometry generated from `mechanical/constants.py`.
 
-**Status:** the case has been run on Linux. Raw `postProcessing/` output and
-`log.*` files were **not committed** to this repository, so there is no machine
-readable report here yet. The surviving numerical note is in `cfd/README.md`.
+**Status:** the corrected case (v2) is committed. Run it on Linux with one
+command, then import the output with one command. The import writes the measured
+t63/t90 table together with the achieved Courant number, continuity error and
+cell count into this file, and archives the probe tables and logs under
+`cfd/results/<label>/`.
 
-## What the run established
-
-* The sample path is open: three inlets -> woven-PTFE filter -> eight uniform
-  sockets -> rear fan. `cfd/README.md` records max inlet velocity ~2 m/s at
-  15 L/min and continuity residual ~1e-9.
-* The simulated tracer jumps cells almost immediately: t63/t90 ~0.02 s at every
-  probe, against a plug-flow reference V/Q = 1.72 s.
-
-## What the run did not establish
-
-Those t63/t90 numbers are **not physical exchange times**. At 2 m/s through a
-1 mm cell the Courant number is O(10-20), and `Gauss upwind` adds numerical
-diffusion, so the scalar reaches 63 % by diffusion rather than advection. Do not
-use 0.02 s to size a timing cycle or to claim a row-to-row cascade. The physical
-flow bench in `docs/VALIDATION_PLAN.md` is the gate for real exchange times.
-
-## Import a real run
-
-If the Linux run output is still available:
+## Run on Linux
 
 ```sh
-python tools/import_cfd_report.py --case-dir /path/to/OpenFOAM/case --label linux-run
+cd cfd && bash run.sh
+cd .. && python3 tools/import_cfd_report.py --case-dir cfd --label linux-run
 ```
 
-The script copies the probe tables and logs into `cfd/results/<label>/` and
-rewrites this file with the parsed t63/t90 table, the run metadata, and the same
-limitation note. Re-run the gates listed in `docs/VALIDATION_PLAN.md` afterwards.
+`run.sh` builds the mesh, solves the steady flow, then steps a passive tracer on
+the frozen field. Both runs are deterministic and derive their geometry from
+`constants.py`. Add `--omit 3,6` to `run.sh` for the empty-slot interference
+study.
 
-Without that import, this file is the authoritative status: **run performed,
-raw results not in repo, physical timing validation still open**.
+## What changed in v2
+
+The v1 tracer pass used `ddtSchemes steadyState` with `Gauss upwind` at
+`deltaT = 0.02 s`. That is a discretisation error, not a result: steady ddt
+removes the time derivative and upwind at Courant ≈ 40 diffuses the scalar
+across cells in one step. The reported t63/t90 ≈ 0.02 s was the signature of
+that error and is superseded.
+
+v2 uses:
+
+| Setting | Value | Reason |
+|---|---|---|
+| `ddtSchemes` | `Euler` | real transient time-stepping |
+| `div(phi,T)` | `bounded Gauss limitedLinear 1` | bounded, second-order, low diffusion |
+| `deltaT` | `4e-4 s` | Courant ≤ 0.8 at the 2 m/s inlet jets through 1 mm cells |
+| `endTime` | `8 s` | well beyond the 1.72 s plug-flow reference |
+| probe interval | `0.25 s` | resolves the breakthrough curve |
+
+The importer rejects a run whose logged max Courant exceeds 1, so a bad solve
+cannot be committed as a good result.

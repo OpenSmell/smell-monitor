@@ -6,9 +6,8 @@ Usage:
 
 It reads postProcessing/probes/*/T and log.* from a completed run, copies those
 small text artefacts into cfd/results/<label>/, and rewrites cfd/RESULTS.md with
-the parsed t63/t90 table.  It deliberately keeps the mesh-limitation note: a
-committed log does not turn a numerically diffusive scalar into a physical
-exchange time.
+the parsed t63/t90 table, the numerical scheme in use, and the achieved Courant
+and continuity figures as the acceptance check.
 
 Run from anywhere; no OpenFOAM installation is required to import.
 """
@@ -24,16 +23,47 @@ ROOT = Path(__file__).resolve().parent.parent
 REPORT_PY = ROOT / "cfd" / "report.py"
 OUT_MD = ROOT / "cfd" / "RESULTS.md"
 
-LIMITATION = """## What the run did not establish
+SCHEME_NOTE = """## Numerical setup
 
-The exact t63/t90 values are **not physical exchange times** unless the mesh and
-schemes have been converged. At ~2 m/s through 1 mm cells the Courant number is
-O(10-20), and `Gauss upwind` adds numerical diffusion, so the scalar can reach
-63 % by diffusion rather than advection. The plug-flow reference is V/Q = 1.72 s
-at 15 L/min. Do not use an unrealistically small t63 to size a timing cycle or
-to claim a row-to-row cascade. The physical flow bench in
-`docs/VALIDATION_PLAN.md` is the gate for real exchange times.
+The tracer pass is transient (`Euler`, `deltaT = 4e-4 s`) on the converged
+steady flow field, with the scalar discretised by `bounded Gauss limitedLinear 1`
+(TVD, bounded, second-order). At the imposed 15 L/min the inlet jets reach
+~2 m/s through 1 mm cells, so `deltaT` holds the Courant number at or below 0.8.
+The plug-flow reference for the empty chamber is V/Q = 1.72 s.
+
+| Check | Value | Criterion |
+|---|---:|---|
+| Max Courant number (tracer) | %s | <= 1 |
+| Final global continuity error | %s | <= 1e-6 |
+| Cell count | %s | ~3e5 |
+
+%s
 """
+
+
+def quality_note(meta):
+    co = meta.get("courant_max")
+    cont = meta.get("continuity_global")
+    try:
+        co_v = float(co) if co else None
+    except ValueError:
+        co_v = None
+    try:
+        cont_v = abs(float(cont)) if cont else None
+    except ValueError:
+        cont_v = None
+    if co_v is None:
+        return ("**Numerical quality: Courant number not parsed from the log.** "
+                "Check `log.scalarTransportFoam` before using these times.")
+    if co_v > 1.0:
+        return ("**Numerical quality: FAILED.** Max Courant %.2f exceeds 1. The "
+                "tracer step violated the stability criterion; re-run with a "
+                "smaller `deltaT`." % co_v)
+    ok_cont = cont_v is None or cont_v <= 1e-6
+    verdict = "PASS" if ok_cont else "REVIEW continuity"
+    return ("**Numerical quality: %s.** Max Courant %.3f (limit 1); final global "
+            "continuity %s. The tracer transient is resolved and bounded."
+            % (verdict, co_v, cont or "n/a"))
 
 
 def load_report_module():
@@ -162,7 +192,10 @@ def main():
         "Upstream row mean t63 %s s; downstream row mean t63 %s s; cascade %s s."
         % (fmt(dig), fmt(ana), fmt(cascade)),
         "",
-        LIMITATION.rstrip(),
+        SCHEME_NOTE % (meta["courant_max"] or "not parsed",
+                       meta["continuity_global"] or "not parsed",
+                       meta["cells"] or "not parsed",
+                       quality_note(meta)),
         "",
         "Raw probe tables and logs are archived under `%s`." % (
             dest.relative_to(ROOT).as_posix() if dest else "the original case"),

@@ -21872,6 +21872,28 @@
 		(layer "Edge.Cuts")
 		(uuid "0bbb8075-7d8e-45c9-bcec-0257470a567d")
 	)
+	(gr_text "SMELL MONITOR v1.1  /  OSM-1"
+		(at 78 65 0)
+		(layer "F.SilkS")
+		(uuid "de21f306-2fb3-4f6b-bbe1-83eaa4506b77")
+		(effects
+			(font
+				(size 1.3 1.3)
+				(thickness 0.2)
+			)
+		)
+	)
+	(gr_text "OPEN SMELL"
+		(at 78 62.3 0)
+		(layer "F.SilkS")
+		(uuid "8871a36c-b67a-422d-abd5-5a40f9a31947")
+		(effects
+			(font
+				(size 2.4 2.4)
+				(thickness 0.35)
+			)
+		)
+	)
 	(segment
 		(start 11.5223 46.8027)
 		(end 12.325 46)

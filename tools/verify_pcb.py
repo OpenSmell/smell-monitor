@@ -194,6 +194,14 @@ check("filled bottom-layer GND return pour",
       f"{len(gnd_pours)} pour(s), filled="
       f"{gnd_pours[0].IsFilled() if gnd_pours else False}")
 
+# Permanent identity on the assembled board, added by tools/add_board_markings.py
+silk_text = [d.GetText() for d in board.GetDrawings()
+             if isinstance(d, pcbnew.PCB_TEXT)
+             and d.GetLayer() == pcbnew.F_SilkS]
+check("board carries silkscreen branding",
+      "OPEN SMELL" in silk_text and any("OSM-1" in t for t in silk_text),
+      f"{len(silk_text)} F.SilkS text item(s)")
+
 # --------------------------------- DRC --------------------------------------
 def kicad_cli():
     p = shutil.which("kicad-cli")

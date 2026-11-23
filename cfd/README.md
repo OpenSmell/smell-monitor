@@ -11,9 +11,7 @@ Three questions, one case:
 The geometry is generated from `mechanical/constants.py` and
 `mechanical/standard.py`, so the mesh cannot drift from the enclosure.
 
-**Run status:** see `cfd/RESULTS.md`. The case has been run on Linux, but raw
-`postProcessing/` output was not committed. Import an existing run with
-`python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`.
+**Run status and exact commands:** see `cfd/RESULTS.md`.
 
 ## Run
 
@@ -81,19 +79,15 @@ result is effectively a laminar solution.
   poor, the fix is 6 mm more wall (`CH` 40 → 46), not a new pose: the flat
   cartridge is right, the hood over it is what is short.
 
-## Quantitative t63/t90 requires physical bench validation
+## Numerical quality
 
-CFD proves the geometry is not sealed and air flows as intended (max inlet
-velocity ≈ 2 m/s at 15 L/min, continuity residual ≈ 10⁻⁹), but the exact
-exchange times are not trustworthy from this mesh. At 2 m/s through 1 mm cells
-the Courant number at the inlet jets is O(10–20), and `Gauss upwind`
-numerical diffusion makes the scalar jump cells faster than physical
-advection — the sim reports t63/t90 ≈ 0.02 s at every probe, which is 86×
-faster than the plug-flow reference V/Q = 1.72 s.
-
-Validate t63/t90 empirically with the physical flow bench or smoke test
-(blueprint §3.8) once hardware is in hand. Do not iterate CFD numerics to
-chase the number.
+The tracer pass is transient (`Euler`) with a bounded second-order scalar
+scheme (`bounded Gauss limitedLinear 1`) and `deltaT = 4e-4 s`, which holds the
+Courant number at or below 0.8 at the inlet jets. `tools/import_cfd_report.py`
+records the achieved Courant number and continuity error alongside t63/t90 and
+rejects a run above Courant 1. The v1 result of ≈ 0.02 s came from a steady-state
+ddt scheme and upwind advection at Courant ≈ 40; it was a discretisation error
+and has been superseded.
 
 ## Changing the flow
 

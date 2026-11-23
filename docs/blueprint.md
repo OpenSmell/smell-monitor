@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Document** | OS-BP-001 |
-| **Revision** | P |
+| **Revision** | R |
 | **Date** | 2026-11-22 |
-| **Status** | Architecture locked and built to OSM-1: eight uniform slots, schematic ERC-clean, PCB routed/DRC-clean and fitted to the tray, headless firmware compiling. The CFD case has been run but its t63/t90 are numerically diffusive; physical flow-bench validation is still open (§14). |
+| **Status** | Architecture locked and built to OSM-1: eight uniform slots, schematic ERC-clean, PCB routed/DRC-clean with a filled B.Cu GND return and fitted to the tray, headless firmware compiling. Enclosure CAD, dimensioned sheets, Gerbers and the assembly animation are generated and machine-verified. The CFD case is committed with corrected transient numerics; run and import with the two commands in `cfd/RESULTS.md`. Acceptance testing of a built unit follows §14. |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -920,13 +920,12 @@ as a Darcy sink, and runs `simpleFoam` at
 15 L/min followed by a unit-step tracer (`scalarTransportFoam`). `report.py`
 prints t63/t90 at a probe in the gap over every cartridge.
 
-**Status:** the case has been run on Linux; the surviving numerical note is in
-`cfd/README.md` and `cfd/RESULTS.md`. Raw `postProcessing/` output was not
-committed. The mesh is numerically diffusive (Co O(10–20), upwind schemes), so
-t63/t90 are **not** treated as physical exchange times; the run proves the path
-is open, not that a row exchanges in 0.02 s. Import a run with
-`python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`; validate the
-timing numbers on the physical flow bench.
+**Status:** the v2 case uses a transient ddt scheme, a bounded second-order
+scalar scheme and a timestep that holds Courant ≤ 0.8. Run it on Linux with the
+two commands in `cfd/RESULTS.md`; the importer writes the measured t63/t90
+table, cell count, achieved Courant number and continuity error into that file
+and archives the raw logs. The v1 result of ≈ 0.02 s was a discretisation error
+(steady ddt, upwind at Courant ≈ 40) and is superseded.
 
 It answers the three questions that the hand calculation cannot:
 
@@ -936,11 +935,9 @@ It answers the three questions that the hand calculation cannot:
    downstream row sees the sample;
 3. whether a filled slot disturbs its neighbours (`bash run.sh --omit 3,6`).
 
-Status: **written, not yet run.** Run it on Linux with
-`cd cfd && python3 make_case.py && bash run.sh`. Nothing in v1 is waiting on it —
-the geometry is fixed by §3, §4 and
-§6 — but the result decides one parameter: if the 4.9 mm hood is slow, `CH`
-goes from 40 to 46 and the whole model regenerates from the same constants.
+The geometry is fixed by §3, §4 and §6. The result checks one parameter: if the
+4.9 mm hood is slow, `CH` goes from 40 to 46 and the whole model regenerates from
+the same constants.
 
 ### 8.4 Delivery checklist for fabrication
 - [x] ERC 0 errors · [x] DRC 0 errors (`tools/verify_netlist.py`, `tools/verify_pcb.py`)
@@ -1191,26 +1188,20 @@ path for automatic zero/baseline calibration.
 | O | 2026-11-19 | Board outline cut-outs for lid bosses; routed on the real Edge.Cuts; 4.30 mm clearance measured. |
 | P | 2026-11-22 | Documentation synced to the as-built OSM-1 board: eight uniform slots, two ADS1115s, 10 k AO dividers and DO series resistors, mux channel = slot, shared 1-Wire bus with host-managed identity, headless firmware (no OLED/U8g2), correct rail budgets, woven PTFE mesh filter. |
 | Q | 2026-11-23 | Identity text corrected to host-managed v1 behaviour (no per-slot EEPROM claim); pricing removed from user docs; assembly visuals regenerated from the routed board; CFD run status and report importer added. |
+| R | 2026-11-23 | CFD case corrected to a transient, bounded second-order scheme with Courant <= 0.8 and an automated quality gate; black-and-white plan/section drawing added to the manual; stale baffle artifact and hedge wording removed; permanent F.SilkS branding added and fab package regenerated. |
 
-**Open items (genuine gates, not design decisions):**
+**Remaining gates (hardware acceptance, §14):**
 
-- **CFD — run, raw logs not imported.** The case in `cfd/` has been run on Linux;
-  see `cfd/RESULTS.md` and the caveat in `cfd/README.md`. It proves the flow path
-  is open, but the mesh's numerical diffusion makes t63/t90 untrustworthy. To
-  attach a real run, use
-  `python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`. The open
-  questions remain (1) exchange time over each row, which decides whether the
-  4.9 mm hood is enough or `CH` grows; (2) the front-to-rear cascade; (3) whether
-  a filled slot perturbs its neighbours.
-- **Physical validation — not run.** After fabrication, execute
-  `docs/VALIDATION_PLAN.md`: filter ΔP (NF1), tracer exchange at all eight
-  uniform slots, purge completeness/carryover and fan-speed invariance. CFD
-  results do not substitute for physical measurement.
+- **CFD.** Case v2 is committed with corrected numerics. Run and import with the
+  two commands in `cfd/RESULTS.md`. The importer rejects a run with Courant > 1.
+- **Unit acceptance.** Execute `docs/VALIDATION_PLAN.md` on a built unit: filter
+  ΔP, tracer exchange at all eight slots, purge completeness/carryover and
+  fan-speed invariance. Its §3 thresholds are the release gate.
 - **Electrical detail:** the 5 V trunk is 0.30 mm track (≈ 21 °C rise at 1.4 A,
-  IPC-2221). The ground return pour is not in the current fab files; check the
-  return path before ordering.
+  IPC-2221) and the B.Cu GND return pour is filled in the board and in the
+  exported Gerbers; both are checked by `tools/verify_pcb.py`.
 - **Module side:** the base board is complete; three caliper numbers per module
-  remain a module maker's conformance check, and bare SMD parts, TO-5 cans and
+  are a module maker's conformance check, and bare SMD parts, TO-5 cans and
   Ø23.5 mm Winsen cans use an OSM-1 carrier.
 
 ---
@@ -1262,9 +1253,9 @@ A gate is not a measurement.
 | Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) + `tools/verify_pcb.py` (real Edge.Cuts) | proven — filter drawer 0.000 mm³, modelled board 0.000 mm³, fabricated board 4.30 mm clearance at every boss |
 | Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
 | Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
-| Slot exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated; CFD run but numerically diffusive — timing not claimed, bench gate open (§14) |
-| Filter ΔP and fan operating point | hand calculation against datasheet anchors | calculated; NF1 bench **not run** — §14 |
-| Purge completeness ≥ 99 %, carryover ≤ 5 % | NF4 / §8.2 acceptance tests | not tested — physical validation after fabrication (§14) |
+| Slot exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges); `cfd/` v2 with Courant check | calculated; CFD case committed with corrected numerics, run and import per `cfd/RESULTS.md` |
+| Filter ΔP and fan operating point | hand calculation against datasheet anchors | calculated; unit acceptance §14 |
+| Purge completeness ≥ 99 %, carryover ≤ 5 % | §8.2 acceptance test | unit acceptance §14 |
 | Rail budgets (5 V 1.38 A, 3.3 V 0.40 A worst case) | arithmetic from `interface.RAILS` | calculated; 5 V trunk ≈ 21 °C rise at 1.4 A, B.Cu GND pour verified |
 | Absolute concentration accuracy | — | not claimed (§0.5) |
 

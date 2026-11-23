@@ -9,8 +9,8 @@ DRC and hand to a fabricator:
     circular cut-outs of BOSS_D/2 + BOSS_CLEAR at the tray's lid bosses - the
     bosses stand inside the board footprint, so a rectangle cannot be fitted,
   * sensing headers live exactly on the chamber coordinates
-    (interface.ANALOG_HEADERS / DIGITAL_HEADERS), so the board seats on the
-    baffle wells with no re-measurement,
+    (interface.ANALOG_HEADERS / DIGITAL_HEADERS), so the board seats in the tray
+    with no re-measurement,
   * one net per board.py net, wired to every pad by pin number.
 
 Run with KiCad's own Python (it ships pcbnew):

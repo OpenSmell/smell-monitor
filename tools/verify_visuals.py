@@ -52,6 +52,7 @@ needs = {
     "header_proof.png": (1200, 700, 1),
     "assembly_assembled_iso.png": (1200, 700, 1),
     "assembly_flow_top.png": (1200, 700, 1),
+    "manual_linework.png": (1200, 800, 1),
 }
 for name, (mw, mh, mf) in needs.items():
     path = os.path.join(OUT, name)
@@ -73,6 +74,22 @@ hood = CONST["LID_Z0"] - (CONST["PCB_TOP"] + CONST["SOCK_H"] + 21.0)
 check("header proof hood matches the geometry",
       abs(float(meta.get("OSM_HOOD_MM", -1)) - hood) < 0.01,
       f"{meta.get('OSM_HOOD_MM')} vs {hood:.2f} mm")
+# the manual line drawing must be monochrome and carry the locked numbers
+lw_png = os.path.join(OUT, "manual_linework.png")
+lw_svg = os.path.join(OUT, "manual_linework.svg")
+check("manual linework vector source exists", os.path.isfile(lw_svg),
+      "manual_linework.svg")
+_lw = Image.open(lw_png).convert("RGB")
+_lw_px = list(_lw.getdata())
+check("manual linework is black on white",
+      all(r == g == b for r, g, b in _lw_px)
+      and 0.01 < sum(1 for r, _, _ in _lw_px if r < 128) / len(_lw_px) < 0.20,
+      "greyscale, printable line art")
+check("manual linework references the flow hood and nostril count",
+      all(s in open(lw_svg, encoding="utf-8").read()
+          for s in ("4.9 hood", "3 x dia6", "SECTION A-A")),
+      "4.9 mm hood, 3 nostrils, section view")
+
 check("header proof cartridge envelope matches the standard",
       all(abs(float(meta.get(k, -1)) - v) < 0.01 for k, v in (
           ("OSM_CART_W_MM", 20.0), ("OSM_CART_L_MM", 32.0),
