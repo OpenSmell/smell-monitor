@@ -174,8 +174,9 @@ DECISIONS = [
     "shared 1-Wire ID bus), so the OSM-1 build carries no GPIO expander.  "
     "This is checked by interface.build_pinmap and verify_electrical.",
     "1-Wire ID: all eight slot ID pins are one open-drain bus with a single "
-    "4.7k pull-up.  Every DS2431/AT21CS01 carries a unique 64-bit ROM, so no "
-    "address strapping and no second mux are needed (module-standard 2.3).",
+    "4.7k pull-up.  v1 firmware does not enumerate per-slot ROMs; the "
+    "eeprom_id/calibration fields stay null and the host attaches that meaning "
+    "to each slot.  An optional per-module EEPROM map is reserved, not required.",
     "DO series 10k per slot: a module's open-collector/TTL output can be "
     "pulled to 5 V by a fault; the series resistor bounds the current into "
     "the 3.3 V GPIO.  Analog threshold behaviour is unaffected.",

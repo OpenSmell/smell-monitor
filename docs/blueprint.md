@@ -5,7 +5,7 @@
 | **Document** | OS-BP-001 |
 | **Revision** | P |
 | **Date** | 2026-11-22 |
-| **Status** | Architecture locked and built to OSM-1: eight uniform slots, schematic ERC-clean, PCB routed/DRC-clean and fitted to the tray, headless firmware compiling. CFD and physical flow-bench validation are not yet run (§14). |
+| **Status** | Architecture locked and built to OSM-1: eight uniform slots, schematic ERC-clean, PCB routed/DRC-clean and fitted to the tray, headless firmware compiling. The CFD case has been run but its t63/t90 are numerically diffusive; physical flow-bench validation is still open (§14). |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -46,20 +46,17 @@ humidity, carryover, timing) so that cheap, cross-sensitive, drift-prone
 sensors produce data that is *comparable and reproducible*. Sensing is
 commodity; **reproducibility is the product.**
 
-### 0.2 Why it exists — positioning
+### 0.2 Why it exists
 
-| Tier | Examples | Sampling | Sensing principles | Tooling | Cost |
-|------|----------|----------|--------------------|---------|------|
-| Cheap dev tier | Bosch BME688 + AI-Studio, Sensirion SGP4x/SEN6x, Renesas ZMOD | ambient air | one (MOX) | closed | $20–100 |
-| Lab instruments | Alpha MOS, Sensigent, Aryballe, zNose | controlled | several | closed | $10k–100k |
-| DIY | scattered projects | none | mixed | none | low |
-| **This platform** | — | **controlled headspace** | **heterogeneous, swappable** | **open** | **low** |
+| Tier | Sampling | Sensing principles | Tooling |
+|------|----------|--------------------|---------|
+| Development boards | ambient air | one technology | closed |
+| Laboratory instruments | controlled | several | closed |
+| DIY projects | none specified | mixed | none |
+| **This platform** | **controlled headspace** | **heterogeneous, swappable** | **open** |
 
-**Gap filled:** controlled sampling **and** mixed technology **and** open. The
-one-line differentiator used verbatim in all external material:
-
-> *Controlled headspace, multiple sensing principles, open reproducible data,
-> swappable modules.*
+The gap is the combination: controlled sample presentation, mixed sensor
+technologies, and open reproducible data in one serviceable instrument.
 
 ### 0.3 Users
 
@@ -96,7 +93,7 @@ not a substitute for lab GC/MS.
 
 | # | Objective | Target |
 |---|-----------|--------|
-| O1 | Cost (BOM) | ≤ $60 at qty 10 (base electronics) |
+| O1 | Understandable architecture | one board, eight identical slots, no per-slot expander or mux for identity |
 | O2 | Modularity | 8 identical slots, each carrying a 5 V gas-cell socket and a 3.3 V Qwiic port (§4.9); sensors are plug-in breakouts, sensor-agnostic |
 | O3 | Repeatability | §0.4 P1/G1 |
 | O4 | Buildability | Standard tools; no custom parts beyond the printed shell + insert |
@@ -285,7 +282,7 @@ implementation.
 **One slot design.** Every position carries a keyed 1×6 gas-cell socket
 (`+5V GND AO DO 3V3 ID`) *and* a Qwiic/STEMMA QT port on the same footprint
 (J2–J9 + J11–J18 on the board). There is no analog row and digital row to get
-wrong: the module's own identity says how to talk to it, and the same socket
+wrong: the host slot map says what each position holds, and the same socket
 serves a MOX can, an electrochemical cell, an NDIR module or a smart I²C part on
 a carrier.
 
@@ -304,7 +301,7 @@ Plan view. X = width (the rows), Y = depth; the sample flows front → rear:
 
 One PCB, 114 × 105 mm, seated as the chamber **floor** (its top face is the
 cavity floor, see §6.2). All eight sockets face up; a cartridge lies flat
-(right-angle header in a vertical socket, sensing face up) so its plane is
+(1×6 pin line across the flow, sensing face up) so its plane is
 parallel to the flow and no module sits in the shadow of the row behind it.
 
 **Flow order is fixed, slot assignment is not.** The front row sees fresh
@@ -335,7 +332,7 @@ identical I²C modules can never collide.
 | 3 | `AO` | — | Analog out → fixed 2:1 divider → ADS1115 (2.5 V full scale) |
 | 4 | `DO` | — | Digital out → 10 k series → ESP32 GPIO (input) |
 | 5 | `3V3` | 3.3 V | For 3.3 V-native analog modules |
-| 6 | `ID` | — | 1-Wire identity EEPROM (shared open-drain bus, 4.7 k pull-up) |
+| 6 | `ID` | — | shared 1-Wire bus (4.7 k pull-up); v1 does not enumerate EEPROMs |
 
 Order is `+5V GND AO DO 3V3 ID` (frozen in `electrical/interface.py`). A naive
 4-pin MQ-type module (VCC, GND, AO, DO) seats on pins 1–4 with power and ground
@@ -383,15 +380,15 @@ and each one simply goes into any free slot.
 
 The recommended **starter pack** spans the union of all target personas:
 
-| Slot | Module | Principle | Axes covered | Interface | Power | ~Cost |
-|------|--------|-----------|--------------|-----------|-------|-------|
-| 1 (rear) | MQ-135 | MOX | amine, reducing, VOC, alcohol | socket, AO | 0.90 W | $2 |
-| 2 (rear) | MQ-136 | MOX | sulfur (H₂S) | socket, AO | 0.95 W | $3 |
-| 3 (rear) | MICS-6814 carrier | MOX | reducing, oxidising, amine | socket, AO ×3 | 0.50 W | $12 |
-| 4 (rear) | ZE03-C2H4 | Electrochemical | ethylene | socket, AO | 0.03 W | $20 |
-| 5 (front) | SCD40 carrier | NDIR | IR-active (CO₂) | socket or Qwiic | 0.015 W | $25 |
-| — | *SHT31 (`U5`)* | T/RH | humidity, temperature | *base I²C* | — | $4 |
-| 6–8 | — | — | free (specialisation, replication) | — | — | — |
+| Slot | Module | Principle | Axes covered | Interface | Power |
+|------|--------|-----------|--------------|-----------|-------|
+| 1 (rear) | MQ-135 | MOX | amine, reducing, VOC, alcohol | socket, AO | 0.90 W |
+| 2 (rear) | MQ-136 | MOX | sulfur (H₂S) | socket, AO | 0.95 W |
+| 3 (rear) | MICS-6814 carrier | MOX | reducing, oxidising, amine | socket, AO ×3 | 0.50 W |
+| 4 (rear) | ZE03-C2H4 | Electrochemical | ethylene | socket, AO | 0.03 W |
+| 5 (front) | SCD40 carrier | NDIR | IR-active (CO₂) | socket or Qwiic | 0.015 W |
+| — | *SHT31 (`U5`)* | T/RH | humidity, temperature | *base I²C* | — |
+| 6–8 | — | — | free (specialisation, replication) | — | — |
 
 **5 modules + soldered base · 4 transduction principles (MOX, electrochemical,
 NDIR, T/RH) · all 10 axes · three slots free for replication or a new
@@ -429,8 +426,8 @@ five facts that the earlier "worst-case 22 × 35 × 23" assumption hid:
    is the *other* one.** MQ-135 breakouts are sold as `VCC GND AO DO` *and* as
    `VCC GND DO AO`; the widely-copied 32 × 20 board documents `VCC GND DO AO`,
    i.e. the reverse of §4.1's `+5V GND AO DO 3V3 ID`. That is exactly why the
-   standard moves the identity and the pin order onto the cartridge: the base
-   never reads a vendor board directly.
+   standard moves the pin order onto the OSM-1 cartridge and leaves identity to
+   the host: the base never reads a vendor board directly.
 3. **Several recommended parts are not plug-in modules at all.** MICS-6814,
    SCD40/41, SGP4x and BME688 are SMD packages; they are only pluggable because
    somebody else's *carrier board* exists, and carriers vary in size.
@@ -476,7 +473,7 @@ data.
 | Free depth | 30 / 10 / 4 mm | ahead of the front row / between the rows / behind the rear row |
 | Cartridge height | **≤ 21 mm** (top 29.5 mm above the board) | 8.5 mm socket + 21 = 29.5, leaving a 4.9 mm flow hood under the lid |
 | Cartridge envelope along flow | **≤ 32 mm** | standard; the front row's nose stops 10 mm short of the rear row |
-| Insertion orientation | right-angle header; flat cartridge, sensing face up, body rearward | lifts out upward; nothing above it but the lid |
+| Insertion orientation | 1×6 pin line across flow; flat cartridge, sensing face up, body rearward | lifts out upward; nothing above it but the lid |
 | Clear height | **34.4 mm** above the board | lid underside at 43 mm − board top at 8.6 mm |
 | Cavity inner height | **40 mm** | board top 8.6 to lid 43 |
 
@@ -558,11 +555,12 @@ chasing footprints and define the socket:
 
 **One slot design, repeated.** Every slot carries a keyed 5 V gas-cell socket
 (1×6) *and* a 3.3 V Qwiic/STEMMA QT port on the same footprint. There
-is no analog row and digital row for the user to get wrong; the module's own
-identity tells the base how to talk to it. The full rules — pinouts, the
-identity EEPROM and its memory map, the flat cartridge envelope, the wetted
-material bans, the conformance checklist and the cost — are in
-**`docs/module-standard.md`**, with the same numbers as data in
+is no analog row and digital row for the user to get wrong; all eight sockets
+are electrically identical. The ID pin is a shared bus, and v1 leaves per-slot
+identity to the host application rather than claiming an EEPROM can identify
+which of eight parallel pins it sits on. The full rules — pinouts, the
+flat cartridge envelope, the wetted material bans and the conformance checklist
+— are in **`docs/module-standard.md`**, with the same numbers as data in
 `mechanical/standard.py` and the as-built conformance table printed by
 `tools/verify_module_fit.py`.
 
@@ -570,9 +568,9 @@ Three consequences matter here:
 
 | Decision | Why |
 |----------|-----|
-| **Flat cartridge** (card parallel to the board, right-angle header in a vertical socket, sensing face up, lifts out upward) | a MOX can's inlet is its **end face**, so flat points it at its window instead of at its neighbour; and it turns the 40–48 mm standing height that collided with the lid into a 21 mm cartridge |
+| **Flat cartridge** (card parallel to the board, 1×6 pin line across the flow, sensing face up, lifts out upward) | a MOX can's inlet is its **end face**, so flat points it at its window instead of at its neighbour; and it turns the 40–48 mm standing height that collided with the lid into a 21 mm cartridge |
 | **22 / 26 mm pitch, 8 slots, 2 rows of 4** | both rows clear the standard's 20 mm cartridge + 2 mm gap; four slots span 86 / 98 mm inside the 116 mm cavity, so uniformity costs **no size**: the same 122 mm shell, built from one repeat unit instead of two different ones |
-| **Identity EEPROM on the cartridge** | pin order stops being a hazard, calibration and exposure hours travel with the cell, and per-cell drift becomes a software problem (the TEDS idea from IEEE 1451, one pin for all slots) |
+| **Host-managed identity in v1** | pin order stops being a hazard because every slot is identical; calibration and exposure hours are attached by the host to each slot, so drift stays a software problem. A future cartridge EEPROM map is reserved but not required |
 
 The chamber is a **cascade**, not eight parallel chambers: the upstream row sees
 fresh sample and the downstream row sees partly-depleted sample. Each record
@@ -649,8 +647,8 @@ master bus, not behind the mux; each slot's Qwiic port (J11–J18, JST-SH:
 
 Each slot's `DO` (pin 4) reaches its own ESP32 GPIO through a **10 kΩ series
 resistor**. All eight `ID` pins (pin 6) share one open-drain **1-Wire** bus on
-GPIO 33 with a single 4.7 kΩ pull-up; each cartridge EEPROM carries a unique
-64-bit ROM.
+GPIO 33 with a single 4.7 kΩ pull-up. v1 firmware does not enumerate ROMs on
+that bus; identity and calibration are host-side slot-map data.
 
 ### 5.5 GPIO map (from `electrical/interface.py`, mirrored in `config.h`)
 
@@ -850,8 +848,8 @@ single serial main loop + cyclic state machine (see `firmware/`).
    (`0x48`) for slots 0–3 and U8 (`0x49`) for slots 4–7, through the 10 k/10 k
    AO dividers, with per-channel averaging.
 3. **Digital / mux scan** — during HOLD, iterate **TCA9548A channels 0–7** (one
-   per slot) and read `DO[8]` through the 10 k series resistors; driver registry
-   keyed by the identity found on each channel.
+   per slot) and read `DO[8]` through the 10 k series resistors; I²C model
+   detection per channel, with final sensor meaning supplied by the host slot map.
 4. **Environmental logging** — SHT31 on the master bus at 1 Hz, all phases.
 5. **Comms** — one `.osmell` record fusing gas + pH (an ISFET pH module is a
    pluggable OSM-1 cartridge, not a base-board sensor) + T/H, over three
@@ -922,6 +920,14 @@ as a Darcy sink, and runs `simpleFoam` at
 15 L/min followed by a unit-step tracer (`scalarTransportFoam`). `report.py`
 prints t63/t90 at a probe in the gap over every cartridge.
 
+**Status:** the case has been run on Linux; the surviving numerical note is in
+`cfd/README.md` and `cfd/RESULTS.md`. Raw `postProcessing/` output was not
+committed. The mesh is numerically diffusive (Co O(10–20), upwind schemes), so
+t63/t90 are **not** treated as physical exchange times; the run proves the path
+is open, not that a row exchanges in 0.02 s. Import a run with
+`python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`; validate the
+timing numbers on the physical flow bench.
+
 It answers the three questions that the hand calculation cannot:
 
 1. the exchange time over each row — whether a 4.9 mm hood over the sensing
@@ -939,7 +945,7 @@ goes from 40 to 46 and the whole model regenerates from the same constants.
 ### 8.4 Delivery checklist for fabrication
 - [x] ERC 0 errors · [x] DRC 0 errors (`tools/verify_netlist.py`, `tools/verify_pcb.py`)
 - [x] Gerbers + drill + CPL (`tools/export_fab.py` → `electrical/smell_monitor_v1_1/fab/`)
-- [x] Supplier part numbers + indicative cost (`bom-costed.csv`; KiCad `electrical/bom.csv` stays the machine file)
+- [x] Supplier part numbers + build BOM (`bom-costed.csv`; KiCad `electrical/bom.csv` stays the machine file)
 - [x] STEP of assembly + enclosure (`mechanical/freecad/*.STEP`, `*.stl`)
 - [ ] Assembly guide · [ ] Firmware binary + flash guide
 
@@ -948,8 +954,8 @@ goes from 40 to 46 and the whole model regenerates from the same constants.
 ## 9. Bill of Materials
 
 Base electronics (representative; the KiCad-generated `electrical/bom.csv` is
-designator/value/footprint only, so order from `bom-costed.csv` at the repo
-root, which carries an MPN, a source and a price per line):
+designator/value/footprint/quantity, and `bom-costed.csv` at the repo root
+carries manufacturer part numbers and supplier notes):
 
 | Ref | Part | Notes |
 |-----|------|-------|
@@ -970,10 +976,8 @@ As built, the OSM-1 board has eight keyed 1×6 sockets (J2–J9) with `ID`, a Qw
 port per slot (J11–J18), a second ADS1115, 10 k/10 k AO dividers and 10 k DO
 series resistors, one shared 1-Wire pull-up, and no OLED.
 
-Complete base unit at qty 10, sensors excluded, USD and ± 30 % (re-quote before
-ordering; excludes assembly, tax and freight): board and components **$17.30**,
-enclosure and hardware **$9.10**, harness **$4.80** — **$31.20**. Sensors add
-$2–25 each (§4.5).
+Source the build from the two BOMs above; this repository makes no commercial
+offer and publishes no unit figure.
 
 ---
 
@@ -1158,7 +1162,7 @@ never be silently destroyed or faked:
 | Sensor drift over months | Swappable sockets + SHT31 data + shared open dataset |
 | USB-C current limits | 5 V/3 A source assumed; §5.8 |
 | MOX cross-sensitivity | Cannot be fixed in hardware; platform removes confounders only |
-| Silicone poisoning of MOX in the field (the classic irreversible death) | Assembly ban: no silicone or PVC anywhere the gas touches (§5). Per-cell exposure hours and peak temperature live in the cartridge EEPROM (§4.9), so a cell that has been through a silicone event is de-rated or refused instead of quietly trusted. Carbon belongs on a **reference-air** line, never in series with the sample — it would strip the analyte (§3.6, §6.3). |
+| Silicone poisoning of MOX in the field (the classic irreversible death) | Assembly ban: no silicone or PVC anywhere the gas touches (§5). Per-cell exposure hours and peak-temperature history are kept in the host slot map (§4.9), so a cell that has been through a silicone event can be de-rated or refused instead of quietly trusted. Carbon belongs on a **reference-air** line, never in series with the sample — it would strip the analyte (§3.6, §6.3). |
 
 **Future:** v1.1 — battery/USB-PD, fan tach, higher-flow option · v2.0 —
 manifold switching / multi-compartment robotics sampling, valued reference-air
@@ -1183,17 +1187,21 @@ path for automatic zero/baseline calibration.
 | K | 2026-10-17 | Module envelope checked against real breakouts; carrier path documented. |
 | L | 2026-10-18 | OSM-1 module standard defined: one slot type, eight positions, no bank split. §15 added. |
 | M | 2026-10-21 | Enclosure rebuilt as open tray + flat lid; baffle, wells and lane retired; drawing set rebuilt. |
-| N | 2026-11-17 | Costed BOM; pH restated as a pluggable ISFET module; solid-to-solid clearance gate added. |
+| N | 2026-11-17 | Build BOM with supplier part numbers; pH restated as a pluggable ISFET module; solid-to-solid clearance gate added. |
 | O | 2026-11-19 | Board outline cut-outs for lid bosses; routed on the real Edge.Cuts; 4.30 mm clearance measured. |
-| P | 2026-11-22 | Documentation synced to the as-built OSM-1 board: eight uniform slots, two ADS1115s, 10 k AO dividers and DO series resistors, mux channel = slot, shared 1-Wire ID, headless firmware (no OLED/U8g2), correct rail budgets, woven PTFE mesh filter. |
+| P | 2026-11-22 | Documentation synced to the as-built OSM-1 board: eight uniform slots, two ADS1115s, 10 k AO dividers and DO series resistors, mux channel = slot, shared 1-Wire bus with host-managed identity, headless firmware (no OLED/U8g2), correct rail budgets, woven PTFE mesh filter. |
+| Q | 2026-11-23 | Identity text corrected to host-managed v1 behaviour (no per-slot EEPROM claim); pricing removed from user docs; assembly visuals regenerated from the routed board; CFD run status and report importer added. |
 
 **Open items (genuine gates, not design decisions):**
 
-- **CFD — not run.** The case in `cfd/` is written but unrun. Run it on Linux:
-  `cd cfd && python3 make_case.py && bash run.sh`. It reports (1) exchange time
-  over each row, which decides whether the 4.9 mm hood is enough or `CH` grows;
-  (2) the front-to-rear cascade between the rows; (3) whether a filled slot
-  perturbs its neighbours.
+- **CFD — run, raw logs not imported.** The case in `cfd/` has been run on Linux;
+  see `cfd/RESULTS.md` and the caveat in `cfd/README.md`. It proves the flow path
+  is open, but the mesh's numerical diffusion makes t63/t90 untrustworthy. To
+  attach a real run, use
+  `python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`. The open
+  questions remain (1) exchange time over each row, which decides whether the
+  4.9 mm hood is enough or `CH` grows; (2) the front-to-rear cascade; (3) whether
+  a filled slot perturbs its neighbours.
 - **Physical validation — not run.** After fabrication, execute
   `docs/VALIDATION_PLAN.md`: filter ΔP (NF1), tracer exchange at all eight
   uniform slots, purge completeness/carryover and fan-speed invariance. CFD
@@ -1213,21 +1221,21 @@ Why each hard-to-vary choice is what it is, the alternative that was considered,
 and why it was rejected. **Parameters** are deliberately not recorded here — slot
 spacing, row spacing, slot count, cartridge envelope and cycle timings are set by
 `mechanical/constants.py` and the calculations in §3–§6, and change without a
-revision. **Invariants** (the socket contract, the physics layer, identity on the
-module, the record shape) change only through §14.
+revision. **Invariants** (the socket contract, the physics layer, host-managed
+identity, the record shape) change only through §14.
 
 | # | Decision | Alternative considered | Rejected because |
 |---|----------|------------------------|------------------|
 | 1 | The platform's job is the **controlled sample**, not the sensor list | support every module on the market | There is one socket (2.54 mm) and a size zoo: the same MQ-135 is sold as 32×20, 32×22, 36×24 and 40×21 mm boards in two different pin orders (`mechanical/modules.py`). |
 | 2 | **8 identical slots**, two rows of four | a row per electrical kind; a single row of eight | One row of eight needs 8 × 22 = 176 mm of the 116 mm cavity. Splitting by kind makes the bank a user decision and retires the analog advantage: 9 of 17 analytes are analog-only, the analog pool spans 7.93 independent dimensions against digital's 3.43, and a digital-only bank captures 50 % (`tools/verify_orthogonality.py`). |
-| 3 | **Both interfaces at every slot** (5 V gas cell + 3.3 V I²C) | one bank per interface | A wrong-bank insertion becomes an unsupported failure mode, and a 5 V I²C sensor has nowhere to go. Both connectors together cost ≈ $0.30 per slot. |
+| 3 | **Both interfaces at every slot** (5 V gas cell + 3.3 V I²C) | one bank per interface | A wrong-bank insertion becomes an unsupported failure mode, and a 5 V I²C sensor has nowhere to go. Both connectors are fixed, explainable hardware with no per-slot identity part. |
 | 4 | **Qwiic / STEMMA QT** for the I²C side | design a connector; Grove-first | Qwiic is what the sensor vendors ship. Grove and Gravity carry the same four signals and bridge with an adapter cable, so nothing is excluded. |
 | 5 | Keyed **1×6** gas cell (`+5V GND AO DO 3V3 ID`) | the 4-pin vendor order; an 8-pin universal header | A common MQ breakout (`VCC GND DO AO`) puts a 0–5 V output on a 3.3 V GPIO; an 8-pin header is wider than the slot it serves and still has no identity pin. |
-| 6 | **Identity EEPROM on the cartridge** | identity on the base; an ID resistor | A resistor identifies a part number, not a specimen. Per-cell calibration and exposure hours are what let drift and poisoning be handled in software (§4.9). |
-| 7 | **Flat cartridges**, right-angle header in a vertical socket | standing cards; cable everything | A MOX can's inlet is its end face, so a standing card aims it at its neighbour; and a standing 32–40 mm card needs 40–48 mm where the board has 34.4 mm of clear height (§4.6). Cable-only would need an adapter for every bare MQ card. |
+| 6 | **Host-managed identity in v1** | identity EEPROM on the cartridge; ID resistor; identity on the base | Eight ID pins share one bus, so a ROM cannot name its slot. A resistor identifies a part number, not a specimen. The host slot map carries calibration and exposure hours; a future EEPROM map is reserved, not required (§4.9). |
+| 7 | **Flat cartridges**, 1×6 pin line across the flow | standing cards; cable everything | A MOX can's inlet is its end face, so a standing card aims it at its neighbour; and a standing 32–40 mm card needs 40–48 mm where the board has 34.4 mm of clear height (§4.6). Cable-only would need an adapter for every bare MQ card. |
 | 8 | **Board is the chamber floor**, with sealed wetted faces | board outside the chamber; bare FR4 wetted | FR4, solder mask and component plastics sorb and re-release VOC — that is carryover — and the 0603 dividers run ≈ 10 K above ambient so their tempco reaches the readings (§6.3). A PTFE liner stays optional. |
 | 9 | **Thin woven PTFE mesh filter**, full inlet face, no carbon | a 4 mm sintered panel; a carbon scrubber | At 15 L/min a sintered panel drops ≈ 3.8 kPa against ≈ 50 Pa of fan head; a bypassable filter is not a filter, and carbon removes the analyte along with the interferent (§3.6, §6.3). |
-| 10 | **Eight uniform slots; flow order fixed** (front slots 4–7 upstream, rear slots 0–3 downstream) | an analog row and a digital row, with MOX last | The as-built board has one slot type; the module's identity decides how it is read. MOX heaters are the largest heat load and MOX is a net sink that desorbs during purge, so the record carries slot index and flow position for depletion modelling (§4). |
+| 10 | **Eight uniform slots; flow order fixed** (front slots 4–7 upstream, rear slots 0–3 downstream) | an analog row and a digital row, with MOX last | The as-built board has one slot type; the host slot map decides how a slot is read. MOX heaters are the largest heat load and MOX is a net sink that desorbs during purge, so the record carries slot index and flow position for depletion modelling (§4). |
 | 11 | The chamber is a **cascade, and every record says where the slot is** | treat the slots as independent | Gas independence degrades with upstream uptake. Reporting slot index and flow position lets the host model it (§4.9). |
 | 12 | **Driven three-phase cycle** | continuous streaming | Passive sampling injects uncontrolled ambient variability; comparability is the product (§2). |
 | 13 | Hand calculation plus gates first, **CFD once** | CFD before freezing the interface | The interface is what blocks hardware; the CFD tunes parameters, not invariants (§8.3). |
@@ -1254,10 +1262,10 @@ A gate is not a measurement.
 | Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) + `tools/verify_pcb.py` (real Edge.Cuts) | proven — filter drawer 0.000 mm³, modelled board 0.000 mm³, fabricated board 4.30 mm clearance at every boss |
 | Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
 | Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
-| Slot exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated; CFD **not run** — §14 |
+| Slot exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges) | calculated; CFD run but numerically diffusive — timing not claimed, bench gate open (§14) |
 | Filter ΔP and fan operating point | hand calculation against datasheet anchors | calculated; NF1 bench **not run** — §14 |
 | Purge completeness ≥ 99 %, carryover ≤ 5 % | NF4 / §8.2 acceptance tests | not tested — physical validation after fabrication (§14) |
-| Rail budgets (5 V 1.38 A, 3.3 V 0.40 A worst case) | arithmetic from `interface.RAILS` | calculated; 5 V trunk ≈ 21 °C rise at 1.4 A, ground return pour pending |
+| Rail budgets (5 V 1.38 A, 3.3 V 0.40 A worst case) | arithmetic from `interface.RAILS` | calculated; 5 V trunk ≈ 21 °C rise at 1.4 A, B.Cu GND pour verified |
 | Absolute concentration accuracy | — | not claimed (§0.5) |
 
 ---

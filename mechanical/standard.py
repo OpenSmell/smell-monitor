@@ -13,9 +13,10 @@ THE ONE IDEA
 There is a single slot design, repeated. A slot is not "analog" or "digital":
 it carries a keyed 5 V gas-cell socket *and* a 3.3 V Qwiic port on the same
 footprint. The user fills the slots with whatever chemistry the job
-needs; the module's own identity decides how the base talks to it. That is what
-removes the 4-analog / 4-digital split, the wrong-row mistake and the "which
-sensor can I not use" ceiling at the same time.
+needs. The host application maps each slot to a sensor type and calibration;
+v1 firmware does not enumerate per-slot identity devices. That is what removes
+the 4-analog / 4-digital split, the wrong-row mistake and the "which sensor can
+I not use" ceiling at the same time.
 
 Units: mm, V, mA.
 """
@@ -58,10 +59,12 @@ PORT = {
                 "and work through an adapter cable",
 }
 
-# --- identity: one 1-Wire EEPROM on the cartridge's ID pin ------------------
-# One pin on the base serves every slot: every 1-Wire part carries a unique
-# 64-bit ROM, so there is no address scheme and no extra mux. This is the TEDS
-# idea from IEEE 1451 in one wire and 1 kbit.
+# --- identity: HOST-MANAGED IN v1 ------------------------------------------
+# The ID pin is wired to one shared 1-Wire bus on the base.  v1 firmware does
+# NOT enumerate per-slot ROMs: all eight pins are in parallel, and the .osmell
+# identity/calibration fields are filled by the host application.  The memory
+# map below is kept as a RESERVED future cartridge option; it is not a v1
+# conformance requirement and no gate may assume a chip is present.
 ID_EEPROM = {
     "bus": "1-Wire (one MCU GPIO for all slots)",
     "parts": ["DS2431", "AT21CS01"],
@@ -136,7 +139,7 @@ def checklist():
            c["envelope"]["height"]),
         "sensing element anywhere on the card, on the slot centre line, with "
         "clear air above it",
-        "EEPROM per ID_EEPROM.map, checksum valid",
+        "identity/calibration registered in the host slot map (EEPROM optional, reserved map in ID_EEPROM)",
         "output analog 0-5 V on AO, or TTL serial 9600 8N1 on DO",
         "power <= %.0f mA at 5 V and <= %.0f mA at 3.3 V"
         % (c["rail_mA"]["5V"], c["rail_mA"]["3V3"]),
@@ -146,6 +149,7 @@ def checklist():
 
 
 def id_map():
+    """Reserved future cartridge EEPROM map; optional, not used by v1 firmware."""
     return [(a, n, t) for a, n, t in ID_EEPROM["map"]]
 
 

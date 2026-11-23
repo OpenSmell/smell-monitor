@@ -7,27 +7,27 @@ a board on four standoffs, modules plugged into eight headers, a flat lid with
 four M3 screws, a filter pad that drops into the front, and a 40 mm fan on the
 back. No baffle, no plenum, no separate panel. Service is four screws.
 
-The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose. It is a low-cost (~$37 base + $60–110 for a starter sensor pack), reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who can't justify $10k–100k commercial e-nose systems.
+The Smell Monitor is an open-source, modular, sensor-agnostic electronic nose: a reproducible acquisition platform for anyone doing digital olfaction — researchers, labs, and makers who need a real, serviceable instrument they can understand and repair.
 
 **You** choose the sensors. **It** supplies the repeatable pneumatic environment, clean power, 16-bit acquisition, and logged temperature/humidity to make their outputs comparable.
 
-## Why it's different from incumbents
+## Why it's different
 
-| | Smell Monitor | Commercial e-noses |
+| | Smell Monitor | Closed e-noses |
 |---|---|---|
-| Price | ~$37 base + sensor pack | $8k–100k+ |
 | Architecture | Open, modular, sensor-agnostic | Closed, proprietary |
-| Sensors | You plug in whatever fits a slot | Vendor-locked array |
-| Users | Researchers, makers, small business | Large enterprise / regulated QC |
+| Sensors | Any module that fits an OSM-1 slot | Vendor-locked array |
+| Service | Four screws, plug modules into headers | Factory service |
+| Data | Open `.osmell` records | Proprietary format |
 
-We're not competing on certified precision. We're building the *Arduino of noses* — an ecosystem of sensors, packs, software, and shared datasets.
+We're not claiming certified precision. The goal is an understandable, maintainable platform for real measurements.
 
 ## Key features
 
-- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`, the `ID` pin being a 1-Wire EEPROM that says what the module is and carries its calibration) *and* a 3.3 V Qwiic/STEMMA QT port. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, the flat cartridge envelope, the identity memory map and the wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md).
+- **8 identical, sensor-agnostic slots:** every slot carries a keyed 5 V gas-cell socket (`+5V GND AO DO 3V3 ID`) *and* a 3.3 V Qwiic/STEMMA QT port. The `ID` pin is wired to one shared 1-Wire bus; v1 firmware leaves the per-cartridge identity field null, and Osmograph maps slot → sensor type and calibration in software. MOX, MEMS, NDIR, electrochemical, piezo, QCM — plug in whatever the use case needs, in any mix, in any slot. The socket, flat cartridge envelope and wetted-material rules are the [OpenSmell Module Standard v1](docs/module-standard.md).
 - **Repeatable measurements:** active three-phase cycle (intake → hold → purge), a chamber with PTFE-lined wetted surfaces (no smell memory), a permanent washable woven-PTFE mesh filter (zero recurring cost), and the board itself as the chamber floor.
 - **Defensible data:** 16-bit ADC (ADS1115), SHT31 temp/humidity in the gas path, I2C mux (TCA9548A) so address collisions never happen.
-- **Open:** KiCad source, orderable BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. `bom-costed.csv` carries the manufacturer part numbers, supplier and an indicative qty-10 price for every line; `electrical/bom.csv` is the designator/value/footprint/qty view the build uses.
+- **Open:** KiCad source, build BOM, STL/STEP enclosure, firmware, verification gates — all in this repo. `bom-costed.csv` carries manufacturer part numbers and supplier notes; `electrical/bom.csv` is the designator/value/footprint/quantity view the build uses.
 
 ## How it works, in one paragraph
 
@@ -36,34 +36,43 @@ filter pad, over the near module row and then the far module row, and out throug
 a 40 mm fan in the back. There is no baffle and no well: a module plugs into its
 header and its sensing face looks straight into the moving sample. Readings stay
 comparable because the cycle is driven (intake → hold → purge) and every record
-carries slot index, flow position, temperature, humidity, and the module's
-identity and calibration from its 1-Wire EEPROM.
+carries slot index, flow position, temperature and humidity. Sensor identity and
+calibration are attached by the host application.
 
-## See it in 3D
+## See it assembled and running
 
-These are generated from `mechanical/constants.py` by
-`python tools/visualize_assembly.py` — not hand-drawn. In the PCB top view,
-**air enters at the bottom of the screen** (three front nostrils) and exits at
-the **top** (rear fan). The cartridge pin lines run left↔right; the cartridges
-lie flat and point downstream (up-screen).
+These renders are generated from the **routed KiCad board** plus
+`mechanical/constants.py`: real copper, pads, sockets and component positions,
+eight distinct supported sensor styles, a rotating fan, animated airflow,
+LED/buzzer status, and the lid screwing down. Air enters through the three
+nostrils at the lower-left and exits through the fan at the upper-right.
 
 | View | File |
 |---|---|
-| Exploded isometric | `docs/figures/cad/assembly_exploded_iso.png` |
-| Exploded top | `docs/figures/cad/assembly_exploded_top.png` |
-| Exploded side | `docs/figures/cad/assembly_exploded_side.png` |
-| Assembled | `docs/figures/cad/assembly_assembled_iso.png` |
-| Airflow top | `docs/figures/cad/assembly_flow_top.png` |
-| Assembly animation (GIF) | `docs/figures/cad/assembly_animation.gif` |
+| Full assembly + flow animation | `docs/figures/cad/assembly_animation.gif` |
+| Six-frame storyboard | `docs/figures/cad/assembly_storyboard.png` |
+| Header / flat-carrier proof | `docs/figures/cad/header_proof.png` |
+| Exploded cutaway | `docs/figures/cad/assembly_exploded_iso.png` |
+| Assembled cutaway | `docs/figures/cad/assembly_assembled_iso.png` |
+| Flow frame | `docs/figures/cad/assembly_flow_top.png` |
 
-![Exploded assembly](docs/figures/cad/assembly_exploded_iso.png)
+![Assembly storyboard](docs/figures/cad/assembly_storyboard.png)
 
-![Airflow top view](docs/figures/cad/assembly_flow_top.png)
+![Header proof](docs/figures/cad/header_proof.png)
+
+The header proof exists for one reason: the 1×6 pin line runs **across** the
+flow, the cartridge lies **flat and parallel** to the flow, and the mating pins
+go **down into the socket**. Nothing sticks up into the sample stream.
+
+Regenerate: `tools/extract_pcb_geometry.py` (KiCad Python) exports the routed
+board to `pcb_geometry.json`; `python tools/render_assembly_visual.py` renders the
+GIF and stills; `python tools/verify_visuals.py` checks them against the BOM and
+locked constants.
 
 ## Product Specification — Assembly & Functionality
 
 The Smell Monitor is designed for manufacture and service. Every part has a
-single source of truth in `mechanical/constants.py`; the BOM is orderable from
+single source of truth in `mechanical/constants.py`; the BOM is sourced from
 `bom-costed.csv`; the PCB is ERC/DRC-clean; the enclosure prints on any FDM
 machine. The wetted path is PTFE-lined so no smell memory builds up, and the
 filter is permanent and washable — zero recurring cost.
@@ -79,7 +88,7 @@ flowchart LR
     end
 
     subgraph step3 ["STEP 3 — Cartridges"]
-        C[8 × OSM-1 cartridges click in<br/>Flat pose, right-angle header<br/>Sensing face into moving air]
+        C[8 × OSM-1 cartridges click in<br/>Flat carrier, pin line across flow<br/>Sensing face into moving air]
     end
 
     subgraph step4 ["STEP 4 — Filter"]
@@ -111,8 +120,8 @@ openings penetrate the chamber.
 ### Step 3 — Cartridges
 Eight OSM-1 cartridges plug into keyed 1×6 gas-cell sockets, one per slot.
 Every slot also carries a Qwiic/STEMMA QT port. Cartridges mount flat
-(right-angle header in a vertical socket), sensing face up, looking straight
-into the moving sample. Any module goes in any slot: the front row sees the
+(1×6 pin line across the flow, pins down into the socket), sensing face up,
+looking straight into the moving sample. Any module goes in any slot: the front row sees the
 sample first, the rear row last, and every record names the slot it came from.
 Tool-free swap in under 60 seconds.
 
@@ -150,25 +159,12 @@ face.
 
 ---
 
+## Build inputs
 
-## What it costs
-
-Indicative one-off prices in USD (Oct 2026). The gates check geometry and nets,
-not prices.
-
-| Item | ~ |
-|---|---|
-| PCB, 114 × 105 mm, 2-layer, 5 pcs | $3.50 |
-| Board parts: ESP32-WROOM, 2 × ADC, I²C mux, LDO, passives | $19.50 |
-| 8 × keyed 1×6 gas-cell sockets + 8 × Qwiic ports | $3.80 |
-| SHT31 reference sensor | $3.60 |
-| 40 mm 5 V PWM fan | $3.50 |
-| Permanent washable woven-PTFE mesh filter | $2 |
-| PETG + PTFE-lined stock | $3.50 |
-| M3 thumb screws + heat-set inserts | $0.60 |
-| USB-C bulkhead pigtail + cable | $4.50 |
-| **Base, no sensors** | **≈ $37** |
-| Starter pack: MQ-135, MQ-136, MICS-6814 carrier, ZE03-C2H4, SCD40 | $60–110 |
+The build inputs are the two BOMs in the repository: `electrical/bom.csv`
+(designator / value / footprint / quantity) and `bom-costed.csv` (manufacturer
+part numbers and supplier notes). Source them yourself; nothing in this repo is
+an offer to sell.
 
 ## Repository layout
 
@@ -179,7 +175,7 @@ smell-monitor/
 │   │                        #   verification, BOM, assembly, manual, drawings,
 │   │                        #   decision record (§15)
 │   └── module-standard.md   # OpenSmell Module Standard v1 (OSM-1): the slot,
-│                            #   pinouts, cartridge envelope, ID EEPROM, materials
+│                            #   pinouts, cartridge envelope, host identity, materials
 ├── electrical/
 │   ├── interface.py         # the frozen slot contract (schematic+PCB+firmware)
 │   ├── board.py             # parts + nets (netlist source of truth)
@@ -196,7 +192,7 @@ smell-monitor/
 │   ├── step/                # exported production STEP (assembly + shell + lid)
 │   └── drawings/            # DXF/PDF sheet generation + sheets/ (OS-000…OS-004 SVG)
 ├── firmware/esp32/smell_monitor/   # ESP32 firmware (arduino-cli, sketch.yaml)
-├── cfd/                     # OpenFOAM case: exchange time, cascade, interference
+├── cfd/                     # OpenFOAM case + RESULTS.md (run status / import)
 ├── tools/                   # numeric verification gates (see below)
 └── README.md
 ```
@@ -210,6 +206,7 @@ hand-verified numbers:
 | `tools/verify_netlist.py` | model netlist == exported schematic netlist |
 | `tools/verify_pcb.py` | headers on contract, outline, track width, vias, 0 unconnected, DRC |
 | `tools/verify_cad.py` | HLR views, section extents, hole patterns, DXFs, vector A3 PDF, print meshes |
+| `tools/verify_visuals.py` | animation/render assets trace to the routed board and locked cart dimensions |
 | `tools/verify_clearance.py` | solid-to-solid clearances: filter pad vs tray, PCB outline vs lid bosses |
 | `tools/verify_sensor_matrix.py` | starter pack covers every persona |
 | `tools/verify_orthogonality.py` | response-matrix rank / slot-count trade study |
@@ -219,10 +216,10 @@ hand-verified numbers:
 ## Quick links
 
 1. **Read the blueprint:** `docs/blueprint.md` — objective & success criteria (§0), design (§1–7), verification (§8)
-2. **Design a module:** `docs/module-standard.md` — the slot, pinouts, cartridge envelope, identity EEPROM, conformance checklist
-3. **Build one:** `bom-costed.csv` (orderable parts and cost) → `docs/blueprint.md` §9 (BOM) → §10 (assembly)
+2. **Design a module:** `docs/module-standard.md` — the slot, pinouts, cartridge envelope, host-managed identity, conformance checklist
+3. **Build one:** `bom-costed.csv` (build inputs) → `docs/blueprint.md` §9 (BOM) → §10 (assembly)
 4. **Use one:** `docs/blueprint.md` §11 (user manual)
-5. **Order a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
+5. **Fabricate a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
 
 ## Project status
 
@@ -236,8 +233,10 @@ hand-verified numbers:
 - [x] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004 — `mechanical/drawings/sheets/` (SVG, ASME Y14)
 - [x] Enclosure CAD — `mechanical/step/smell_monitor_assembly.step` exported (FreeCAD model + shell/lid STEPs alongside); PTFE-lined tray + lid per `docs/blueprint.md` §15; `mechanical/constants.py` is the single source
 - [x] Physical flow bench validation plan — `docs/VALIDATION_PLAN.md` (NF1 flow bench, tracer breakthrough, purge completeness, row-to-row cascade, pass/fail t63/t90)
-- [x] HIL → Osmograph integration test — `tools/hil_simulator.py` + `osmograph-desktop/scripts/test-hil-qc.mjs`; all 5 QC flags raise the correct red pill against the live frontend, clean stream stays green
+- [x] HIL stream sanity — `tools/hil_simulator.py --cycles 1` emits a valid `.osmell` record with all five QC injection paths available
 - [x] Fabrication package generated — Gerbers, Excellon drill, CPL and BOM in `electrical/smell_monitor_v1_1/fab/`
+- [x] Coded assembly + flow animation rendered from the routed PCB — `docs/figures/cad/` (storyboard and header proof included)
+- [~] CFD case run; t63/t90 are numerically diffusive and not claimed — `cfd/RESULTS.md`; physical flow bench remains open
 
 ## Contributing
 

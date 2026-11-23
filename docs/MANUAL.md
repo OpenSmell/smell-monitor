@@ -182,7 +182,7 @@ Gas-cell socket pinout (looking at the base):
   Pin 3: AO    (cell output, 0–5 V, divided 10k/10k into the ADC)
   Pin 4: DO    (comparator output or TTL serial RX, 3.3 V GPIO via 10k series)
   Pin 5: 3V3   (≤50 mA for cell converter)
-  Pin 6: ID    (1-Wire cartridge identity EEPROM; one shared bus)
+  Pin 6: ID    (1-Wire shared bus; v1 firmware does not enumerate EEPROMs)
 ```
 
 Each Qwiic port is one channel of the TCA9548A (channel *n* = slot *n*), so two
@@ -194,11 +194,12 @@ modules with the same I²C address can be used at once.
 3. Lift the cartridge straight out of its socket.
 4. Align the new cartridge's pin-1 chamfer with the socket key; press straight down.
 5. Replace the lid, tighten four M3 screws.
-6. Power on. Osmograph reads the cartridge ID when present; a blank or unreadable EEPROM is reported as uncalibrated, not as an error.
+6. Power on. The record carries the slot index; Osmograph attaches the sensor
+   type and calibration from its slot map. No identity chip is required.
 
 **No tools beyond a 2.5 mm hex key.** A swap takes under 60 seconds. Calibration
-and exposure history travel with the cartridge on its EEPROM; the base never
-needs re-calibration when you move cartridges between bases.
+and exposure history are host-side data in v1: update the slot map when you move
+a cartridge to a different slot. The base itself needs no re-calibration.
 
 ---
 
@@ -211,7 +212,7 @@ Osmograph evaluates every record and appends red QC flags to affected slots. Fla
 | `adc_saturation` | Slot voltage sits at 0 V or the ADC rail (2.5 V at the ADC = 5 V at the slot) for two consecutive cycles | Disconnected or shorted sensor; check wiring, reseat cartridge |
 | `baseline_drift` | Hold-phase voltage slope exceeds 0.05 mV/s | Sensor warming up; allow 10 min warm-up; check for temperature changes |
 | `sht31_out_of_range` | Temperature or humidity jumped more than threshold in one cycle | Fan failure, seal leak, or rapid ambient change; check fan is spinning |
-| `eeprom_mismatch` | Readings present but no cartridge EEPROM ID | Blank or missing ID chip; data still works, flagged as uncalibrated |
+| `eeprom_mismatch` | Readings present but the host has no identity/calibration entry for that slot | Update Osmograph's slot map; data still works, flagged as uncalibrated |
 | `flow_stagnation` | MOX resistance did not drop during intake (flat or rising) | Fan not spinning; filter mesh blocked; cartridge seated wrong |
 
 **Rule of thumb:** A red flag means "verify before trusting." It does not mean the device is broken. Clear air + fan running + seated cartridges = no flags.
@@ -228,7 +229,7 @@ and is replaced only if damaged or permanently clogged.
 | Rinse filter mesh | When visibly dusty, or after smoke/dust exposure | Lift the lid, remove the drawer, rinse the woven PTFE mesh under tap water, air-dry, reinsert |
 | Wipe chamber interior | Annually, or after strong odor events | Dry lint-free cloth only; no solvents |
 | Check fan | If `flow_stagnation` appears | Verify fan spins freely; check connector |
-| Recalibrate cartridge | Per its exposure-history log | Follow the cartridge maker's procedure; history lives on the EEPROM |
+| Recalibrate cartridge | Per the host slot-map history | Follow the cartridge maker's procedure; update Osmograph's slot map |
 
 **Never:** use compressed air on the sensors, spray solvent into the chamber, or install silicone sealant/tape anywhere air touches. Silicone vapour permanently poisons SnO₂ MOX cells.
 

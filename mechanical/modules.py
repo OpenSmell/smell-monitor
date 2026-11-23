@@ -25,8 +25,9 @@ documented slot standard plus carriers, and a gate that proves a named module
 fits the actual chamber. This file feeds `tools/verify_module_fit.py`.
 
 SETTLED POSE (docs/module-standard.md, OpenSmell Module Standard v1): cards are
-mounted **flat** on a right-angle header in a vertical socket - sensing face up,
-directly under the window, removed upward - and the socket is repeated on every
+mounted **flat** on a 1×6 pin line across the flow, pins down into a vertical
+socket - sensing face up, directly under the window, removed upward - and the
+socket is repeated on every
 slot. The vertical pose modelled below is the *as-built* revision that predates
 the standard; it is kept because its measurements are what settled the question
 (a standing 32-40 mm card needs 40-48 mm where only 37 mm exists). Both poses

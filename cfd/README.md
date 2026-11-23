@@ -11,6 +11,10 @@ Three questions, one case:
 The geometry is generated from `mechanical/constants.py` and
 `mechanical/standard.py`, so the mesh cannot drift from the enclosure.
 
+**Run status:** see `cfd/RESULTS.md`. The case has been run on Linux, but raw
+`postProcessing/` output was not committed. Import an existing run with
+`python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`.
+
 ## Run
 
 OpenFOAM v10 (openfoam.com) or v11, on Linux:

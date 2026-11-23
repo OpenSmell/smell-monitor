@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Import an OpenFOAM run into the repository as a readable CFD report.
+
+Usage:
+  python tools/import_cfd_report.py --case-dir /path/to/case [--label my-run]
+
+It reads postProcessing/probes/*/T and log.* from a completed run, copies those
+small text artefacts into cfd/results/<label>/, and rewrites cfd/RESULTS.md with
+the parsed t63/t90 table.  It deliberately keeps the mesh-limitation note: a
+committed log does not turn a numerically diffusive scalar into a physical
+exchange time.
+
+Run from anywhere; no OpenFOAM installation is required to import.
+"""
+import argparse
+import importlib.util
+import os
+import re
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+REPORT_PY = ROOT / "cfd" / "report.py"
+OUT_MD = ROOT / "cfd" / "RESULTS.md"
+
+LIMITATION = """## What the run did not establish
+
+The exact t63/t90 values are **not physical exchange times** unless the mesh and
+schemes have been converged. At ~2 m/s through 1 mm cells the Courant number is
+O(10-20), and `Gauss upwind` adds numerical diffusion, so the scalar can reach
+63 % by diffusion rather than advection. The plug-flow reference is V/Q = 1.72 s
+at 15 L/min. Do not use an unrealistically small t63 to size a timing cycle or
+to claim a row-to-row cascade. The physical flow bench in
+`docs/VALIDATION_PLAN.md` is the gate for real exchange times.
+"""
+
+
+def load_report_module():
+    spec = importlib.util.spec_from_file_location("osm_cfd_report", REPORT_PY)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def probe_file(case):
+    hits = sorted((case / "postProcessing" / "probes").glob("*/T"))
+    return hits[-1] if hits else None
+
+
+def log_summary(case):
+    text = ""
+    for name in ("log.simpleFoam", "log.scalarTransportFoam",
+                 "log.snappyHexMesh", "log.blockMesh"):
+        p = case / name
+        if p.is_file():
+            text += "\n" + p.read_text(errors="replace")
+    cells = re.findall(r"(?:nCells|cells)\s*[:=]?\s*(\d+)", text)
+    cont = re.findall(r"time step continuity errors.*?global\s*=\s*([-\d.eE+]+)",
+                      text)
+    cour = re.findall(r"Courant Number mean:\s*[-\d.eE+]+\s+max:\s*([-\d.eE+]+)",
+                      text)
+    return {
+        "cells": int(cells[-1]) if cells else None,
+        "continuity_global": cont[-1] if cont else None,
+        "courant_max": cour[-1] if cour else None,
+        "logs": [n for n in ("log.simpleFoam", "log.scalarTransportFoam",
+                             "log.snappyHexMesh", "log.blockMesh")
+                 if (case / n).is_file()],
+    }
+
+
+def copy_artifacts(case, label):
+    dest = ROOT / "cfd" / "results" / label
+    dest.mkdir(parents=True, exist_ok=True)
+    pf = probe_file(case)
+    if pf:
+        target = dest / pf.parent.name
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(pf, target / "T")
+        ufile = pf.parent / "U"
+        if ufile.is_file():
+            shutil.copy2(ufile, target / "U")
+    for name in ("log.simpleFoam", "log.scalarTransportFoam",
+                 "log.snappyHexMesh", "log.blockMesh"):
+        if (case / name).is_file():
+            shutil.copy2(case / name, dest / name)
+    return dest
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--case-dir", required=True, type=Path,
+                    help="OpenFOAM case root containing postProcessing/probes")
+    ap.add_argument("--label", default=None,
+                    help="archive label (default: case directory name)")
+    ap.add_argument("--no-copy", action="store_true",
+                    help="only rewrite RESULTS.md, do not copy logs/probes")
+    args = ap.parse_args()
+
+    case = args.case_dir.expanduser().resolve()
+    if not case.is_dir():
+        raise SystemExit("case directory not found: %s" % case)
+    pf = probe_file(case)
+    if pf is None:
+        raise SystemExit("no postProcessing/probes/*/T in %s" % case)
+
+    label = args.label or case.name
+    label = re.sub(r"[^A-Za-z0-9_.-]+", "_", label)
+    dest = None if args.no_copy else copy_artifacts(case, label)
+
+    rep = load_report_module()
+    names, rows = rep.read_probes(str(pf))
+    if not rows:
+        raise SystemExit("%s has no data rows" % pf)
+    n = len(rows[0]) - 1
+    labels = rep.LABELS[:n] if n <= len(rep.LABELS) else ["P%d" % i for i in range(n)]
+    table = []
+    t63 = {}
+    for i, name in enumerate(labels):
+        a = rep.crossing(rows, i + 1, 0.63)
+        b = rep.crossing(rows, i + 1, 0.90)
+        t63[name] = a
+        table.append((name, a, b))
+    dig_vals = [v for k, v in t63.items() if k.startswith("D") and v is not None]
+    ana_vals = [v for k, v in t63.items() if k.startswith("A") and v is not None]
+    dig = sum(dig_vals) / len(dig_vals) if dig_vals else None
+    ana = sum(ana_vals) / len(ana_vals) if ana_vals else None
+    cascade = ana - dig if dig is not None and ana is not None else None
+
+    meta = log_summary(case)
+    fmt = lambda v: "-" if v is None else "%.2f" % v
+    lines = [
+        "# CFD results",
+        "",
+        "**Imported:** %s" % datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "**Case:** `%s` (label `%s`)" % (case, label),
+        "**Archive:** `%s`" % (dest.relative_to(ROOT).as_posix() if dest else "not copied"),
+        "**Probe table:** `%s`" % pf.relative_to(case).as_posix(),
+        "**Samples:** %d, t = %.2f .. %.2f s" % (len(rows), rows[0][0], rows[-1][0]),
+        "",
+        "## Run metadata",
+        "",
+        "| Item | Value |",
+        "|---|---|",
+        "| Cells | %s |" % (meta["cells"] if meta["cells"] else "not parsed"),
+        "| Max Courant | %s |" % (meta["courant_max"] or "not parsed"),
+        "| Final global continuity error | %s |" % (meta["continuity_global"] or "not parsed"),
+        "| Logs found | %s |" % (", ".join(meta["logs"]) or "none"),
+        "",
+        "## Tracer crossing times",
+        "",
+        "| Probe | t63 / s | t90 / s | t63 / (V/Q) |",
+        "|---|---:|---:|---:|",
+    ]
+    for name, a, b in table:
+        lines.append("| %s | %s | %s | %s |" % (
+            name, fmt(a), fmt(b), "-" if a is None else "%.2f" % (a / rep.TAU)))
+    lines += [
+        "",
+        "Plug-flow reference V/Q = %.2f s at 15 L/min.",
+        "Upstream row mean t63 %s s; downstream row mean t63 %s s; cascade %s s."
+        % (fmt(dig), fmt(ana), fmt(cascade)),
+        "",
+        LIMITATION.rstrip(),
+        "",
+        "Raw probe tables and logs are archived under `%s`." % (
+            dest.relative_to(ROOT).as_posix() if dest else "the original case"),
+        "",
+    ]
+    OUT_MD.write_text("\n".join(lines), encoding="utf-8")
+    print("wrote", OUT_MD)
+    if dest:
+        print("archived run artefacts in", dest)
+
+
+if __name__ == "__main__":
+    main()

@@ -6,11 +6,13 @@
 **Product:** Smell Monitor v1.1
 **Purpose:** Validate `t63`/`t90` exchange times physically after hardware fabrication.
 
-The CFD case is written but **not run**. On Linux, run
-`cd cfd && python3 make_case.py && bash run.sh` to obtain the design estimates.
-Quantitative exchange times still require physical measurement; this plan is
-the source of truth for the physical gate. CFD results are not substituted for
-physical measurement.
+The CFD case has been run on Linux; the surviving numerical note is
+`cfd/RESULTS.md`, with the mesh caveat in `cfd/README.md`. Raw `postProcessing/`
+logs were not committed. To attach a real run, use
+`python tools/import_cfd_report.py --case-dir <OpenFOAM-case>`. Quantitative
+exchange times still require physical measurement; this plan is the source of
+truth for the physical gate. CFD results are not substituted for physical
+measurement.
 
 The chamber has **eight uniform OSM-1 slots**; front row slots 5–8 (J6–J9) are
 upstream at 22 mm spacing, rear row slots 1–4 (J2–J5) are downstream at 26 mm

@@ -14,6 +14,10 @@ eeprom_mismatch (any phase), flow_stagnation (intake), sht31_out_of_range
 (environment delta between consecutive cycles).
 
 Output: one compact `.osmell` JSON object per line on stdout.
+
+`eeprom_id` is synthetic host metadata here, not a value emitted by v1 firmware
+(firmware leaves it null). It exists so the eeprom_mismatch QC rule can be
+exercised against a real stream shape.
 """
 
 import argparse
@@ -191,7 +195,9 @@ def main():
             temp_c = 22.5 + (10.0 if spike else 0.0)
             rh_pct = 45.0
 
-            # --inject-eeprom: null EEPROM ID with valid readings
+            # --inject-eeprom: null host identity with valid readings.
+            # Non-null values are synthetic host metadata, not a firmware
+            # readout; firmware emits null and the host fills this field.
             eeprom_id = None if args.inject_eeprom else "EEPROM-1234"
             sensor_model = "TGS-2600" if (phase == "intake" and not args.inject_eeprom) else None
 

@@ -19,8 +19,8 @@ life of one base. What has to stay stable is the layer underneath:
   with no memory of the previous one;
 * the **slot** — one physical and electrical contract, so a cell designed next
   year by someone else plugs into a base built today;
-* the **identity** — the base knows what is plugged in and what it has been
-  through, so calibration and aging are handled in software.
+* the **identity** — the host knows which slot holds which module and what it
+  has been through, so calibration and aging are handled in software.
 
 Everything below serves those three. No specific sensor appears here on purpose.
 
@@ -35,8 +35,8 @@ by side on the same footprint:
 | **I²C port** | anything with its own converter: NDIR CO₂, T/RH, VOC index, particulate | **Qwiic / STEMMA QT**, JST-SH 1.0 mm 4-pin (J11–J18 as built) | **3.3 V** |
 
 The user fills slots with whatever chemistry the job needs, in any mix, and
-never has to know which slot is "the analog row". The module's identity decides
-how the base talks to it.
+never has to know which slot is "the analog row". The host slot map decides what
+each slot means; the base only acquires.
 
 The one thing the mix cannot change is physics: **the chamber is a cascade, not
 eight parallel chambers.** The upstream row sees fresh sample; the downstream
@@ -53,10 +53,10 @@ models the depletion. Put the cells you trust most upstream.
 | 3 | `AO` | cell output, **0–5 V**, divided 10k/10k into the ADC |
 | 4 | `DO` | comparator output **or** TTL serial RX — a plain 3.3 V GPIO |
 | 5 | `3V3` | 3.3 V, ≤ 50 mA, for the cell's own converter |
-| 6 | `ID` | 1-Wire, the cartridge's identity EEPROM (§3) |
+| 6 | `ID` | 1-Wire, shared bus; optional identity device (§3) |
 
-A 2.54 mm plug with no 6th pin is still a conforming cell: the base reads the ID
-as absent and applies slot defaults (§3.4).
+A 2.54 mm plug with no 6th pin is still a conforming cell: v1 firmware does not
+enumerate identity devices at all, so it applies no ID-specific behaviour.
 
 Pins 3 and 4 can both act as slow GPIO, which is how one socket runs a MOX cell
 (AO), an electrochemical cell (AO) and a UART NDIR module (DO as RX). I²C cells
@@ -79,19 +79,23 @@ fit; nothing extra is needed to reach the full count.
 Grove (2.0 mm JST-PH) and Gravity carry the same four signals in a different
 order and work through an adapter cable.
 
-## 3. Identity: the cartridge EEPROM
+## 3. Identity: host-managed in v1
 
-A **1-Wire EEPROM, 1 kbit** (DS2431 / AT21CS01 class) on the `ID` pin. One pin
-on the base serves every slot because every 1-Wire device carries a unique
-64-bit ROM — no address scheme, no mux, no configuration. Cost is $0.15–0.50
-per cartridge depending on the part; a ROM-only identity device halves it if
-calibration is kept on the host.
+The base wires all eight `ID` pins to one shared 1-Wire bus with a 4.7 k pull-up.
+v1 firmware does **not** enumerate per-slot ROMs: all eight pins are in parallel,
+so one device on that bus could not say which slot it occupies. The `.osmell`
+`eeprom_id`, `sensor_model` and `calibration_date` fields are emitted as null by
+firmware and attached by Osmograph (or any host) from its slot map.
 
-The EEPROM is required on gas-cell cartridges. A Qwiic module does not need one:
-it answers an I²C probe with its own `WHO_AM_I`, which is the identity its maker
-already gives it.
+This is deliberate, not a cut corner: every slot stays electrically identical,
+any module goes in any slot, and the host owns the meaning. No extra GPIO,
+expander or per-slot mux was added to solve a mapping problem in hardware.
 
-### 3.1 Memory map
+### 3.1 Reserved optional cartridge memory (not required in v1)
+
+A cartridge maker may later fit a 1 kbit 1-Wire device (DS2431 / AT21CS01 class).
+The map below is reserved for that future option and is **not** a v1 conformance
+requirement. No v1 gate assumes such a device is present.
 
 | Offset | Size | Contents |
 |--------|------|----------|
@@ -110,21 +114,17 @@ already gives it.
 | `0x40` | 63 | reserved for the module maker |
 | `0x7F` | 1 | checksum over `0x00`–`0x7E` |
 
-### 3.2 Why calibration travels with the cell
+### 3.2 Where calibration lives
 
-MOX drift and aging is the field's dominant accuracy problem, and the common
-practice is to recalibrate the *base* against a bottle of gas. If calibration and
-exposure history travel **with the cell**, then:
+Calibration and exposure history are **host-side data in v1**. The host keeps a
+slot map (part number, class, calibration date, accumulated hours) and writes it
+into each `.osmell` record. Qwiic modules can additionally answer an I²C
+`WHO_AM_I` probe through their own mux channel.
 
-* a lab can move cells between bases and keep its accuracy;
-* the host can schedule a re-calibration from accumulated hours, not guesswork;
-* a maker can ship a characterised cell and be judged on its calibration;
-* a used or poisoned cell can be refused or de-rated instead of quietly
-  corrupting a result.
+If a future cartridge uses the reserved memory above, the same host map can be
+seeded from it; that is an addition, not a change to the slot or the firmware.
 
-This is the TEDS idea from IEEE 1451, in 1 kbit and one wire.
-
-### 3.3 Calibration blob per class (v1)
+### 3.3 Calibration blob per class (reserved map)
 
 | Class | Contents |
 |-------|----------|
@@ -134,13 +134,12 @@ This is the TEDS idea from IEEE 1451, in 1 kbit and one wire.
 | T/RH | manufacturer ID plus last field check |
 | pH/ISFET | two-point buffer calibration (offset at pH 7, slope mV/pH), last buffer date and temperature |
 
-### 3.4 Behaviour with no ID (the "just works" rule)
+### 3.4 Behaviour with no identity device (the "just works" rule)
 
-A missing, blank or unreadable EEPROM is **not** an error. The base applies that
-slot's defaults (MOX class, 5 V, 150 mA), reads the slot as a generic cell, and
-marks it uncalibrated for the host. A user who solders a $2 MQ cell onto a blank
-cartridge and plugs it in gets data immediately — flagged as uncalibrated rather
-than silently trusted.
+No identity device is required. A user who solders an inexpensive MQ cell onto a
+blank carrier and plugs it in gets data immediately. The record carries the slot index
+and flow position; the host decides whether that slot is calibrated. Missing
+identity is not a hardware error.
 
 ## 4. Mechanical envelope
 
@@ -252,27 +251,19 @@ same schema.
 2. Outline ≤ 20 × 32 mm, ≤ 21 mm tall in the flat pose (§4).
 3. Sensing element anywhere on the card, on the slot centre line, with clear air
    above it.
-4. EEPROM per §3.1, checksum valid, `kind` and `class` correct.
+4. Identity registered in the host slot map; an EEPROM is optional (reserved §3.1).
 5. Output: 0–5 V analog on `AO`, or TTL serial 9600 8N1 on `DO`.
 6. Power: ≤ 150 mA at 5 V, ≤ 50 mA at 3.3 V, inrush ≤ 300 mA.
 7. Wetted materials per §5. No silicone, no PVC in the gas path.
 8. Marked: part number, class, lot, polarity key.
 
-## 8. Cost of being standardised
+## 8. Overhead of being standardised
 
-| Item | Per unit |
-|------|----------|
-| Qwiic / STEMMA QT port (JST-SH 4-pin) | $0.15–0.25 |
-| Keyed 2.54 mm 1×6 socket | $0.10 |
-| 10 kΩ series resistor on `DO` | $0.005 |
-| JST-SH port as built; 0.1 in pads are a carrier option | — |
-| 1-Wire pull-up (one, for the whole base) | — |
-| **Base overhead per slot** | **≈ $0.30** |
-| 1-Wire EEPROM — *on the cartridge, not the base* | $0.15–0.50 |
-
-Eight slots therefore add roughly $2.50 to the base. The cost that matters sits
-on the module side, and it is one EEPROM, which is what makes per-cell
-calibration possible.
+Each slot adds only fixed, explainable hardware: a keyed 2.54 mm 1×6 socket, a
+JST-SH Qwiic port, a 10 kΩ `DO` series resistor, and one shared 1-Wire pull-up
+for the whole base. There is no per-slot EEPROM, mux or expander required by the
+v1 build. Pricing is intentionally not published here; use the build BOMs when
+sourcing parts.
 
 ## 9. As-built conformance (OSM-1 board)
 
@@ -294,5 +285,5 @@ measured by `tools/verify_pcb.py`. The board is headless: no OLED is fitted.
 What remains is on the module side, not the base board: three caliper numbers per
 module are a module maker's conformance check, and a bare SMD part, a TO-5 can or
 a Ø23.5 mm Winsen can goes on an OSM-1 carrier. The base's vertical sockets take
-a right-angle header, so a module that ships a straight header stands up and
-points its inlet at its neighbour; §4 is where that rule lives.
+a flat carrier with its pin line across the flow, so a module that ships as a
+standing board points its inlet at its neighbour; §4 is where that rule lives.

@@ -372,7 +372,7 @@ def build():
         "I2C ADDRESSES  ADS1115 0x48 (slots 0-3) / 0x49 (slots 4-7)   "
         "TCA9548A 0x70   SHT31 0x44.",
         "1-Wire ID: all eight slot ID pins share one open-drain bus with a "
-        "4.7k pull-up; each module carries a unique 64-bit ROM.",
+        "4.7k pull-up; v1 leaves per-module identity to the host application.",
         "S1 = MEASURE (start a sniff cycle)   S2 = BOOT   S3 = RESET.   "
         "Manual flashing, no auto-reset transistors.",
         "Connectivity is carried by net-name labels; the authoritative "

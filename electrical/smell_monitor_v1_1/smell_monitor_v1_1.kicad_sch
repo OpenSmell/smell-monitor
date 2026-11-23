@@ -5,7 +5,7 @@
   (paper "A1")
 
   (title_block
-    (title "OpenSmell v1.1  – e-nose sensing platform (sheet 1 of 1)")
+    (title "OpenSmell v1.1  ï¿½ e-nose sensing platform (sheet 1 of 1)")
     (date "2026-10-16")
     (rev "A")
     (company "OpenSmell")
@@ -2450,7 +2450,7 @@
     (effects (font (size 3.0 3.0) bold) (justify left top))
     (uuid 7299bf80-0bbd-4aa7-a46b-0cf410ef39bf)
   )
-  (text "USB – UART BRIDGE" (at 25.0 92.62 0)
+  (text "USB ï¿½ UART BRIDGE" (at 25.0 92.62 0)
     (effects (font (size 3.0 3.0) bold) (justify left top))
     (uuid 15ff86cd-63b9-4d05-930e-15ba60e27a8c)
   )
@@ -2510,7 +2510,7 @@
     (effects (font (size 2.2 2.2)) (justify left top))
     (uuid 8508ebbc-3042-4d1c-be1c-32d407013e98)
   )
-  (text "5.  1-Wire ID: all eight slot ID pins share one open-drain bus with a 4.7k pull-up; each module carries a unique 64-bit ROM."
+  (text "5.  1-Wire ID: all eight slot ID pins share one open-drain bus with a 4.7k pull-up; v1 leaves per-module identity to the host application."
     (at 27.0 518.0 0)
     (effects (font (size 2.2 2.2)) (justify left top))
     (uuid 1a5a2cd0-e524-499f-aaaa-d52d5d10ae1a)

@@ -11,9 +11,9 @@ schematic, PCB and firmware cannot drift from the chamber:
   * board <-> chamber header coordinates (from CONST)
 
 One slot design, repeated eight times (OSM-1, docs/module-standard.md):
-a keyed 1x6 gas-cell socket and a Qwiic port on the same footprint.  A module
-is identified by its own 1-Wire ID, so the base never needs to know whether a
-slot holds a 5 V gas cell or a 3.3 V I2C module before it is plugged in.
+a keyed 1x6 gas-cell socket and a Qwiic port on the same footprint.  The ID pin
+is wired to one shared 1-Wire bus, but v1 firmware does not enumerate per-slot
+EEPROMs: slot meaning and calibration are attached by the host application.
 
 Run ``python tools/verify_electrical.py`` to check closure and consistency
 against CONST.
