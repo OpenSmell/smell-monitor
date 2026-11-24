@@ -14,7 +14,7 @@ actions
         type    cellSet;
         action  new;
         source  boxToCell;
-        box     (6.0 116.0 10.8) (14.8 20.0 43.0);
+        box     (6.0 116.0 10.8) (14.8 20.0 54.0);
     }
     {
         name    pad;

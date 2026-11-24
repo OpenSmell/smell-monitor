@@ -105,14 +105,15 @@ for bank, want in rows.items():
           ok, "" if ok else str([(round(g[0], 2), round(CONST["PCB_Y"] - g[1], 2))
                                  for g in got if g]))
 
-    # The pin line must run ACROSS the flow (x).  With the line along the flow
-    # a 20 mm cartridge cannot sit on a pitch below 22 mm and still reach 32 mm
-    # downstream: the centre position is unchanged, so only the span catches it.
-    across = all(g is not None and abs(g[2] - SOCKET_SPAN) <= 0.05
-                 and g[3] <= 2.2 for g in got)
-    check(f"{bank} socket pin line runs across the flow", across,
-          "" if across else str([(round(g[2], 2), round(g[3], 2))
-                                 for g in got if g]))
+    # The pin line must run FRONT-TO-BACK (shell Y -> board KiCad Y) so a
+    # straight-header breakout stands upright in the Y-Z plane and its face
+    # looks inward across the central channel.  Only the span catches a
+    # wrongly rotated footprint: the centre position is checked above.
+    along = all(g is not None and abs(g[3] - SOCKET_SPAN) <= 0.05
+                and g[2] <= 2.2 for g in got)
+    check(f"{bank} socket pin line runs front-to-back (upright board)", along,
+          "" if along else str([(round(g[2], 2), round(g[3], 2))
+                                for g in got if g]))
 
 # ------------------------------ fabrication ---------------------------------
 check(f"board outline = {CONST['PCB_X']:.0f} x {CONST['PCB_Y']:.0f} mm",

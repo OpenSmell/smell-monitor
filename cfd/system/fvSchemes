@@ -5,10 +5,7 @@ FoamFile
     class       dictionary;
     object      fvSchemes;
 }
-// ddtSchemes is read by the transient scalarTransportFoam pass; simpleFoam is
-// steady and does not use it.  Euler is required for a real time-stepping
-// tracer - steadyState collapses fvm::ddt and fills the chamber in one step.
-ddtSchemes      { default Euler; }
+ddtSchemes      { default steadyState; }
 gradSchemes     { default Gauss linear; }
 
 divSchemes
@@ -17,10 +14,7 @@ divSchemes
     div(phi,U)                  Gauss linearUpwind grad(U);
     div(phi,k)                  Gauss upwind;
     div(phi,omega)              Gauss upwind;
-    // Bounded second-order scheme for the scalar: TVD, no new extrema, far
-    // less numerical diffusion than upwind.  Paired with deltaT <= 4e-4 s
-    // (Courant <= 0.8 at the inlet jets) this resolves the exchange transient.
-    div(phi,T)                  bounded Gauss limitedLinear 1;
+    div(phi,T)                  Gauss upwind;
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 

@@ -70,7 +70,7 @@ for name, (mw, mh, mf) in needs.items():
 
 # header proof metadata is the numeric contract visible in the picture
 meta = Image.open(os.path.join(OUT, "header_proof.png")).info
-hood = CONST["LID_Z0"] - (CONST["PCB_TOP"] + CONST["SOCK_H"] + 21.0)
+hood = CONST["HOOD"]
 check("header proof hood matches the geometry",
       abs(float(meta.get("OSM_HOOD_MM", -1)) - hood) < 0.01,
       f"{meta.get('OSM_HOOD_MM')} vs {hood:.2f} mm")

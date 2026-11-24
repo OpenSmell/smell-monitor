@@ -218,9 +218,9 @@ def check(key, const=None):
         l, w = m["card"]
         across, along = min(l, w), max(l, w)
         notes.append("board %.0f x %.0f mm" % (l, w))
-        if across > env["across"] or along > env["along"]:
-            notes.append("outside the %gx%g mm envelope: re-house the element "
-                         "on a cartridge" % (env["across"], env["along"]))
+        if across > env["across"] or along > env["height"]:
+            notes.append("outside the %gx%g mm upright envelope: re-house the "
+                         "element on a cartridge" % (env["across"], env["height"]))
             return "CARRIER", notes
 
     # 5. one AO per slot: a multi-output part needs an on-carrier ADC
@@ -229,9 +229,9 @@ def check(key, const=None):
                      % m["ao"])
         return "CARRIER", notes
 
-    notes.append("footprint fits the %gx%g envelope; the cartridge lays the "
-                 "element within %g mm" % (env["across"], env["along"],
-                                           env["height"]))
+    notes.append("footprint fits the %gx%g upright envelope; the cell reaches "
+                 "<= %g mm into the channel" % (env["across"], env["height"],
+                                                env["reach"]))
     return "CONFORMS", notes
 
 

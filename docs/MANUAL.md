@@ -35,9 +35,10 @@ flowchart TB
     end
 
     subgraph chamber ["Sealed chamber"]
-        FR[Front row: slots 5–8 (J6–J9)<br/>upstream, 22 mm spacing]
-        RR[Rear row: slots 1–4 (J2–J5)<br/>downstream, 26 mm spacing]
+        LW[Left wall: slots 1–4 (J2–J5)<br/>upright, inward, 24 mm pitch]
+        RW[Right wall: slots 5–8 (J6–J9)<br/>upright, inward, 24 mm pitch]
         S[SHT31 T/RH<br/>reference on base]
+        CH[Central channel<br/>gas flows front to rear]
     end
 
     subgraph exhaust ["Exhaust"]
@@ -54,7 +55,9 @@ flowchart TB
         UI[.osmell record stream<br/>QC flags<br/>User labels & notes]
     end
 
-    N --> F --> FR --> RR --> Fan
+    N --> F --> CH --> Fan
+    LW -.-> CH
+    RW -.-> CH
     S -.-> MCU
     MCU --> ADC
     MCU --> Mux
@@ -65,10 +68,12 @@ flowchart TB
 ![Figure 1 — Plan and longitudinal section of the sample path](figures/cad/manual_linework.png)
 
 **Figure 1.** The enclosure in plan (lid removed) and in section along the flow.
-Air enters through three Ø6 nostrils, passes the cleanable woven PTFE mesh,
-crosses the upstream row and then the downstream row in the 4.9 mm flow hood
-under the lid, and exits through the rear 40 mm fan. All eight sockets are
-identical; the top face of the base board is the chamber floor. The vector
+Air enters through three Ø6 nostrils centred on the channel, passes the cleanable
+woven PTFE mesh, travels straight between two inward-facing rows of upright
+breakout boards and exits through the rear 40 mm fan. Each card rises 32 mm and
+has a 4.9 mm hood to the lid; 13 mm of wall clearance behind it leaves room for
+rear pins. All eight sockets are identical and every header and pin is
+silkscreened. The top face of the base board is the chamber floor. The vector
 original is `figures/cad/manual_linework.svg`.
 
 **What the device does.** Draws a controlled air sample through three front

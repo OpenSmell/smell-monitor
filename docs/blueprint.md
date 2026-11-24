@@ -118,11 +118,11 @@ of interchangeable sensors, and out the rear.
 flowchart LR
     S[Sample / headspace] --> N["3x Ø6 bellmouth nostrils"]
     N --> F[PTFE filter pack]
-    F --> C["Sensing chamber<br/>116 x 108 x 40 mm"]
-    C --> B["Two module rows<br/>8 identical OSM-1 slots"]
+    F --> C["Sensing chamber<br/>116 x 108 x 51 mm"]
+    C --> B["Two inward-facing side-wall rows<br/>8 identical OSM-1 slots"]
     B --> X["40 mm PWM fan (rear)"]
     X --> E[Exhaust]
-    ENV["SHT31 (T/RH)<br/>upstream of sensors"] -.-> C
+    ENV["SHT31 (T/RH)<br/>on master I2C bus"] -.-> C
     B --> M["ESP32 + ADS1115 + TCA9548A"]
     ENV --> M
     M --> U["USB-C to host (Osmograph)"]
@@ -172,7 +172,7 @@ three-phase structure is fixed. Full cycle ≈ 40 s (meets **G2 ≤ 60 s**).
 
 > **Geometry note.** The element-loss table below was derived for the earlier
 > closed-lane chamber (106 × 11 mm lane, eight wells, plate). The chamber is now
-> the open tray of §6.1 (116 × 108 × 40, no lane, no wells), so the *distribution*
+> the open tray of §6.1 (116 × 108 × 51, no lane, no wells), so the *distribution*
 > of those losses has changed while the sizing conclusions have not: the filter
 > and fan are still sized by the same flow and the same total ΔP, and the open
 > chamber has strictly less restriction than the lane it replaces. NF1 (filter
@@ -189,7 +189,7 @@ required to lock v1 (§8.3).
 | # | Requirement | Value | Reason |
 |---|-------------|-------|--------|
 | R1 | Purge completeness | ≥ 99% cavity exchange in 20 s | §8.2 acceptance |
-| R2 | Sample throughput | Fresh-air flush of the whole ~0.51 L cavity | MOX baseline reset |
+| R2 | Sample throughput | Fresh-air flush of the whole ~0.57 L cavity | MOX baseline reset |
 | R3 | Nose velocity (BME688-class) | ≥ 0.1 × Bosch guidance; slower accepted & logged | Bosch BME688 note |
 | R4 | Fan static head | ≥ 3× system ΔP at operating point | fouling/age margin |
 | R5 | Noise | ≤ 30 dBA @ 1 m (intent ≤ 20 dBA) | UX |
@@ -197,8 +197,8 @@ required to lock v1 (§8.3).
 
 ### 3.2 Design operating point
 
-Q_design = **15 L/min** = 2.5×10⁻⁴ m³/s. Cavity V ≈ 0.51 L ⇒ time constant
-τ = V/Q = **2.0 s**. After 20 s purge, residual = e^(−10) ≈ **0.005 %** ⇒ R1
+Q_design = **15 L/min** = 2.5×10⁻⁴ m³/s. Cavity V ≈ 0.57 L ⇒ time constant
+τ = V/Q = **2.28 s**. After 20 s purge, residual ≈ e^(−8.8) ≈ **0.015 %** ⇒ R1
 met with ~10 theoretical exchanges.
 
 ### 3.3 Governing equations
@@ -266,7 +266,7 @@ Fan @ ~25% ≈ 10–14 dBA · @ full ≈ 16–20 dBA · bellmouth inlet whistle 
 | NF3 | Sound @ 1 m purge duty | ≤ 30 dBA |
 | NF4 | Purge completeness (odor then cycle) | all sensors ≥ 95% baseline |
 | NF5 | Well washout vs mainstream | τ_well ≈ mainstream ± 50% |
-| NF6 (opt) | 2D steady `simpleFoam` | no recirc zone > 5% upstream of any sensor |
+| NF6 (opt) | 2D steady `simpleFoam` | no recirculation zone > 5% in front of any card |
 
 ---
 
@@ -286,29 +286,34 @@ wrong: the host slot map says what each position holds, and the same socket
 serves a MOX can, an electrochemical cell, an NDIR module or a smart I²C part on
 a carrier.
 
-Plan view. X = width (the rows), Y = depth; the sample flows front → rear:
+Plan view. X = width (the two side walls), Y = depth; the sample flows
+front → rear straight down the middle:
 
 ```
-   front wall: 3 x Ø6 nostrils ....................... sample in
+   front wall: 3 x Ø6 nostrils on the channel centreline ..... sample in
         |
-        v            <---- flow, cavity depth 100 mm ---->
-   J6  J7  J8  J9    slots 4..7   front row   upstream,   22 mm pitch
-   J2  J3  J4  J5    slots 0..3   rear row    downstream, 26 mm pitch
-        |
-        v
-   rear wall: taper duct -> D40 fan .................. exhaust
+        v       <---------------- flow, 108 mm ---------------->
+   LEFT WALL x=16                |                RIGHT WALL x=106
+   J2 J3 J4 J5  (slots 0..3)     |     J6 J7 J8 J9  (slots 4..7)
+   24/48/72/96  upright ->       |       <- upright  24/48/72/96
+        |                  central channel                  |
+        v                       |                           v
+   rear wall: D40 fan on the channel centreline .......... exhaust
 ```
 
 One PCB, 114 × 105 mm, seated as the chamber **floor** (its top face is the
-cavity floor, see §6.2). All eight sockets face up; a cartridge lies flat
-(1×6 pin line across the flow, sensing face up) so its plane is
-parallel to the flow and no module sits in the shadow of the row behind it.
+cavity floor, see §6.2). All eight sockets are 1×6 keyed receptacles with their
+pin lines **front-to-back**: a breakout board plugged straight in stands
+**upright** in the Y-Z plane and **faces inward** across the central channel.
+The pin line is inset 13 mm from the inner face of each side wall (`WALL_GAP`),
+so a board with pins or a tall part on its back never touches the wall. The
+three nostrils and the fan share the channel centreline (x = 61 mm), so gas
+travels straight from inlet to exhaust between the two facing rows.
 
-**Flow order is fixed, slot assignment is not.** The front row sees fresh
-sample, the rear row sees partly-depleted sample: the chamber is a cascade, not
-eight parallel cells. Every record carries its slot index and row, so the host
-can model the depletion. Put the cells you trust most upstream; nothing else
-about the order is prescribed.
+**All slots are on the same four Y stations; assignment is not fixed.** Every
+record carries its slot index and wall, so the host map can model any uptake
+gradient between the left and right banks. The platform does not prescribe
+which sensor goes where.
 
 **Why both rails at every slot.** A MOX heater needs 5 V; a 3.3 V-native analog
 or an I²C module needs 3V3. Carrying both on the socket, and a Qwiic port beside
@@ -358,8 +363,8 @@ Qwiic.
 
 ### 4.3 Environmental sensing (compensation backbone)
 
-SHT31-D (`U5`) sits on the board in the inter-row gap, upstream of the rear row,
-on the master I²C bus (not behind the mux). It is soldered rather than plugged
+SHT31-D (`U5`) sits on the board between the two side-wall socket rows, on the
+master I²C bus (not behind the mux). It is soldered rather than plugged
 in, so the reference T/RH is always present and never a module the user forgot.
 Firmware logs T/RH at 1 Hz beside every record; no hard correction in firmware —
 raw + environment data is the contract with the host for compensation models.
@@ -382,11 +387,11 @@ The recommended **starter pack** spans the union of all target personas:
 
 | Slot | Module | Principle | Axes covered | Interface | Power |
 |------|--------|-----------|--------------|-----------|-------|
-| 1 (rear) | MQ-135 | MOX | amine, reducing, VOC, alcohol | socket, AO | 0.90 W |
-| 2 (rear) | MQ-136 | MOX | sulfur (H₂S) | socket, AO | 0.95 W |
-| 3 (rear) | MICS-6814 carrier | MOX | reducing, oxidising, amine | socket, AO ×3 | 0.50 W |
-| 4 (rear) | ZE03-C2H4 | Electrochemical | ethylene | socket, AO | 0.03 W |
-| 5 (front) | SCD40 carrier | NDIR | IR-active (CO₂) | socket or Qwiic | 0.015 W |
+| 1 (left wall) | MQ-135 | MOX | amine, reducing, VOC, alcohol | socket, AO | 0.90 W |
+| 2 (left wall) | MQ-136 | MOX | sulfur (H₂S) | socket, AO | 0.95 W |
+| 3 (left wall) | MICS-6814 carrier | MOX | reducing, oxidising, amine | socket, AO ×3 | 0.50 W |
+| 4 (left wall) | ZE03-C2H4 | Electrochemical | ethylene | socket, AO | 0.03 W |
+| 5 (right wall) | SCD40 carrier | NDIR | IR-active (CO₂) | socket or Qwiic | 0.015 W |
 | — | *SHT31 (`U5`)* | T/RH | humidity, temperature | *base I²C* | — |
 | 6–8 | — | — | free (specialisation, replication) | — | — |
 
@@ -394,11 +399,10 @@ The recommended **starter pack** spans the union of all target personas:
 NDIR, T/RH) · all 10 axes · three slots free for replication or a new
 chemistry.** Gate: `python tools/verify_sensor_matrix.py`.
 
-The starter pack leaves the front row half empty and the rear row full. That is
-a flow choice, not an electrical one: the rear row is downstream, so the pack
-puts the cells whose output benefits least from fresh sample there and keeps the
-front row free for whatever the user adds next. Any module can be moved to any
-slot; the record's slot index and row travel with the data.
+The starter pack fills the left wall and leaves three right-wall slots free. That
+is a convenience, not an electrical or flow constraint: every slot has the same
+interfaces and faces the same central channel. Any module can be moved to any
+slot; the record's slot index and wall travel with the data.
 
 The same pool solves far smaller packs for individual personas — the platform is
 over-provisioned for the casual user and exactly right for a lab:
@@ -466,21 +470,19 @@ data.
 
 | Rule | Value | Derivation |
 |------|-------|-----------|
-| Front-row pitch | **22 mm** | the standard minimum: 20 mm cartridge + 2 mm gap |
-| Rear-row pitch | **26 mm** | same minimum; the deeper cavity lets the rear row spread |
-| Front row span (4) | 3×22 + 20 = **86 mm** | inside the 116 mm cavity |
-| Rear row span (4) | 3×26 + 20 = **98 mm** | inside the 116 mm cavity |
-| Free depth | 30 / 10 / 4 mm | ahead of the front row / between the rows / behind the rear row |
-| Cartridge height | **≤ 21 mm** (top 29.5 mm above the board) | 8.5 mm socket + 21 = 29.5, leaving a 4.9 mm flow hood under the lid |
-| Cartridge envelope along flow | **≤ 32 mm** | standard; the front row's nose stops 10 mm short of the rear row |
-| Insertion orientation | 1×6 pin line across flow; flat cartridge, sensing face up, body rearward | lifts out upward; nothing above it but the lid |
-| Clear height | **34.4 mm** above the board | lid underside at 43 mm − board top at 8.6 mm |
-| Cavity inner height | **40 mm** | board top 8.6 to lid 43 |
+| Wall rows | **2 × 4 sockets** at shell x = 16 / 106 | inner side walls, mirrored about the channel |
+| Y pitch | **24 mm** on stations 24 / 48 / 72 / 96 | 20 mm board along the wall + 4 mm gap |
+| Row span (4) | 3×24 + 20 = **92 mm** | inside the 108 mm cavity depth |
+| Wall clearance | **13 mm** behind each socket (`WALL_GAP`) | room for rear pins or tall parts |
+| Card height | **32 mm** (top at z = 49.1 mm) | 8.5 mm socket + 32, leaving a 4.9 mm hood |
+| Cell reach | **21 mm** into the channel | leaves a clear central stream between the rows |
+| Insertion orientation | 1×6 pin line front-to-back; upright board, face inward | lifts out upward; nothing above it but the lid |
+| Cavity inner height | **51 mm** | board top 8.6 to lid underside 54 |
 
-> Both pitches are derived, not chosen: 22 mm is the narrowest row that can
-> carry the standard cartridge with a 2 mm gap, and 26 mm is what the rear bay
-> gives at the same gap rule. Uniform slots mean either row can take any
-> module; the extra rear pitch is airflow margin, not a second socket type.
+> The wall rows are derived, not chosen: 24 mm is the narrowest pitch that
+> carries a 20 mm board with a 4 mm service gap, and 13 mm of wall clearance is
+> what a breakout with rear hardware needs. Uniform slots mean either wall can
+> take any module; the pitch is service margin, not a second socket type.
 
 ### 4.7 Trade study — the slot count, derived
 
@@ -559,7 +561,7 @@ is no analog row and digital row for the user to get wrong; all eight sockets
 are electrically identical. The ID pin is a shared bus, and v1 leaves per-slot
 identity to the host application rather than claiming an EEPROM can identify
 which of eight parallel pins it sits on. The full rules — pinouts, the
-flat cartridge envelope, the wetted material bans and the conformance checklist
+upright inward-facing cartridge envelope, the wetted material bans and the conformance checklist
 — are in **`docs/module-standard.md`**, with the same numbers as data in
 `mechanical/standard.py` and the as-built conformance table printed by
 `tools/verify_module_fit.py`.
@@ -568,20 +570,20 @@ Three consequences matter here:
 
 | Decision | Why |
 |----------|-----|
-| **Flat cartridge** (card parallel to the board, 1×6 pin line across the flow, sensing face up, lifts out upward) | a MOX can's inlet is its **end face**, so flat points it at its window instead of at its neighbour; and it turns the 40–48 mm standing height that collided with the lid into a 21 mm cartridge |
-| **22 / 26 mm pitch, 8 slots, 2 rows of 4** | both rows clear the standard's 20 mm cartridge + 2 mm gap; four slots span 86 / 98 mm inside the 116 mm cavity, so uniformity costs **no size**: the same 122 mm shell, built from one repeat unit instead of two different ones |
+| **Upright inward-facing cartridge** (card in the Y-Z plane on a side-wall socket, 1×6 pin line front-to-back, sensing face across the channel, lifts out upward) | a MOX can's gas inlet is its **end face**, so facing the channel points it into the sample stream instead of at its neighbour; the 32 mm card plus an 8.5 mm socket leaves a 4.9 mm hood under the lid, and 13 mm of wall clearance leaves room for rear pins |
+| **24 mm pitch, 8 slots, 2 walls of 4** | both walls clear the standard's 20 mm card + 4 mm gap; four slots span 92 mm inside the 108 mm cavity depth, so uniformity costs **no size**: the same 122 mm shell, built from one repeat unit instead of two different ones |
 | **Host-managed identity in v1** | pin order stops being a hazard because every slot is identical; calibration and exposure hours are attached by the host to each slot, so drift stays a software problem. A future cartridge EEPROM map is reserved but not required |
 
-The chamber is a **cascade**, not eight parallel chambers: the upstream row sees
-fresh sample and the downstream row sees partly-depleted sample. Each record
-therefore carries its slot index and flow position so the host models the
-depletion, and the guidance is to put the cells you trust most upstream. The
-row-to-row depletion and the 4.9 mm hood over a cartridge are what the CFD pass
-in §8.3 quantifies — §4.9 fixes the hardware, the solve fixes the numbers.
+The two side-wall rows face each other across one central channel: the three
+centred nostrils flood that channel and the rear fan pulls the sample straight
+out. Each record carries its slot index and wall so the host can model any
+uptake gradient between the banks. The wall-to-wall uniformity and the 4.9 mm
+hood over a card are what the CFD pass in §8.3 quantifies — §4.9 fixes the
+hardware, the solve fixes the numbers.
 
-Service access follows from the flat pose and is an enclosure requirement, not a
-socket one: the cartridge comes out upward, and the flat screwed lid is the only
-thing above it (§6.1).
+Service access follows from the upright pose and is an enclosure requirement,
+not a socket one: the cartridge comes out upward, and the flat screwed lid is
+the only thing above it (§6.1).
 
 ---
 
@@ -632,8 +634,8 @@ sealed bulkhead, with no measurement benefit.
 ### 5.3 Analog acquisition — two ADS1115s (`U2`, `U8`)
 
 Two 16-bit, 4-channel ADCs give **eight single-ended channels**, one per slot:
-`U2` @ `0x48` reads slots 0–3 (rear row), `U8` @ `0x49` reads slots 4–7 (front
-row). Each slot's `AO` (pin 3 of J2–J9) passes through a fixed **10 k/10 k
+`U2` @ `0x48` reads slots 0–3 (left wall), `U8` @ `0x49` reads slots 4–7 (right
+wall). Each slot's `AO` (pin 3 of J2–J9) passes through a fixed **10 k/10 k
 divider**, so a 0–5 V slot output reaches the ADC as ≤ 2.5 V. Acquired during
 HOLD with per-channel averaging.
 
@@ -685,11 +687,12 @@ buzzer hole in the lid (§6.1).
 | J10 | JST-PH 2P | Fan |
 | J11–J18 | JST-SH 1.0 mm 4-pin | Qwiic per slot: `GND 3V3 SDA SCL` |
 
-Rear row = slots 0–3 = J2–J5 at shell x = 22, 48, 74, 100 mm (board x = 18,
-44, 70, 96), 26 mm spacing. Front row = slots 4–7 = J6–J9 at shell x = 29.5,
-51.5, 73.5, 95.5 mm (board x = 25.5, 47.5, 69.5, 91.5), 22 mm spacing. Each
-socket is rotated 90° so its pin line runs across the flow (in X); flow is
-front → rear. All sensor connectors are female, so modules plug straight in.
+Left wall = slots 0–3 = J2–J5 at shell x = 16 mm, Y stations 24 / 48 / 72 / 96.
+Right wall = slots 4–7 = J6–J9 at shell x = 106 mm, same Y stations. Each
+socket's 1×6 pin line runs front-to-back (along Y), so a straight-header
+breakout stands upright and faces across the channel. Flow is front → rear.
+All sensor connectors are female, so modules plug straight in. Every header and
+pin is permanently silkscreened on the board.
 
 ### 5.8 Rail budgets
 
@@ -714,16 +717,18 @@ pour is not in the current fab files. Gates:
 
 ### 6.1 Envelope & layout
 
-Shell (tray) **122 × 114 × 43 mm**, lid **122 × 114 × 6 mm**, assembled
-**122 × 114 × 49 mm** (128 mm deep with the rear fan). 3 mm walls, 3 mm floor.
+Shell (tray) **122 × 114 × 60 mm**, lid **122 × 114 × 6 mm**, assembled
+**122 × 114 × 66 mm** (128 mm deep with the rear fan). 3 mm walls, 3 mm floor.
 Board **114 × 105 mm** on four Ø6 standoffs, component side up, its top face at
-z = 8.6 mm. The eight 1×6 sockets stand 8.5 mm above it and the modules plug
-straight in. Service is four M3 screws.
+z = 8.6 mm. The eight 1×6 sockets stand 8.5 mm above it in two inward-facing
+side-wall rows; a breakout board plugs straight in, stands upright and reaches
+into the central channel. Service is four M3 screws.
 
 The architecture is deliberately the one a builder can hold in their head:
 
 ```
-tray  ->  board on four standoffs  ->  modules into the eight headers
+tray  ->  board on four standoffs  ->  eight side-wall sockets
+      ->  breakout boards upright, facing inward across the centre
       ->  filter pad drops into the front  ->  flat lid, four M3 screws
 ```
 
@@ -732,13 +737,13 @@ An earlier revision put a 2 mm plate 37 mm above the board with eight 20 × 20 m
 openings over the modules. It was dropped: it doubled the part count, made the
 chamber 90 mm tall, required a machined PTFE insert to stay inert, and forced
 every cartridge into a recess so the sensing face sat below the plate. None of
-that was needed. A cartridge plugged into its socket looks straight into the
-moving sample; the only thing it needs is unobstructed air above its sensing
-face.
+that was needed. A cartridge plugged into its side-wall socket faces straight
+into the central sample stream; the only thing it needs is unobstructed channel
+air in front of its sensing face.
 
 | Part | Size | Process |
 |------|------|---------|
-| Shell (open tray) | 122 × 114 × 43 | PETG FDM, or AL 6061-T6 |
+| Shell (open tray) | 122 × 114 × 60 | PETG FDM, or AL 6061-T6 |
 | Lid (flat plate) | 122 × 114 × 6 | PETG FDM, same spool |
 | Filter mesh | thin woven PTFE, front drawer | rinse or replace if torn |
 | Fan | Ø40 × 10 | any 5 V axial, mounted on the rear plate |
@@ -764,44 +769,40 @@ the entire class of "the panel does not line up with the chamber" defects.
 
 | Parameter | Value |
 |-----------|-------|
-| Cavity inner (L×W×H) | 116 × 108 × 40 mm (≈ 0.50 L) |
+| Cavity inner (L×W×H) | 116 × 108 × 51 mm (≈ 0.64 L) |
 | Floor | 3 mm printed, under the board |
 | Board top (chamber floor) | z = 8.6 mm |
-| Lid underside (chamber ceiling) | z = 43 mm |
-| Clear height above the board | 34.4 mm |
-| Inlet | 3 × Ø6 through the front wall at z = 30, pitch 26 |
-| Outlet | Ø38 bore at z = 23, into a Ø40 fan |
-| Front row (slots 4–7, J6–J9) | shell y = 33, x = 29.5 / 51.5 / 73.5 / 95.5; 22 mm spacing |
-| Rear row (slots 0–3, J2–J5) | shell y = 75, x = 22 / 48 / 74 / 100; 26 mm spacing |
-| Row spacing | 42 mm, so a 32 mm cartridge cannot reach the next row |
+| Lid underside (chamber ceiling) | z = 54 mm |
+| Clear height above the board | 45.4 mm |
+| Inlet | 3 × Ø6 through the front wall at z = 33, x = 47 / 61 / 75 (pitch 14) |
+| Outlet | Ø38 bore at z = 33, x = 61, into a Ø40 fan |
+| Left wall sockets (slots 0–3, J2–J5) | shell x = 16, Y = 24 / 48 / 72 / 96; 24 mm pitch |
+| Right wall sockets (slots 4–7, J6–J9) | shell x = 106, Y = 24 / 48 / 72 / 96; 24 mm pitch |
+| Wall clearance behind each card | 13 mm (`WALL_GAP`) for rear pins/hardware |
 | Filter | thin woven PTFE mesh in a drawer 10.8 mm behind the front wall (clear of the corner bosses), held down by the lid |
 | USB-C | Ø12 bulkhead hole at x = 18, z = 10 (on `J1`'s axis) |
 
-Flow is horizontal, front to rear: nostrils → filter mesh → over the front row
-(slots 4–7) → over the rear row (slots 0–3) → rear bore → fan. The slots are
-identical; position in the flow, not an electrical bank, decides which module
-sees fresh sample.
+Flow is horizontal, front to rear: nostrils → filter mesh → straight down the
+central channel between the two facing card rows → rear bore → fan. All slots
+are identical; the record carries slot index and wall, and the host map decides
+which sensing method applies.
 
-The nostrils are at z = 30, which is **mid-height of the module band** (a
-cartridge occupies z 17.1..38.1), and 30 mm upstream of the first row. That is
-a deliberate trade, not a tuned inlet: the jet hits the upstream front row
-squarely with the freshest gas, and the 30 mm of free length is the only
-diffuser in the design. What that costs is quantified nowhere yet — it is the
-first thing the `cfd/` case reports (a jet that lands on one cartridge leaves
-its neighbours slower). If the CFD says the impingement is too sharp, the fix is
-one constant: three Ø4 nostrils, or a Ø6 pattern staggered 13 mm, or a
-perforated diffuser in the 30 mm gap.
+The three nostrils and the fan share the channel centreline (x = 61 mm). Nostril
+z = 33 mm is centred on the upright cards' sensing band (the cans reach inward
+at roughly z = 23..42), so the jets enter the channel directly rather than
+impinging on one card. The 14 mm pitch floods the 44 mm gap between the two
+inward-facing can tips evenly.
 
-Two other flow facts that are honest to state up front:
+Two other flow facts that are stated up front:
 
 * the front slot **below** the filter pad (z 8.6..17, behind the bottom rail)
   is an 8.4 mm dead zone that connects to the chamber. The CFD case probes it:
-  if it fills faster than the first row, it is a bypass around the filter and
-  the bottom rail has to close it.
-* the hood over a cartridge's sensing face is **4.9 mm**. That is a shallow
-  channel by MOX practice (Winsen hoods are 5–10 mm), so it is the second thing
-  the CFD measures, and the one parameter (`CH` 40 → 46) that would change if it
-  is slow.
+  if it fills faster than the channel, it is a bypass around the filter and the
+  bottom rail has to close it.
+* the hood over an upright card's top edge is **4.9 mm** (card top at z = 49.1,
+  lid underside at z = 54). That is a shallow channel by MOX practice (Winsen
+  hoods are 5–10 mm), so it is the second thing the CFD measures, and the one
+  parameter (`CH` 51 → 57) that would change if it is slow.
 
 ### 6.3 Materials & sample-memory control
 
@@ -929,20 +930,20 @@ and archives the raw logs. The v1 result of ≈ 0.02 s was a discretisation erro
 
 It answers the three questions that the hand calculation cannot:
 
-1. the exchange time over each row — whether a 4.9 mm hood over the sensing
-   face is adequately ventilated, or `CH` has to grow;
-2. the row-to-row cascade — how much the upstream row takes out before the
-   downstream row sees the sample;
+1. the exchange time at each wall — whether a 4.9 mm hood over the card top is
+   adequately ventilated, or `CH` has to grow;
+2. wall-to-wall uniformity — whether the centred nostrils flood both facing
+   rows evenly, or the inlet pattern has to change;
 3. whether a filled slot disturbs its neighbours (`bash run.sh --omit 3,6`).
 
 The geometry is fixed by §3, §4 and §6. The result checks one parameter: if the
-4.9 mm hood is slow, `CH` goes from 40 to 46 and the whole model regenerates from
+4.9 mm hood is slow, `CH` goes from 51 to 57 and the whole model regenerates from
 the same constants.
 
 ### 8.4 Delivery checklist for fabrication
 - [x] ERC 0 errors · [x] DRC 0 errors (`tools/verify_netlist.py`, `tools/verify_pcb.py`)
 - [x] Gerbers + drill + CPL (`tools/export_fab.py` → `electrical/smell_monitor_v1_1/fab/`)
-- [x] Supplier part numbers + build BOM (`bom-costed.csv`; KiCad `electrical/bom.csv` stays the machine file)
+- [x] Supplier part numbers + build BOM (`bom-sourced.csv`; KiCad `electrical/bom.csv` stays the machine file)
 - [x] STEP of assembly + enclosure (`mechanical/freecad/*.STEP`, `*.stl`)
 - [ ] Assembly guide · [ ] Firmware binary + flash guide
 
@@ -951,7 +952,7 @@ the same constants.
 ## 9. Bill of Materials
 
 Base electronics (representative; the KiCad-generated `electrical/bom.csv` is
-designator/value/footprint/quantity, and `bom-costed.csv` at the repo root
+designator/value/footprint/quantity, and `bom-sourced.csv` at the repo root
 carries manufacturer part numbers and supplier notes):
 
 | Ref | Part | Notes |
@@ -992,9 +993,9 @@ I²C scan expects `0x48, 0x49, 0x44, 0x70` (no `0x3C` — no OLED) · flash
 firmware, confirm the LED/serial self-test.
 
 **Chamber assembly:** PCB onto the four standoffs (component side up, top face is
-the chamber floor) → eight sensor cartridges into their headers, flat, connector
-toward the front → filter mesh into the front drawer → lid on, four M3 screws
-→ fan in the service bay (exhaust out the rear).
+the chamber floor) → eight sensor cartridges upright into their side-wall
+headers, sensing faces toward the central channel → filter mesh into the front
+drawer → lid on, four M3 screws → fan in the service bay (exhaust out the rear).
 
 **Final integration:** power-on self-test `OK` · purge sanity (3 clean cycles,
 baselines within a few %) · sample challenge (coffee; confirm response, then full
@@ -1026,8 +1027,8 @@ without reflashing.
 
 **Slots.** Eight identical OSM-1 slots (`+5V|GND|AO|DO|3V3|ID` plus a Qwiic
 `GND|3V3|SDA|SCL` port each) accept any matching module in any position; slots
-4–7 are upstream (front), 0–3 downstream (rear). Swap is tool-free: undo four M3
-screws, lift the lid, lift the cartridge.
+0–3 stand on the left wall, slots 4–7 on the right, both facing the same central
+channel. Swap is tool-free: undo four M3 screws, lift the lid, lift the card.
 
 **Choosing modules.** Start with the recommended pack (§4.4, 5 modules + base);
 add or swap singly for a specific job. Ammonia/amine → MQ-135/137 · sulfur →
@@ -1187,7 +1188,7 @@ path for automatic zero/baseline calibration.
 | N | 2026-11-17 | Build BOM with supplier part numbers; pH restated as a pluggable ISFET module; solid-to-solid clearance gate added. |
 | O | 2026-11-19 | Board outline cut-outs for lid bosses; routed on the real Edge.Cuts; 4.30 mm clearance measured. |
 | P | 2026-11-22 | Documentation synced to the as-built OSM-1 board: eight uniform slots, two ADS1115s, 10 k AO dividers and DO series resistors, mux channel = slot, shared 1-Wire bus with host-managed identity, headless firmware (no OLED/U8g2), correct rail budgets, woven PTFE mesh filter. |
-| Q | 2026-11-23 | Identity text corrected to host-managed v1 behaviour (no per-slot EEPROM claim); pricing removed from user docs; assembly visuals regenerated from the routed board; CFD run status and report importer added. |
+| Q | 2026-11-23 | Identity text corrected to host-managed v1 behaviour (no per-slot EEPROM claim); user docs trimmed to engineering content; assembly visuals regenerated from the routed board; CFD run status and report importer added. |
 | R | 2026-11-23 | CFD case corrected to a transient, bounded second-order scheme with Courant <= 0.8 and an automated quality gate; black-and-white plan/section drawing added to the manual; stale baffle artifact and hedge wording removed; permanent F.SilkS branding added and fab package regenerated. |
 
 **Remaining gates (hardware acceptance, §14):**
@@ -1223,11 +1224,11 @@ identity, the record shape) change only through §14.
 | 4 | **Qwiic / STEMMA QT** for the I²C side | design a connector; Grove-first | Qwiic is what the sensor vendors ship. Grove and Gravity carry the same four signals and bridge with an adapter cable, so nothing is excluded. |
 | 5 | Keyed **1×6** gas cell (`+5V GND AO DO 3V3 ID`) | the 4-pin vendor order; an 8-pin universal header | A common MQ breakout (`VCC GND DO AO`) puts a 0–5 V output on a 3.3 V GPIO; an 8-pin header is wider than the slot it serves and still has no identity pin. |
 | 6 | **Host-managed identity in v1** | identity EEPROM on the cartridge; ID resistor; identity on the base | Eight ID pins share one bus, so a ROM cannot name its slot. A resistor identifies a part number, not a specimen. The host slot map carries calibration and exposure hours; a future EEPROM map is reserved, not required (§4.9). |
-| 7 | **Flat cartridges**, 1×6 pin line across the flow | standing cards; cable everything | A MOX can's inlet is its end face, so a standing card aims it at its neighbour; and a standing 32–40 mm card needs 40–48 mm where the board has 34.4 mm of clear height (§4.6). Cable-only would need an adapter for every bare MQ card. |
+| 7 | **Upright inward-facing cards** on two side-wall rows, 1×6 pin line front-to-back | flat cards; cable everything | A breakout plugs straight into a wall socket and stands in the Y-Z plane facing the channel; its sensing can reaches 21 mm in, leaving a clear central stream. Rear pins get 13 mm of wall clearance. Cable-only would need an adapter for every bare MQ card. |
 | 8 | **Board is the chamber floor**, with sealed wetted faces | board outside the chamber; bare FR4 wetted | FR4, solder mask and component plastics sorb and re-release VOC — that is carryover — and the 0603 dividers run ≈ 10 K above ambient so their tempco reaches the readings (§6.3). A PTFE liner stays optional. |
 | 9 | **Thin woven PTFE mesh filter**, full inlet face, no carbon | a 4 mm sintered panel; a carbon scrubber | At 15 L/min a sintered panel drops ≈ 3.8 kPa against ≈ 50 Pa of fan head; a bypassable filter is not a filter, and carbon removes the analyte along with the interferent (§3.6, §6.3). |
-| 10 | **Eight uniform slots; flow order fixed** (front slots 4–7 upstream, rear slots 0–3 downstream) | an analog row and a digital row, with MOX last | The as-built board has one slot type; the host slot map decides how a slot is read. MOX heaters are the largest heat load and MOX is a net sink that desorbs during purge, so the record carries slot index and flow position for depletion modelling (§4). |
-| 11 | The chamber is a **cascade, and every record says where the slot is** | treat the slots as independent | Gas independence degrades with upstream uptake. Reporting slot index and flow position lets the host model it (§4.9). |
+| 10 | **Eight uniform slots on two inward-facing wall rows** (left slots 0–3, right slots 4–7) | an analog row and a digital row, with MOX last | The as-built board has one slot type; the host slot map decides how a slot is read. Every record carries its slot index and wall so any uptake gradient can be modelled (§4). |
+| 11 | **Every record says where the slot is** — wall and station | treat the slots as independent | Two facing rows share one channel, so uptake by one card can affect the air its neighbour sees. Reporting slot index and wall lets the host model any gradient (§4.9). |
 | 12 | **Driven three-phase cycle** | continuous streaming | Passive sampling injects uncontrolled ambient variability; comparability is the product (§2). |
 | 13 | Hand calculation plus gates first, **CFD once** | CFD before freezing the interface | The interface is what blocks hardware; the CFD tunes parameters, not invariants (§8.3). |
 | 14 | **pH is a pluggable ISFET module**, never a base-board sensor | a pH slot inside the gas array; a soldered pH front-end | pH is a property of an aqueous phase, so a probe in the gas path measures nothing. The users who need it (fermentation, brine, wort) need it in the *liquid*, not the headspace, so pH travels as its own cartridge: ISFET plus reference on a lead, calibration and wet-storage cap carried by the module, occupying one slot and reporting through the same record. The base board stays gas + T/H, and nobody buys a wet probe they will not use. |
@@ -1253,7 +1254,7 @@ A gate is not a measurement.
 | Separately-built solids do not occupy the same space | `tools/verify_clearance.py` (FreeCAD solids) + `tools/verify_pcb.py` (real Edge.Cuts) | proven — filter drawer 0.000 mm³, modelled board 0.000 mm³, fabricated board 4.30 mm clearance at every boss |
 | Slot count is information-optimal for the modelled pool | `tools/verify_orthogonality.py` | proven within the model's sourced data |
 | Real modules fit the chamber | `tools/verify_module_fit.py` | partly — pose settled by §4.9; three caliper numbers remain a module maker's conformance check |
-| Slot exchange time and row-to-row cascade | hand calculation (τ = V/Q ≈ 2.0 s, 20 s purge ≈ 10 exchanges); `cfd/` v2 with Courant check | calculated; CFD case committed with corrected numerics, run and import per `cfd/RESULTS.md` |
+| Slot exchange time and wall-to-wall uniformity | hand calculation (τ = V/Q ≈ 2.28 s, 20 s purge ≈ 9 exchanges); `cfd/` v2 with Courant check | calculated; CFD case committed with corrected numerics, run and import per `cfd/RESULTS.md` |
 | Filter ΔP and fan operating point | hand calculation against datasheet anchors | calculated; unit acceptance §14 |
 | Purge completeness ≥ 99 %, carryover ≤ 5 % | §8.2 acceptance test | unit acceptance §14 |
 | Rail budgets (5 V 1.38 A, 3.3 V 0.40 A worst case) | arithmetic from `interface.RAILS` | calculated; 5 V trunk ≈ 21 °C rise at 1.4 A, B.Cu GND pour verified |

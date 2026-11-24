@@ -8,27 +8,40 @@ writes are the case, and they are committed.
     python3 cfd/make_case.py
 """
 import os
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "mechanical"))
+from constants import CONST  # noqa: E402
 
 # ---- the fluid volume, straight off mechanical/constants.py -----------------
-X0, X1 = 3.0, 119.0
-Y0, Y1 = 3.0, 111.0
-Z0, Z1 = 8.6, 43.0
-NX, NY, NZ = 58, 54, 17          # 2 mm cells; snappy refines to 1 mm
+X0, X1 = CONST["CX0"], CONST["CX1"]
+Y0, Y1 = CONST["CY0"], CONST["CY1"]
+Z0, Z1 = CONST["PCB_TOP"], CONST["CAV_Z1"]
+NX, NY, NZ = 58, 54, 26         # 2 mm cells; snappy refines to 1 mm
 
-INLETS = [(35.0, 30.0), (61.0, 30.0), (87.0, 30.0)]   # x, z on y = Y0
-OUTLET = (44.0, 78.0, Z0, 40.0)                        # x0, x1, z0, z1 on y = Y1
-PAD = (6.0, 116.0, 10.8, 14.8, 20.0, Z1)                # x0,x1,y0,y1,z0,z1
+# nostrils on the channel centreline, centred on the upright card's sensing band
+INLETS = [(CONST["SH"] / 2.0 + k * CONST["NO_PITCH"], CONST["NO_Z"])
+          for k in (-1, 0, 1)]
+OUTLET = (CONST["FAN_X"] - CONST["FAN_R"], CONST["FAN_X"] + CONST["FAN_R"],
+          CONST["FAN_Z"] - CONST["FAN_R"], CONST["FAN_Z"] + CONST["FAN_R"])
+PAD = (X0 + CONST["RAIL_W"], X1 - CONST["RAIL_W"],
+       CONST["FILT_Y0"], CONST["FILT_Y1"], CONST["FILT_Z0"], Z1)
 
-PROBES = [
-    ("A0", (0.022, 0.091, 0.0405)), ("A1", (0.048, 0.091, 0.0405)),
-    ("A2", (0.074, 0.091, 0.0405)), ("A3", (0.100, 0.091, 0.0405)),
-    ("D0", (0.0295, 0.049, 0.0405)), ("D1", (0.0505, 0.049, 0.0405)),
-    ("D2", (0.0715, 0.049, 0.0405)), ("D3", (0.0925, 0.049, 0.0405)),
-    ("bypass", (0.061, 0.0128, 0.014)),      # under the filter pad
-    ("outlet", (0.061, 0.105, 0.025)),
-]
+# probes at the inward tip of every card (left row +21 mm, right row -21 mm),
+# normalised by the outer shell dimensions
+SH, SW, SHH = CONST["SH"], CONST["SW"], CONST["SHH"]
+PROBES = (
+    [(f"A{i}", ((CONST["AN_X"] + CONST["CARD_REACH"]) / SH,
+                y / SW, CONST["NO_Z"] / SHH))
+     for i, y in enumerate(CONST["AN_Y"])] +
+    [(f"D{i}", ((CONST["DI_X"] - CONST["CARD_REACH"]) / SH,
+                y / SW, CONST["NO_Z"] / SHH))
+     for i, y in enumerate(CONST["DI_Y"])] +
+    [("bypass", (CONST["SH"] / 2.0 / SH, CONST["FILT_Y0"] / SW / 2.0,
+                 (Z0 + CONST["FILT_Z0"]) / 2.0 / SHH)),
+     ("outlet", (CONST["FAN_X"] / SH, (Y1 + 2.0) / SW, CONST["FAN_Z"] / SHH))]
+)
 
 Q_TOTAL = 2.5e-4          # 15 L/min, the design purge flow, m3/s
 Q_INLET = Q_TOTAL / 3.0
@@ -90,8 +103,9 @@ boundary
 # walls. createPatch in OpenFOAM 2412 is unreliable (duplicates faces instead
 # of moving them from the source patch, and snappyHexMesh regenerates the
 # boundary file anyway), so we use one inlet patch with fixedValue velocity.
-# Total flow Q_TOTAL over front-face area (116 x 34.4 mm^2 = 0.00399 m^2)
-# gives mean velocity ~0.063 m/s; Courant number at dt=0.02, dx=0.002 is ~0.6.
+# Total flow Q_TOTAL over front-face area (116 x 45.4 mm^2 = 0.00527 m^2)
+# gives mean velocity ~0.047 m/s.  The tracer pass uses dt=4e-4 and the inlet
+# jets, not this mean, set the Courant limit.
 FILES["system/topoSetDict"] = foam("topoSetDict", """
 // Cut the three nostril patches and the fan outlet out of the box faces.
 // Coordinates in metres (SI). The box subsets carve the nostril faces out
@@ -251,7 +265,7 @@ castellatedMeshControls
     resolveFeatureAngle 30;
     refinementRegions   {}
 
-    // a point in clear air between the digital row and the filter
+    // a point in clear air between the card rows and the filter
     locationInMesh (0.061 0.012 0.030);
 
     allowFreeStandingZoneFaces true;

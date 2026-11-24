@@ -19,8 +19,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 LABELS = ["A0", "A1", "A2", "A3", "D0", "D1", "D2", "D3", "bypass", "outlet"]
 
-# plug flow through the empty chamber: V = 116 x 108 x 34.4 mm3 at 15 L/min
-VOL_L = 116.0 * 108.0 * 34.4 / 1e6
+# plug flow through the empty chamber: V = 116 x 108 x 45.4 mm3 at 15 L/min
+VOL_L = 116.0 * 108.0 * 45.4 / 1e6
 TAU = VOL_L / (15.0 / 60.0)
 
 
@@ -94,14 +94,13 @@ def main():
         xs = [x for x in xs if x is not None]
         return sum(xs) / len(xs) if xs else None
 
-    dig, ana = mean([t63.get("D%d" % i) for i in range(4)]), \
+    right, left = mean([t63.get("D%d" % i) for i in range(4)]), \
         mean([t63.get("A%d" % i) for i in range(4)])
-    if dig is not None and ana is not None:
-        print("upstream (digital) row t63 %.2f s, downstream (analog) %.2f s"
-              % (dig, ana))
-        print("  -> the downstream row sees the sample %.2f s later; that "
-              "difference is the row-to-row cascade and it is what the record "
-              "must carry (slot flow position)." % (ana - dig))
+    if right is not None and left is not None:
+        print("right wall mean t63 %.2f s, left wall mean t63 %.2f s"
+              % (right, left))
+        print("  -> the wall-to-wall delta is %.2f s; the centred nostrils "
+              "should flood both facing rows evenly." % (right - left))
     by = t63.get("bypass")
     if by is not None and dig is not None:
         print("under-pad probe t63 %.2f s vs first row %.2f s" % (by, dig))

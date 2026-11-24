@@ -36,13 +36,13 @@ by side on the same footprint:
 
 The user fills slots with whatever chemistry the job needs, in any mix, and
 never has to know which slot is "the analog row". The host slot map decides what
-each slot means; the base only acquires.
+each slot means; the base only acquires. Every header and pin is permanently
+silkscreened on the board.
 
-The one thing the mix cannot change is physics: **the chamber is a cascade, not
-eight parallel chambers.** The upstream row sees fresh sample; the downstream
-row sees sample that has already passed the upstream cells. So the base reports
-each record with its slot index and its position in the flow, and the software
-models the depletion. Put the cells you trust most upstream.
+The one thing the mix cannot change is geometry: the two side-wall rows face
+each other across a central channel, so the record carries its slot index and
+wall. The host map can model any uptake gradient between the banks; the base
+does not prescribe which sensor goes where.
 
 ### 2.1 Gas cell pinout (keyed 1×6, 2.54 mm)
 
@@ -143,37 +143,34 @@ identity is not a hardware error.
 
 ## 4. Mechanical envelope
 
-The cell is mounted **flat**: the card lies parallel to the board, sensing face
-up, and comes out upward. Flat is not cosmetic:
-
-* a MOX can's gas inlet is its **end face**, not its barrel. Standing a card in
-  a socket points the inlet sideways at its neighbour instead of into the flow;
-* standing cards needed 40–48 mm of height where the chamber gives 34.4 mm above
-  the board, so a 32–40 mm MQ card did not fit at all. Flat, the same card is
-  21 mm tall and leaves 4.9 mm of clear air under the lid.
+The cell is mounted **upright on an inner side wall**: the card stands in the
+Y-Z plane, its 1×6 pin line front-to-back, and its sensing face looks **inward**
+across the central channel. Gas enters at the centred nostrils, runs straight
+between the two facing rows and leaves through the rear fan. Every socket is
+inset 13 mm from its wall so a board with rear pins or a tall part on its back
+never touches the wall.
 
 | Quantity | Value |
 |----------|-------|
-| Cartridge outline | ≤ **20 mm** across the row × ≤ **32 mm** along the flow |
-| Cartridge height (its own board plus the tallest cell) | ≤ **21 mm** |
-| On the socket | the cartridge sits ≈8.5 mm up, so its top lands 29.5 mm above the board (z = 38.1), leaving a 4.9 mm flow hood under the lid at z = 43 |
-| Sensing element | anywhere on the card, on the slot centre line; it only needs clear air above it |
-| Slot pitch | **22 mm** front row (slots 4–7, J6–J9) / **26 mm** rear row (slots 0–3, J2–J5); a cartridge is ≤ 20 mm wide so it clears both |
+| Cartridge outline | ≤ **20 mm** along the wall × ≤ **32 mm** tall |
+| Cell reach into the channel | ≤ **21 mm** from the board face |
+| On the socket | the card rises 8.5 + 32 = 40.5 mm above the board (top z = 49.1), leaving a 4.9 mm flow hood under the lid at z = 54 |
+| Sensing element | on the inward face, centred at roughly z = 33; it needs clear air in the channel |
+| Slot pitch | **24 mm** on stations 24 / 48 / 72 / 96 along each wall; a card is ≤ 20 mm wide so it clears its neighbour |
+| Wall clearance | **13 mm** behind every socket for rear pins/hardware |
 | Keying | pin-1 chamfer plus a polarising slot in the socket wall |
 
 The base socket is a **vertical 2.54 mm receptacle**; the cartridge carries a
-**right-angle male header** on its edge. The cartridge therefore lies flat and
-comes out straight up. There is no in-plane room for a slide-out cartridge in a
-two-row layout (a 32 mm cartridge would need 32 mm of pull room it does not
-have), so the enclosure, not the socket, is what makes a swap tool-free: four M3
-screws, lid off, lift the cartridge.
+**straight male header** on its edge. The card therefore stands upright and
+comes out straight up. Swapping is tool-free: four M3 screws, lid off, lift the
+cartridge.
 
-**There is no window.** An earlier revision required each cartridge's sensing
-element to sit in a 20 × 20 mm opening 16 mm downstream of its socket, in a plate
-37 mm above the board. That plate has been removed. A cartridge plugged into its
-socket already has unobstructed air over its sensing face, and the plate only
-added a part, a liner and a recess. The standard therefore constrains the
-cartridge's outline, height and connector — not the position of its element.
+**There is no window or baffle.** An earlier revision required each cartridge's
+sensing element to sit in a plate opening above the board. That plate has been
+removed. A cartridge plugged into its socket already has unobstructed air in the
+channel, and the plate only added a part, a liner and a recess. The standard
+therefore constrains the cartridge's outline, reach and connector — not the
+position of its element.
 
 A bare MQ-135 card (32 × 20 mm, can Ø19, element 16 mm from its header) *is* a
 conforming cartridge once its header is re-pinned to §2.1. Anything that is not
@@ -218,16 +215,16 @@ in three ways that do not cost sensitivity:
 
 | Quantity | Reference base |
 |----------|----------------|
-| Slots | **8 identical** — front row (slots 4–7) upstream, rear row (slots 0–3) downstream |
-| Slot pitch | 22 mm front row / 26 mm rear row (a base parameter) |
+| Slots | **8 identical** — left wall (slots 0–3), right wall (slots 4–7) |
+| Slot pitch | 24 mm on Y stations 24 / 48 / 72 / 96 (a base parameter) |
 | Interfaces per slot | keyed 5 V gas-cell socket + 3.3 V Qwiic port |
-| Chamber | 116 × 108 × 40, board top as the floor, lid as the ceiling |
+| Chamber | 116 × 108 × 51, board top as the floor, lid as the ceiling |
 | Mux / ADC / 1-Wire channels | 8 / 2 / 1 |
 
-Four slots at these spacings span 86 / 98 mm inside the 116 mm cavity, so there
-is room for the flow to spread at both ends. That is also what makes it cheap to
-manufacture: one socket, one standoff, one repeat unit, eight times, with no
-machined parts and no windows to align.
+Four slots at 24 mm pitch span 92 mm inside the 108 mm cavity depth, with 13 mm
+of wall clearance behind each card for rear hardware. That is also what makes it
+cheap to manufacture: one socket, one standoff, one repeat unit, eight times,
+with no machined parts and no windows to align.
 
 Scaling is a constant, not a redesign:
 
@@ -247,10 +244,11 @@ same schema.
 
 ## 7. Conformance checklist (for a module maker)
 
-1. 2.54 mm keyed 1×6 header, pinout §2.1, right-angle on the card edge.
-2. Outline ≤ 20 × 32 mm, ≤ 21 mm tall in the flat pose (§4).
-3. Sensing element anywhere on the card, on the slot centre line, with clear air
-   above it.
+1. 2.54 mm keyed 1×6 header, pinout §2.1, straight on the card edge.
+2. Outline ≤ 20 mm along the wall × ≤ 32 mm tall, reach ≤ 21 mm into the channel,
+   upright and inward-facing (§4).
+3. Sensing element on the inward face, centred near z = 33, with clear channel
+   air in front of it. Rear pins need the 13 mm wall clearance the base provides.
 4. Identity registered in the host slot map; an EEPROM is optional (reserved §3.1).
 5. Output: 0–5 V analog on `AO`, or TTL serial 9600 8N1 on `DO`.
 6. Power: ≤ 150 mA at 5 V, ≤ 50 mA at 3.3 V, inrush ≤ 300 mA.
@@ -284,6 +282,6 @@ measured by `tools/verify_pcb.py`. The board is headless: no OLED is fitted.
 
 What remains is on the module side, not the base board: three caliper numbers per
 module are a module maker's conformance check, and a bare SMD part, a TO-5 can or
-a Ø23.5 mm Winsen can goes on an OSM-1 carrier. The base's vertical sockets take
-a flat carrier with its pin line across the flow, so a module that ships as a
-standing board points its inlet at its neighbour; §4 is where that rule lives.
+a Ø23.5 mm Winsen can goes on an OSM-1 carrier. The base's side-wall sockets take
+an upright carrier with its pin line front-to-back and its face toward the
+channel; §4 is where that rule lives.

@@ -54,8 +54,10 @@ STANDOFFS = [(16.0, 16.0), (SH - 16.0, 16.0),
 NO_X = (MIDX - CONST["NO_PITCH"], MIDX, MIDX + CONST["NO_PITCH"])
 FAN_SCREWS = [(CONST["FAN_X"] + dx, CONST["FAN_Z"] + dz)
               for dx in (-16.0, 16.0) for dz in (-16.0, 16.0)]
-SOCKETS = ([(cx, CONST["A_Y0"]) for cx in CONST["A_X"]] +
-           [(cx, CONST["D_Y0"]) for cx in CONST["D_X"]])
+# two opposing inner side-wall rows; pin lines run front-to-back (along Y) so
+# a straight-header breakout stands upright and faces inward across the channel
+SOCKETS = ([(CONST["AN_X"], cy) for cy in CONST["AN_Y"]] +
+           [(CONST["DI_X"], cy) for cy in CONST["DI_Y"]])
 
 
 def box(x0, y0, z0, x1, y1, z1):
@@ -100,9 +102,10 @@ for sx, sy in STANDOFFS:                           # board rests here
 # Rear fan plate: 4 mm proud of the back, so the fan sits outside the sample
 # path and can be swapped without opening the box.  Screws are blind: the
 # plate plus the wall is 7 mm of PETG, and no hole goes into the chamber.
-body = body.fuse(box(MIDX - CONST["FAN_PLATE"] / 2.0, SW, 1.0,
+body = body.fuse(box(MIDX - CONST["FAN_PLATE"] / 2.0, SW,
+                     CONST["FAN_Z"] - CONST["FAN_PLATE"] / 2.0,
                      MIDX + CONST["FAN_PLATE"] / 2.0, FAN_Y0,
-                     1.0 + CONST["FAN_PLATE"]))
+                     CONST["FAN_Z"] + CONST["FAN_PLATE"] / 2.0))
 body = body.cut(cyl_y(CONST["FAN_R"], CY1 - 1.0, FAN_Y0 + 1.0,
                       CONST["FAN_X"], CONST["FAN_Z"]))
 for sx, sz in FAN_SCREWS:
@@ -129,8 +132,9 @@ for bx, by in BOSSES:                              # corner notches for the boss
                                PZ0 - 1.0, PZ1 + 1.0, bx, by))
 _half_l = CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0
 for cx, cy in SOCKETS:
-    plate = plate.fuse(box(cx - _half_l, cy - CONST["SOCK_P"] / 2.0, PZ1,
-                           cx + _half_l, cy + CONST["SOCK_P"] / 2.0,
+    # pin line runs front-to-back (Y): narrow in X, long in Y
+    plate = plate.fuse(box(cx - CONST["SOCK_P"] / 2.0, cy - _half_l, PZ1,
+                           cx + CONST["SOCK_P"] / 2.0, cy + _half_l,
                            PZ1 + CONST["SOCK_H"]))
 pcb.Shape = plate
 

@@ -221,8 +221,8 @@ def build():
 
     part("J1", "Connector:USB_C_Receptacle_USB2.0_16P", "USB_C_16P",
          "Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal")
-    # Eight identical sensing sockets: J2..J5 = downstream row, J6..J9 =
-    # upstream row.  Order is slot 0..7, matching the chamber contract.
+    # Eight identical sensing sockets: J2..J5 = left wall, J6..J9 = right
+    # wall.  Order is slot 0..7, matching the chamber contract.
     for k in range(N):
         part("J%d" % (2 + k), "Connector_Generic:Conn_01x06", "1x06 female",
              "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Vertical")

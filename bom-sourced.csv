@@ -1,0 +1,33 @@
+Group,Reference,Qty,Value,MPN,Manufacturer,Package,Source,Notes
+PCB,U1,1,ESP32-WROOM-32E-N4,ESP32-WROOM-32E-N4,Espressif,RF module,LCSC / Digi-Key / Mouser,pre-certified radio; N4 is 4 MB flash
+PCB,"U2,U8",2,ADS1115,ADS1115IDGSR,Texas Instruments,MSOP-10,Digi-Key / Mouser,"16-bit 4-ch ADC; 0x48 left wall slots 0-3, 0x49 right wall slots 4-7"
+PCB,U3,1,CH340C,CH340C,WCH,SOIC-16,LCSC,USB-UART bridge
+PCB,U4,1,TCA9548A,TCA9548APWR,Texas Instruments,TSSOP-24,Digi-Key / Mouser,"8-ch I2C mux, channel n = slot n, 0x70"
+PCB,U5,1,SHT31-DIS-B,SHT31-DIS-B,Sensirion,DFN-8 2.5x2.5,Digi-Key / Mouser,"T/RH reference, 0x44"
+PCB,U7,1,AMS1117-3.3,AMS1117-3.3,AMS,SOT-223,LCSC,5 V to 3.3 V LDO
+PCB,Q1,1,AO3400A,AO3400A,Alpha & Omega,SOT-23,LCSC,fan PWM low-side switch
+PCB,Q2,1,MMBT3904,MMBT3904,onsemi,SOT-23,LCSC,buzzer driver
+PCB,D1,1,SS14,SS14,Diodes Inc.,SOD-123,LCSC / Digi-Key / Mouser,flyback clamp across buzzer coil; keeps switching spikes off 5 V / GND
+PCB,LED1,1,Red LED,KT-0603R,Kingbright,0603,LCSC,status LED
+PCB,BZ1,1,MBT-12A05,MBT-12A05,generic,D10.2 mm,LCSC,5 V magnetic buzzer; verify lead spacing at order
+PCB,"SW1,SW2,SW3",3,TL3342,TL3342F160QG,E-Switch,SMD tact,Digi-Key / Mouser,MEASURE / BOOT / RESET
+PCB,"R1,R2",2,5.1k,RC0603FR-075K1L,Yageo,0603,LCSC / Digi-Key,USB-C CC pulldowns
+PCB,"R3-R29,R33-R36",31,10k,RC0603FR-0710KL,Yageo,0603,LCSC / Digi-Key,"AO dividers, DO series, button and gate pull-ups"
+PCB,R30,1,330R,RC0603FR-07330RL,Yageo,0603,LCSC / Digi-Key,LED series
+PCB,"R31,R32,R37-R53",19,4.7k,RC0603FR-074K7L,Yageo,0603,LCSC / Digi-Key,"master I2C, 1-Wire and per-channel Qwiic pull-ups"
+PCB,C1-C9,9,100nF,CC0603KRX7R9BB104,Yageo,0603,LCSC / Digi-Key,decoupling
+PCB,C10-C12,3,10uF,CL10A106KP8NNNC,Samsung,0603,LCSC,bulk
+PCB,J1,1,USB4105-GF-A,USB4105-GF-A,GCT,USB-C 16P top-mount,Digi-Key / Mouser,USB-C receptacle
+PCB,J2-J9,8,1x6 2.54 mm female,PPTC061LFBN-RC,Sullins,THT,Digi-Key,OSM-1 gas-cell sockets (identical in every slot)
+PCB,J10,1,B2B-PH-K-S,B2B-PH-K-S,JST,2.00 mm 2P,Digi-Key,fan connector
+PCB,J11-J18,8,Qwiic (JST-SH 4P),SM04B-SRSS-TB(LF)(SN),JST,1.00 mm 4P horizontal,Digi-Key / Mouser,one per slot; TCA9548A channel n
+PCB,PCB1,1,114 x 105 mm PCB,-,fab-house-neutral,2-layer 1.6 mm HASL,-,qty 10; ENIG adds ~$0.60
+Enclosure,TRAY,1,PETG tray, PTFE-lined wetted faces,-,FDM print,-,2.50
+Enclosure,LID,1,PETG lid, PTFE-lined wetted faces,-,FDM print,-,1.00
+Enclosure,FAN,1,40 x 40 x 10 mm 5 V PWM fan,-,generic,-,LCSC / Digi-Key,"axial, 15 L/min class"
+Enclosure,FILTER,1,Woven PTFE mesh 110 x 4 x 23,-,generic,-,custom cut,"permanent, washable, zero recurring cost; stops dust/hair only"
+Enclosure,SCREW-M3,4,M3 x 8 BHCS,-,generic,-,local,lid to standoffs
+Enclosure,SCREW-M2.8,4,M2.8 x 6 self-tapping,-,generic,-,local,fan plate
+Harness,USB-PIGTAIL,1,USB-C panel pigtail 0.3 m,-,generic,-,LCSC / local,"bulkhead, seals the wall hole"
+Harness,USB-CABLE,1,USB-C data cable 1 m,-,generic,-,local,host link
+Harness,AUX-LEAD,1,2-pin JST-PH 5 V lead,-,generic,-,local,power-bank input

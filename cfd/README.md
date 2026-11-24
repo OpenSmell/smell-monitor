@@ -2,9 +2,10 @@
 
 Three questions, one case:
 
-1. **Exchange time.** How long does the gas over each row take to be replaced?
-2. **Cascade.** How much of the sample does the upstream row remove before the
-   downstream row sees it?
+1. **Exchange time.** How long does the gas at each side-wall card take to be
+   replaced through the 4.9 mm hood?
+2. **Uniformity.** Do the three centred nostrils flood both inward-facing rows
+   evenly, or does one bank see fresher sample?
 3. **Interference.** Does a cartridge plugged into one slot disturb the flow
    over its neighbours?
 
@@ -31,16 +32,17 @@ prints `report.py`. Logs are `log.*`.
 
 | | |
 |---|---|
-| Domain | the tray cavity above the board: 116 × 108 × 34.4 mm |
+| Domain | the tray cavity above the board: 116 × 108 × 45.4 mm |
 | Mesh | 2 mm hex background, 1 mm on sockets, cartridges and bosses; ~0.3 M cells |
 | Flow | incompressible, steady, k-ω SST, no-slip on every solid |
 | Inlet | 3 patches, 15 L/min total (`flowRateInletVelocity`) |
-| Outlet | fixed p = 0 on a 34 × 30 mm patch in the fan bore |
+| Outlet | fixed p = 0 on a 38 × 38 mm patch in the fan bore |
 | Filter | Darcy–Forchheimer sink in the 4 mm pad slab (`constant/fvOptions`) |
 | Tracer | unit step at the inlets, `scalarTransportFoam`, 0.02 s steps |
 
-`report.py` prints t63 and t90 at eight probe points in the 4.9 mm gap over each
-cartridge, plus a probe under the filter pad and one near the outlet.
+`report.py` prints t63 and t90 at eight probe points at the inward tip of each
+upright card (z = 33 mm, the sensing band), plus a probe under the filter pad
+and one near the outlet.
 
 ## Idealisations, and why they are acceptable
 
@@ -48,16 +50,17 @@ cartridge, plus a probe under the filter pad and one near the outlet.
   a round hole on a face without a much heavier mesh. The total flow is imposed,
   so the jet velocity is ~21 % low (area 36 mm² vs 28 mm²). A slower jet spreads
   less, so the mixing this reports is a floor, not a ceiling.
-* **The outlet is 34 × 30 mm, not Ø38.** 9 % less area; the real bore is
-  rounded, which is kinder to the flow than a square.
+* **The outlet is a 38 × 38 mm square, not Ø38.** 21 % more area; the real bore
+  is rounded, which is kinder to the flow than a square.
 * **The fan is not a curve.** The operating point is imposed as a flow rate, so
   the inlet pressure the case reports *is* the system ΔP at that flow. Compare
   it with the NF1 bench (blueprint §3.8).
 * **The pad is a porous sink, not a fibre structure.** `d = 7e7 1/m²`
   corresponds to ~3 Pa at 0.6 m/s; that is the one number a bench measurement
   should replace.
-* **Cartridges are boxes.** The real can, its mesh cap and its header are
-  smaller than the OSM-1 envelope, so the blockage here is conservative.
+* **Cartridges are boxes.** Each is modelled as a 20 × 32 mm upright panel on a
+  side wall reaching 21 mm into the channel. The real can, its mesh cap and its
+  header are smaller than the OSM-1 envelope, so the blockage is conservative.
 
 The bulk flow is laminar at 15 L/min (Re ≈ 220 on the cavity's hydraulic
 diameter); the three inlet jets are not (Re ≈ 3 500 each). k-ω SST is used
@@ -67,17 +70,17 @@ result is effectively a laminar solution.
 
 ## Reading the result
 
-* **t63 per row.** If the two rows' t63 differ by more than ~1 s, the cascade is
-  real and every record has to carry the slot's flow position — which it does
-  (`slot_index` and `flow_position` in the record).
-* **t63 vs V/Q.** V/Q = 1.72 s for the empty chamber. A row that comes out at
+* **t63 per wall.** If the two walls' t63 differ by more than ~1 s, the inlet
+  pattern is uneven and every record has to carry the slot's wall — which it does
+  (`slot_index` identifies one of the eight wall stations).
+* **t63 vs V/Q.** V/Q = 2.28 s for the empty chamber. A wall that comes out at
   3–4× that is sitting in a recirculation, not in the stream.
-* **Under-pad probe.** If it fills faster than the first row, the slot below the
+* **Under-pad probe.** If it fills faster than the cards, the slot below the
   filter is a bypass and the drawer needs its bottom gap closed. That is a
   ten-minute change to `constants.py`, not a redesign.
-* **The 4.9 mm gap.** The sensing face is 4.9 mm under the lid. If t63 there is
-  poor, the fix is 6 mm more wall (`CH` 40 → 46), not a new pose: the flat
-  cartridge is right, the hood over it is what is short.
+* **The 4.9 mm gap.** The card top is 4.9 mm under the lid. If t63 there is
+  poor, the fix is 6 mm more wall (`CH` 51 → 57), not a new pose: the upright
+  inward-facing card is right, the hood over it is what is short.
 
 ## Numerical quality
 

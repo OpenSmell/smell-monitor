@@ -49,23 +49,13 @@ PCB_W, PCB_D = CONST["PCB_X"], CONST["PCB_Y"]
 # ---------------------------------------------------------------------------
 PLACE = {
     # --- sensing sockets: exactly on the chamber contract ------------------
-    # Flow order is front -> rear, so J6..J9 are the UPSTREAM row (board
-    # y 28.5 ~ shell y 33) and J2..J5 are downstream (board y 70.5 ~ shell
-    # y 75).  Y comes from interface.ANALOG/DIGITAL_HEADERS.
-    # 90 deg: the pin line runs ACROSS the flow, so a 20 mm cartridge can sit
-    # on the 22 mm front-row pitch and reach 32 mm downstream (standard).
-    "J2": (18.0, 70.5, 90), "J3": (44.0, 70.5, 90),
-    "J4": (70.0, 70.5, 90), "J5": (96.0, 70.5, 90),
-    "J6": (25.5, 28.5, 90), "J7": (47.5, 28.5, 90),
-    "J8": (69.5, 28.5, 90), "J9": (91.5, 28.5, 90),
-    # --- Qwiic ports: one per slot, in front of its socket ----------------
-    # The cartridge plugs into the socket and extends rearward, so the strip
-    # in front of each socket is open: the Qwiic plug goes in with the module
-    # seated, and the cable stays inside the module's own footprint.
-    "J11": (18.0, 64.0, 0), "J12": (44.0, 64.0, 0),
-    "J13": (70.0, 64.0, 0), "J14": (96.0, 64.0, 0),
-    "J15": (25.5, 22.0, 0), "J16": (47.5, 22.0, 0),
-    "J17": (69.5, 22.0, 0), "J18": (91.5, 22.0, 0),
+    # J2..J5 are the LEFT inner side wall, J6..J9 the RIGHT.  Both rows are on
+    # the same four front-to-back stations, so the boards face each other
+    # across the central channel.  Positions come from interface; rotation 0
+    # puts the 1x6 pin line ALONG Y, so a straight-header breakout stands
+    # upright and its face looks inward.  See the loop after this dict.
+    # --- Qwiic ports: one per slot, just inboard of its socket -------------
+    # placed in the loop below so cable and connector stay inside the channel.
     # --- USB + power, front strip ------------------------------------------
     # J1 is 14 mm in, not 10: the tray's front-left boss needs an r = 4.3 mm
     # cut-out, and a USB-C receptacle whose courtyard reaches x = 4.7 would sit
@@ -78,26 +68,26 @@ PLACE = {
     "C10": (50.0, 6.0, 0), "C11": (54.0, 6.0, 0),
     "SW1": (74.0, 12.0, 0), "SW2": (83.0, 12.0, 0), "SW3": (92.0, 12.0, 0),
     # --- AO dividers + DO series, left of the centre line ------------------
-    # Three shallow rows under the upstream cartridges: DO series nearest the
+    # Three shallow rows beside the side-wall sockets: DO series nearest the
     # sockets (short 5 V stub), then the two divider rows.
     "R19": (8.0, 33.0, 0), "R20": (11.5, 33.0, 0),
     "R21": (15.0, 33.0, 0), "R22": (18.5, 33.0, 0),
     "R23": (22.0, 33.0, 0), "R24": (25.5, 33.0, 0),
     "R25": (29.0, 33.0, 0), "R26": (32.5, 33.0, 0),
-    "R3": (8.0, 37.0, 0), "R4": (11.5, 37.0, 0),
-    "R5": (15.0, 37.0, 0), "R6": (18.5, 37.0, 0),
+    "R3": (8.0, 37.0, 0), "R4": (36.5, 37.0, 0), "R5": (22.0, 26.0, 0),
+    "R6": (18.5, 37.0, 0),
     "R7": (22.0, 37.0, 0), "R8": (25.5, 37.0, 0),
     "R9": (29.0, 37.0, 0), "R10": (32.5, 37.0, 0),
-    "R11": (8.0, 40.5, 0), "R12": (11.5, 40.5, 0),
-    "R13": (15.0, 40.5, 0), "R14": (18.5, 40.5, 0),
+    "R11": (8.0, 40.5, 0), "R12": (36.5, 40.5, 0), "R13": (15.0, 30.0, 0),
+    "R14": (18.5, 40.5, 0),
     "R15": (22.0, 40.5, 0), "R16": (25.5, 40.5, 0),
     "R17": (29.0, 40.5, 0), "R18": (32.5, 40.5, 0),
     # --- ADC pair + sensor + mux, centre band ------------------------------
-    "U5": (12.0, 48.0, 0), "C5": (17.0, 48.0, 0),
+    "U5": (12.0, 78.0, 0), "C5": (17.0, 48.0, 0),
     "U2": (26.0, 48.0, 0), "C3": (31.0, 48.0, 0),
     "U8": (38.0, 48.0, 0), "C6": (43.0, 48.0, 0),
     "U4": (52.0, 48.0, 0), "C4": (58.0, 48.0, 0),
-    "U3": (100.0, 50.0, 90), "C7": (109.5, 50.0, 0),
+    "U3": (94.0, 81.0, 90), "C7": (109.5, 50.0, 0),
     "C8": (109.5, 44.0, 0),
     # --- bus pull-ups + housekeeping --------------------------------------
     "R31": (36.0, 58.0, 0), "R32": (39.5, 58.0, 0),
@@ -106,8 +96,8 @@ PLACE = {
     "R40": (15.0, 53.0, 0), "R41": (18.5, 53.0, 0),
     "R42": (22.0, 53.0, 0), "R43": (25.5, 53.0, 0),
     "R44": (29.0, 53.0, 0), "R45": (32.5, 53.0, 0),
-    "R46": (8.0, 59.0, 0), "R47": (11.5, 59.0, 0),
-    "R48": (15.0, 59.0, 0), "R49": (18.5, 59.0, 0),
+    "R46": (8.0, 59.0, 0), "R47": (11.5, 56.0, 0),
+    "R48": (15.0, 56.0, 0), "R49": (18.5, 59.0, 0),
     "R50": (22.0, 59.0, 0), "R51": (25.5, 59.0, 0),
     "R52": (29.0, 59.0, 0), "R53": (32.5, 59.0, 0),
     "R34": (84.0, 54.0, 0), "R35": (88.0, 54.0, 0), "R36": (92.0, 54.0, 0),
@@ -120,12 +110,33 @@ PLACE = {
     # --- outputs, rear strip -----------------------------------------------
     # BZ1 moved from the rear-left corner (12, 93): the rear-left boss needs an
     # r = 4.3 cut-out and the buzzer's 10.2 mm body sat inside it.
-    "BZ1": (12.0, 84.0, 0), "D1": (12.0, 92.0, 0),
+    "BZ1": (24.0, 84.0, 0), "D1": (18.0, 92.0, 0),
     "Q2": (24.0, 92.0, 0),
     "R28": (29.0, 90.0, 0), "R29": (32.0, 90.0, 0),
     "LED1": (40.0, 94.0, 0), "R30": (36.5, 94.0, 0),
-    "Q1": (100.0, 88.0, 0), "J10": (108.0, 88.0, 90), "R27": (96.0, 88.0, 0),
+    "Q1": (92.0, 88.0, 0), "J10": (108.0, 88.0, 90), "R27": (96.0, 88.0, 0),
 }
+
+# The eight gas-cell sockets are derived from the chamber contract
+# (interface.ANALOG_HEADERS / DIGITAL_HEADERS), never typed twice.  Rotation 0
+# runs the 1x6 pin line front-to-back: a straight header plugged in stands the
+# breakout in the Y-Z plane, facing across the channel.
+for _bank, _refs in (("analog", range(2, 6)), ("digital", range(6, 10))):
+    _hdr = IF.ANALOG_HEADERS if _bank == "analog" else IF.DIGITAL_HEADERS
+    for _ref, (_x, _y) in zip(_refs, _hdr):
+        PLACE[f"J{_ref}"] = (_x, _y, 0)
+
+# Qwiic ports stay on the proven, DRC-clean interior grid: two rows of four,
+# clear of both side-wall socket columns.  Each is tied to its slot by netlist
+# and silkscreen, so location does not carry sensor identity (OSM-1 host map).
+for _ref, (_x, _y) in zip(range(11, 15),
+                          [(18.0, 64.0), (44.0, 64.0),
+                           (70.0, 64.0), (96.0, 64.0)]):
+    PLACE[f"J{_ref}"] = (_x, _y, 0)
+for _ref, (_x, _y) in zip(range(15, 19),
+                          [(25.5, 22.0), (47.5, 22.0),
+                           (69.5, 22.0), (91.5, 22.0)]):
+    PLACE[f"J{_ref}"] = (_x, _y, 0)
 
 
 def _bbox(fp):

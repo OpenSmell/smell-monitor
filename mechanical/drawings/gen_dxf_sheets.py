@@ -519,7 +519,7 @@ def bom(psp, x0, y0):
 COMMON = dict(project=PROJECT, notes="all dims mm; deburr/de-flash; "
               "seal wetted faces; print thin parts 0.2 mm layer")
 
-A_X, D_X = CONST["A_X"], CONST["D_X"]
+A_X, D_X = CONST["AN_Y"], CONST["DI_Y"]
 CX0, CY0 = CONST["CX0"], CONST["CY0"]
 CX1, CY1 = CONST["CX1"], CONST["CY1"]
 SH, SW, SHH = CONST["SH"], CONST["SW"], CONST["SHH"]
@@ -573,14 +573,16 @@ def sheet_assembly(doc):
     # Modules are user-supplied, so they are not in the solid.  Draw the OSM-1
     # envelope as a phantom: without it the 4.9 mm hood over the sensing face -
     # the number the whole chamber height is chosen for - is on no drawing.
+    # upright boards stand in the Y-Z plane at BOTH side-wall X stations
     _mz0 = CONST["PCB_TOP"] + CONST["SOCK_H"]
-    _mz1 = _mz0 + 21.0
-    for _y0 in (CONST["D_Y0"], CONST["A_Y0"]):
-        _c = [s.P(MIDX, _y0, _mz0), s.P(MIDX, _y0 + 32.0, _mz0),
-              s.P(MIDX, _y0 + 32.0, _mz1), s.P(MIDX, _y0, _mz1)]
-        for _i in range(4):
-            _a, _b = _c[_i], _c[(_i + 1) % 4]
-            psp.add_lwpolyline([_a, _b], dxfattribs={"layer": "HID"})
+    _mz1 = _mz0 + CONST["CARD_H"]
+    for _wx in (CONST["AN_X"], CONST["DI_X"]):
+        for _y0 in CONST["ROW_Y"]:
+            _c = [s.P(_wx, _y0 - 10, _mz0), s.P(_wx, _y0 + 10, _mz0),
+                  s.P(_wx, _y0 + 10, _mz1), s.P(_wx, _y0 - 10, _mz1)]
+            for _i in range(4):
+                _a, _b = _c[_i], _c[(_i + 1) % 4]
+                psp.add_lwpolyline([_a, _b], dxfattribs={"layer": "HID"})
 
     iso = View(psp, "assembly", "ISO", -30, 0.45, 300, 118, hidden=False)
     caption(psp, iso.centre[0], 112, "ISO \u2013 as built  (NTS)")
@@ -589,13 +591,13 @@ def sheet_assembly(doc):
     notes_block(psp, 235, 100, [
         "ENVELOPE %d \u00d7 %d \u00d7 %d, FAN %d PROUD OF THE BACK." % (
             SH, SW, SHH, CONST["FAN_T"]),
-        "8 SOCKETS: 1\u00d76 KEYED 2.54 mm, ANALOG ROW DOWNSTREAM.",
+        "8 SOCKETS: 1\u00d76 KEYED 2.54 mm, TWO UPRIGHT INWARD-FACING WALL ROWS.",
         "LID SCREWS: M3 \u00d7 12 INTO HEAT-SET INSERTS, 4 PLACES.",
         "FILTER DROPS INTO THE FRONT DRAWER; NOTHING ELSE IS A CONSUMABLE.",
         "NO SILICONE, PVC, PAPER OR FOAM WHERE THE SAMPLE TOUCHES.",
         "BALLOON NUMBERS MATCH THE BOM; THE EXPLODED VIEW IS TRUE HLR.",
         "DASHED = OSM-1 MODULE (USER-SUPPLIED); %0.1f mm AIR ABOVE ITS FACE."
-        % (CONST["CAV_Z1"] - (CONST["PCB_TOP"] + CONST["SOCK_H"] + 21.0)),
+        % CONST["HOOD"],
     ])
     title_block(psp, dict(COMMON, title="ASSEMBLY", no="OS-000", sheet="1",
                           sheets="3", scale="AS NOTED", material="see BOM",

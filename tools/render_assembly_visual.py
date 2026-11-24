@@ -36,8 +36,11 @@ SIN30 = 0.5
 
 PCB_TOP = CONST["PCB_TOP"]
 SOCK_TOP = PCB_TOP + CONST["SOCK_H"]
-CART_W, CART_L, CART_H = 20.0, 32.0, 21.0
-HOOD = CONST["LID_Z0"] - (SOCK_TOP + CART_H)
+CART_W = 20.0                     # along the wall (Y)
+CART_H = CONST["CARD_H"]          # upright height (Z) = 32 mm
+CART_REACH = CONST["CARD_REACH"]  # cell reach into the channel (X) = 21 mm
+CART_L = CART_H                   # gate key: upright height
+HOOD = CONST["HOOD"]
 NO_X = [CONST["SH"] / 2.0 + k * CONST["NO_PITCH"]
         for k in (-1, 0, 1)]
 
@@ -287,16 +290,19 @@ def draw_pcb(d):
 
 
 def draw_sockets_and_cartridges(d, module_u):
-    slots = ([(x, CONST["D_Y0"], "D", i) for i, x in enumerate(CONST["D_X"])] +
-             [(x, CONST["A_Y0"], "A", i + 4) for i, x in enumerate(CONST["A_X"])])
+    # two opposing inner side-wall rows, pin lines front-to-back (Y), boards
+    # upright in the Y-Z plane facing inward across the central channel
+    slots = ([(CONST["DI_X"], y, "D", i) for i, y in enumerate(CONST["DI_Y"])] +
+             [(CONST["AN_X"], y, "A", i + 4) for i, y in enumerate(CONST["AN_Y"])])
     for cx, cy, row, idx in slots:
-        # socket: pin line ACROSS the flow (X), body only 2.54 deep in Y
-        box(d, cx - 7, cy - CONST["SOCK_P"] / 2, PCB_TOP, 14, CONST["SOCK_P"],
-            CONST["SOCK_H"], (23, 26, 32, 255), (12, 14, 19, 255),
+        half = CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0
+        # socket: narrow in X, pin line along Y
+        box(d, cx - CONST["SOCK_P"] / 2, cy - half, PCB_TOP, CONST["SOCK_P"],
+            2 * half, CONST["SOCK_H"], (23, 26, 32, 255), (12, 14, 19, 255),
             (16, 19, 25, 255), (*C_MUTED, 150))
         for k in range(6):
-            px = cx + (k - 2.5) * CONST["SOCK_P"]
-            box(d, px - 0.55, cy - 0.55, SOCK_TOP - 0.4, 1.1, 1.1, 0.6,
+            py = cy + (k - 2.5) * CONST["SOCK_P"]
+            box(d, cx - 0.55, py - 0.55, SOCK_TOP - 0.4, 1.1, 1.1, 0.6,
                 (*C_GOLD, 255), (*C_GOLD, 220), (*C_GOLD, 220), None, 0)
 
         u = smooth((module_u - idx * 0.045) / 0.30)
@@ -305,62 +311,56 @@ def draw_sockets_and_cartridges(d, module_u):
         lift = (1 - u) * 42.0
         z = SOCK_TOP + lift
         ref, label, kind, col = SENSOR_TYPES[idx]
-        # flat carrier, 20 across X, 32 downstream (+Y), 1.6 thick
-        box(d, cx - CART_W / 2, cy, z, CART_W, CART_L, 1.6,
+        # upright breakout: 1.6 thick in X, CART_W along the wall (Y), CART_H tall
+        box(d, cx - 0.8, cy - CART_W / 2, z, 1.6, CART_W, CART_H,
             (34, 92, 62, 240), (19, 62, 42, 245), (23, 74, 50, 245),
             (*C_PCB_E, 170))
-        # male pins go DOWN into the socket - no leads stick into the stream
         if u > 0.35:
             for k in range(6):
-                px = cx + (k - 2.5) * CONST["SOCK_P"]
-                ln(d, (px, cy, z + 0.1), (px, cy, SOCK_TOP - 3.0),
+                py = cy + (k - 2.5) * CONST["SOCK_P"]
+                ln(d, (cx, py, z + 0.1), (cx, py, SOCK_TOP - 3.0),
                    (*C_GOLD, 235), 2)
-        bx, by, bz = cx - CART_W / 2 + 2, cy + 5, z + 1.6
-        draw_sensor_body(d, kind, bx, by, bz, col)
+        # the sensing can protrudes INWARD (toward the channel) from the face
+        face_in = 1 if cx < CONST["SH"] / 2.0 else -1
+        bx = cx if face_in > 0 else cx - CART_REACH
+        draw_sensor_body(d, kind, bx, cy, z + CART_H * 0.45, col, face_in)
         if u >= 0.999:
-            pp = P(cx, cy + CART_L + 2, z + CART_H + 1)
+            pp = P(cx, cy, z + CART_H + 2)
             txt(d, (pp[0], pp[1]), "%s %s" % (ref, label), F_TINY,
                 (*C_WHITE, 205), "mm")
 
 
-def draw_sensor_body(d, kind, x, y, z, col):
+def draw_sensor_body(d, kind, x, y, z, col, face_in=1):
+    """Sensor cell on an upright board: the body reaches INWARD along X."""
     R = lambda c, a=255: (c[0], c[1], c[2], a)
+    def xb(off, length):
+        return (x + off, length) if face_in > 0 else (x - off - length, length)
     if kind == "mox":
-        hcircle(d, x + 8, y + 10, z, 7.2, R(col, 245), R((255, 255, 255), 140), 2, 24)
-        hcircle(d, x + 8, y + 10, z + 8, 6.2, R((72, 76, 82), 250), R(col, 200), 2, 24)
-        ln(d, (x + 8, y + 10, z + 8), (x + 8, y + 10, z + 15), R((210, 214, 220)), 2)
-        hcircle(d, x + 8, y + 10, z + 15, 6.8, R((150, 155, 162), 220), R(C_WHITE, 170), 1, 20)
+        x0, l = xb(0, 16)
+        box(d, x0, y - 7, z, l, 14, 14, R(col, 245), R((72, 76, 82)), R(col, 200))
+        x0, l = xb(14, 3)
+        box(d, x0, y - 6, z + 1, l, 12, 12, R((150, 155, 162), 220), R(C_WHITE, 170), R((120, 124, 130)))
     elif kind == "figaro":
-        hcircle(d, x + 8, y + 10, z, 6.0, R((60, 64, 70)), R(col, 200), 1, 20)
-        hcircle(d, x + 8, y + 10, z + 6, 5.2, R(col, 245), R(C_WHITE, 180), 2, 20)
-        hcircle(d, x + 8, y + 10, z + 12, 4.6, R((122, 130, 138)), R(C_WHITE, 160), 1, 18)
-        for k in range(8):
-            a = k * math.pi / 4
-            ln(d, (x + 8 + 3 * math.cos(a), y + 10 + 3 * math.sin(a), z + 12),
-               (x + 8 + 4.5 * math.cos(a), y + 10 + 4.5 * math.sin(a), z + 12),
-               R((46, 50, 56)), 1)
+        x0, l = xb(0, 15)
+        box(d, x0, y - 6, z, l, 12, 12, R(col, 245), R((60, 64, 70)), R(C_WHITE, 180))
+        x0, l = xb(12, 3)
+        box(d, x0, y - 5, z + 1, l, 10, 10, R((122, 130, 138)), R((90, 96, 104)), R((150, 156, 162)))
     elif kind in ("qwiic", "adafruit"):
         base = col if kind == "adafruit" else (35, 120, 92)
-        box(d, x, y, z, 16, 16, 1.2, R(base, 250), R((20, 60, 48)), R((28, 80, 62)))
-        box(d, x + 4.5, y + 4.5, z + 1.2, 7, 7, 4.4,
-            R((28, 32, 38)), R((16, 20, 25)), R((22, 26, 32)), R(col, 200))
-        if kind == "adafruit":
-            ln(d, (x + 1, y + 15, z + 1.3), (x + 15, y + 15, z + 1.3), R(C_WHITE, 180), 1)
+        x0, l = xb(0, 13)
+        box(d, x0, y - 8, z - 5, l, 16, 10, R(base, 250), R((20, 60, 48)), R((28, 80, 62)))
     elif kind == "echem":
-        box(d, x, y, z, 16, 20, 9, R(col, 250), R((196, 190, 176)), R((214, 209, 196)))
-        box(d, x + 4, y + 7, z + 9, 8, 5, 1.2, R((48, 52, 56)), R((30, 34, 38)), R((38, 42, 46)))
+        x0, l = xb(0, 14)
+        box(d, x0, y - 9, z - 8, l, 18, 17, R(col, 250), R((196, 190, 176)), R((214, 209, 196)))
     elif kind == "mics":
-        box(d, x - 1, y, z, 18, 20, 1.4, R(col, 250), R((48, 52, 60)), R((58, 63, 72)))
-        for dx in (2, 8, 14):
-            hcircle(d, x + dx, y + 10, z + 1.4, 2.6, R((150, 156, 164)), R(C_WHITE, 150), 1, 14)
+        x0, l = xb(0, 14)
+        box(d, x0, y - 9, z - 4, l, 18, 9, R(col, 250), R((48, 52, 60)), R((58, 63, 72)))
     elif kind == "ndir":
-        box(d, x, y, z, 16, 19, 11, R(col, 250), R((172, 132, 55)), R((198, 154, 68)))
-        box(d, x + 4, y + 14, z + 3, 8, 5, 4,
-            R((36, 40, 46)), R((20, 24, 29)), R((27, 31, 37)), R(C_CYAN, 180))
+        x0, l = xb(0, 16)
+        box(d, x0, y - 9, z - 5, l, 18, 12, R(col, 250), R((172, 132, 55)), R((198, 154, 68)))
     else:  # isfet
-        box(d, x + 3, y, z, 10, 16, 2.0, R(col, 245), R((110, 72, 140)), R((132, 90, 164)))
-        box(d, x + 6, y + 5, z + 2, 4, 8, 10, R((226, 228, 232)), R((180, 184, 190)), R((204, 208, 214)))
-        hcircle(d, x + 8, y + 9, z + 12, 2.0, R((96, 190, 220)), R(C_WHITE, 190), 1, 14)
+        x0, l = xb(0, 12)
+        box(d, x0, y - 7, z - 6, l, 14, 12, R(col, 245), R((110, 72, 140)), R((132, 90, 164)))
 
 
 def draw_filter(d, u):
@@ -397,10 +397,10 @@ def flow_paths():
     for nx in NO_X:
         paths.append([
             (nx, -14, CONST["NO_Z"]), (nx, 1, CONST["NO_Z"]),
-            (nx, CONST["FILT_Y1"] + 2, 27),
-            (nx * 0.82 + 7, CONST["D_Y0"] + 2, 32),
-            (nx * 0.78 + 12, 54, 33),
-            (nx * 0.72 + 18, CONST["A_Y0"] + 4, 32),
+            (nx, CONST["FILT_Y1"] + 2, CONST["NO_Z"]),
+            (nx, CONST["SW"] * 0.30, CONST["NO_Z"]),
+            (nx, CONST["SW"] * 0.60, CONST["NO_Z"]),
+            (nx, CONST["SW"] * 0.85, CONST["NO_Z"]),
             (CONST["FAN_X"], CONST["SW"] - 2, CONST["FAN_Z"]),
         ])
     return paths
@@ -529,7 +529,7 @@ def draw_panels(d, phase):
         y += 29
     y += 8
     d.line([(x0 + 16, y), (x1 - 16, y)], fill=(*C_CYAN_D, 150)); y += 12
-    txt(d, (x0 + 16, y), "Upstream D0-D3  ->  downstream A0-A3", F_SMALL, C_MUTED)
+    txt(d, (x0 + 16, y), "Left wall S0-S3  |  right wall S4-S7  ->  central channel", F_SMALL, C_MUTED)
     y += 22
     txt(d, (x0 + 16, y), "SHT31 T/RH fixed at 0x44 (base board)", F_SMALL, C_MUTED)
     y += 22
@@ -594,97 +594,95 @@ def render_header_proof(path):
     im = Image.new("RGB", (W2, H2), (240, 244, 249))
     d = ImageDraw.Draw(im, "RGBA")
     dh = F_TITLE
-    d.text((42, 26), "OSM-1 HEADER PROOF  /  FLAT CARRIER, ACROSS-FLOW PINS",
+    d.text((42, 26), "OSM-1 HEADER PROOF  /  UPRIGHT INWARD-FACING BOARD",
            font=dh, fill=(15, 35, 55))
     d.text((44, 67),
-           "Scale: schematic section, derived from CONST  |  pin line runs left-right across the gas stream",
+           "Section: derived from CONST  |  1x6 pin line front-to-back, "
+           "board stands in the Y-Z plane facing the channel",
            font=F_SUB, fill=(70, 92, 116))
 
-    # section geometry
+    # section geometry (10 px per mm, Z up the screen)
     pcb_top = 560
     d.rectangle([160, pcb_top, 1030, pcb_top + 34], fill=(18, 86, 56),
                 outline=(9, 52, 33), width=2)
     d.text((170, pcb_top + 8), "BASE PCB  (chamber floor)", font=F_SMALL,
            fill=(220, 255, 235))
 
-    # socket body: 8.5 mm tall, pin line across flow
-    d.rectangle([430, pcb_top - 96, 760, pcb_top], fill=(28, 31, 38),
+    # socket at the wall: narrow footprint, 8.5 mm tall, pin line along Y
+    d.rectangle([430, pcb_top - 85, 470, pcb_top], fill=(28, 31, 38),
                 outline=(10, 12, 16), width=2)
-    d.text((444, pcb_top - 34), "1x6 KEYED SOCKET  ·  8.5 mm", font=F_SMALL,
-           fill=(225, 232, 240))
+    d.text((250, pcb_top - 48), "1x6 KEYED SOCKET  ·  8.5 mm", font=F_SMALL,
+           fill=(45, 52, 62))
     for k in range(6):
-        px = 460 + k * 54
-        d.rectangle([px - 8, pcb_top - 118, px + 8, pcb_top - 90],
-                    fill=(246, 191, 82), outline=(150, 106, 35), width=1)
+        py = pcb_top - 78 + k * 13
+        d.rectangle([432, py - 3, 468, py + 3], fill=(246, 191, 82),
+                    outline=(150, 106, 35), width=1)
 
-    # carrier: flat, parallel to flow, pins go DOWN only
-    d.rectangle([365, pcb_top - 142, 825, pcb_top - 118], fill=(34, 92, 62),
+    # upright breakout: 1.6 thick in X, 32 tall in Z, 20 along the wall
+    card_bottom = pcb_top - 85
+    card_top = card_bottom - CART_H * 10
+    d.rectangle([435, card_top, 465, card_bottom], fill=(34, 92, 62),
                 outline=(12, 68, 43), width=2)
-    d.text((374, pcb_top - 139), "FLAT CARRIER  20 mm across  ×  32 mm downstream  ×  1.6 mm",
-           font=F_SMALL, fill=(225, 255, 236))
-    for k in range(6):
-        px = 460 + k * 54
-        d.rectangle([px - 6, pcb_top - 142, px + 6, pcb_top - 96],
-                    fill=(246, 191, 82), outline=(150, 106, 35), width=1)
+    d.text((250, card_top + 20), "UPRIGHT BOARD  32 mm tall  ·  20 mm along wall",
+           font=F_SMALL, fill=(30, 80, 58))
 
-    # sensor envelope and 4.9 mm hood
-    sensor_top = pcb_top - 142 - 21 * 10
-    d.rounded_rectangle([455, sensor_top, 735, pcb_top - 142], 10,
-                        fill=(220, 126, 69), outline=(120, 62, 30), width=2)
-    d.text((475, sensor_top + 24), "SENSOR BODY  ·  21 mm",
+    # sensing cell reaches 21 mm INWARD (toward the channel) from the board face
+    d.rounded_rectangle([465, card_top + 40, 465 + CART_REACH * 10, card_top + 200],
+                        10, fill=(220, 126, 69), outline=(120, 62, 30), width=2)
+    d.text((490, card_top + 95), "SENSOR BODY  ·  21 mm reach inward",
            font=F_BODY, fill=(255, 246, 238))
-    lid_under = sensor_top - 49
+
+    # lid underside sits 4.9 mm above the card top (z = 54 mm)
+    lid_under = card_top - int(HOOD * 10)
     d.rectangle([160, lid_under - 60, 1030, lid_under], fill=(168, 205, 236, 150),
                 outline=(90, 130, 170), width=2)
-    d.text((170, lid_under - 40), "LID UNDERSIDE  (z = 43.0 mm)", font=F_SMALL,
+    d.text((170, lid_under - 40), "LID UNDERSIDE  (z = 54.0 mm)", font=F_SMALL,
            fill=(22, 58, 90))
 
     # hood dimension
     xd = 900
-    d.line([(xd, sensor_top), (xd, lid_under)], fill=(20, 90, 140), width=2)
+    d.line([(xd, card_top), (xd, lid_under)], fill=(20, 90, 140), width=2)
     d.polygon([(xd, lid_under), (xd - 7, lid_under + 12), (xd + 7, lid_under + 12)],
               fill=(20, 90, 140))
-    d.polygon([(xd, sensor_top), (xd - 7, sensor_top - 12), (xd + 7, sensor_top - 12)],
+    d.polygon([(xd, card_top), (xd - 7, card_top - 12), (xd + 7, card_top - 12)],
               fill=(20, 90, 140))
-    d.text((xd + 14, (sensor_top + lid_under) / 2 - 10),
+    d.text((xd + 14, (card_top + lid_under) / 2 - 10),
            "4.9 mm free hood", font=F_BODY, fill=(15, 80, 130))
 
-    # airflow over the top, never through a wire
+    # airflow straight through the central channel
     for k in range(3):
-        yy = sensor_top - 18 - k * 9
+        yy = card_top + 30 - k * 9
         d.line([(190, yy + 20), (390, yy), (830, yy), (1000, yy - 12)],
                fill=(30, 150, 215, 210), width=3)
         d.polygon([(1000, yy - 12), (986, yy - 18), (986, yy - 6)],
                   fill=(30, 150, 215, 230))
-    d.text((190, sensor_top - 62), "SAMPLE AIR  ->  over the flat sensing face",
+    d.text((190, card_top - 30), "SAMPLE AIR  ->  through the middle to the fan",
            font=F_BODY, fill=(18, 110, 165))
 
-    # top-view inset: pin line across flow, cartridge extends rearward
+    # top-view inset: two opposing walls, centred nostrils, centred fan
     ix, iy = 1080, 250
     d.rounded_rectangle([ix - 20, iy - 34, ix + 280, iy + 244], 10,
                         fill=(255, 255, 255, 220), outline=(150, 170, 190), width=2)
     d.text((ix, iy - 24), "TOP VIEW  (flow = up)", font=F_PANEL, fill=(20, 44, 68))
-    d.rectangle([ix + 55, iy + 120, ix + 145, iy + 210], fill=(34, 92, 62),
+    d.rectangle([ix + 30, iy + 10, ix + 42, iy + 210], fill=(34, 92, 62),
                 outline=(12, 68, 43), width=2)
-    d.text((ix + 63, iy + 158), "20", font=F_BODY, fill=(230, 255, 240))
-    d.rectangle([ix + 68, iy + 20, ix + 132, iy + 122], fill=(18, 86, 56),
-                outline=(9, 52, 33), width=2)
-    d.text((ix + 83, iy + 65), "32", font=F_BODY, fill=(230, 255, 240))
-    for k in range(6):
-        px = ix + 62 + k * 13
-        d.rectangle([px - 3, iy + 114, px + 3, iy + 128], fill=(246, 191, 82))
-    d.text((ix + 20, iy + 132), "PIN LINE ACROSS FLOW", font=F_SMALL,
-           fill=(140, 90, 20))
-    d.line([(ix + 100, iy + 18), (ix + 100, iy - 6)], fill=(30, 150, 215), width=2)
-    d.polygon([(ix + 100, iy - 6), (ix + 94, iy + 4), (ix + 106, iy + 4)],
-              fill=(30, 150, 215))
+    d.rectangle([ix + 218, iy + 10, ix + 230, iy + 210], fill=(34, 92, 62),
+                outline=(12, 68, 43), width=2)
+    d.text((ix + 46, iy + 100), "CHANNEL", font=F_SMALL, fill=(20, 90, 140))
+    for nx in (-14, 0, 14):
+        d.ellipse([ix + 125 + nx - 5, iy - 12, ix + 125 + nx + 5, iy - 2],
+                  fill=(30, 150, 215))
+    d.rounded_rectangle([ix + 110, iy + 212, ix + 140, iy + 238], 4,
+                        fill=(90, 100, 110))
+    d.text((ix + 12, iy + 150), "WALL", font=F_SMALL, fill=(30, 80, 58))
+    d.text((ix + 236, iy + 150), "WALL", font=F_SMALL, fill=(30, 80, 58))
 
     # bottom notes
     notes = [
-        "PIN LINE ACROSS FLOW  ->  20 mm span on 22 mm pitch",
-        "MALE PINS GO DOWN INTO THE SOCKET  ->  no wire above the carrier",
-        "SENSING FACE UP  ->  flat carrier parallel to the stream, no shadowing",
-        "ENVELOPE 20 x 32 x 21 mm  ->  4.9 mm hood to the lid",
+        "PIN LINE FRONT-TO-BACK  ->  boards stand upright and face inward",
+        "WALL GAP 13 mm BEHIND EACH CARD  ->  room for rear pins and hardware",
+        "NOSTRILS CENTRED ON THE CHANNEL  ->  gas goes straight to the fan",
+        "ENVELOPE 20 along wall x 32 tall x 21 reach  ->  4.9 mm hood to the lid",
     ]
     y = 700
     for n in notes:
@@ -695,7 +693,7 @@ def render_header_proof(path):
     meta = PngImagePlugin.PngInfo()
     meta.add_text("OSM_CART_W_MM", str(CART_W))
     meta.add_text("OSM_CART_L_MM", str(CART_L))
-    meta.add_text("OSM_CART_H_MM", str(CART_H))
+    meta.add_text("OSM_CART_H_MM", str(CART_REACH))
     meta.add_text("OSM_HOOD_MM", str(round(HOOD, 2)))
     meta.add_text("OSM_SOCKET_PITCH_MM", str(CONST["SOCK_P"]))
     meta.add_text("OSM_SOURCE", "mechanical/constants.py + routed pcb_geometry.json")

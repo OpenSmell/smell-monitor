@@ -2,10 +2,11 @@
 """Write the solid obstacles of the v1.1 chamber as one ASCII STL.
 
 The fluid volume is the tray cavity above the board - x 3..119, y 3..111,
-z 8.6..43 - so the obstacles are the things the gas cannot pass through:
+z 8.6..54 - so the obstacles are the things the gas cannot pass through:
 
-  * eight 1x6 sockets, standing 8.5 mm off the board;
-  * eight flat cartridges on them, 20 x 32 x 21 mm (the OSM-1 envelope);
+  * eight 1x6 sockets on the two inner side walls, standing 8.5 mm off the board;
+  * eight UPRIGHT breakout boards on them, standing 32 mm tall and reaching
+    21 mm into the central channel, their faces looking at each other;
   * four corner bosses for the lid screws.
 
     python3 gen_geometry.py                # the reference build, 8 slots filled
@@ -13,7 +14,7 @@ z 8.6..43 - so the obstacles are the things the gas cannot pass through:
 
 --omit exists so the same case answers the interference question: run it with
 all eight filled, then with one empty, and compare the tracer arrival at the
-neighbours.  Slot 0-3 are the analog row, 4-7 the digital row.
+neighbours.  Slots 0-3 are the left wall, 4-7 the right wall.
 
 Everything is read from mechanical/constants.py and mechanical/standard.py, so
 the case cannot drift from the enclosure.
@@ -34,9 +35,9 @@ OUT = os.path.join(HERE, "constant", "triSurface", "cartridges.stl")
 
 Z0 = CONST["PCB_TOP"]
 Z1 = Z0 + CONST["SOCK_H"]
-H = CARTRIDGE["envelope"]["height"]
-W = CARTRIDGE["envelope"]["across"]
-L = CARTRIDGE["envelope"]["along"]
+H = CARTRIDGE["envelope"]["height"]   # vertical: an upright card stands 32 mm
+W = CARTRIDGE["envelope"]["across"]   # along the wall (Y), <= 20 mm
+R = CARTRIDGE["envelope"]["reach"]    # into the channel (X), <= 21 mm
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -73,20 +74,25 @@ def main():
     args = ap.parse_args()
     omit = {int(s) for s in args.omit.split(",") if s.strip()}
 
-    slots = ([(x, CONST["A_Y0"]) for x in CONST["A_X"]]
-             + [(x, CONST["D_Y0"]) for x in CONST["D_X"]])
+    slots = ([(CONST["AN_X"], y) for y in CONST["AN_Y"]]
+             + [(CONST["DI_X"], y) for y in CONST["DI_Y"]])
     assert len(slots) == SLOTS["reference_count"]
 
     tris = []
-    for i, (cx, y0) in enumerate(slots):
-        # the socket is the pin block, the cartridge starts at its pin line
-        tris += box(cx - CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0,
-                    cx + CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0,
-                    y0 - CONST["SOCK_P"] / 2.0, y0 + CONST["SOCK_P"] / 2.0,
+    for i, (cx, cy) in enumerate(slots):
+        # Pin line runs FRONT-TO-BACK (along Y): the socket block is narrow in
+        # X and W mm long in Y.  A straight-header board therefore stands in
+        # the Y-Z plane, its face normal along X, looking inward.
+        tris += box(cx - CONST["SOCK_P"] / 2.0, cx + CONST["SOCK_P"] / 2.0,
+                    cy - CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0,
+                    cy + CONST["SOCK_N"] * CONST["SOCK_P"] / 2.0,
                     Z0, Z1)
         if i in omit:
             continue
-        tris += box(cx - W / 2.0, cx + W / 2.0, y0, y0 + L, Z1, Z1 + H)
+        # upright board: W across the wall (Y), R into the channel (X), H tall
+        face_in = 1 if cx < CONST["SH"] / 2.0 else -1
+        x0, x1 = (cx, cx + R) if face_in > 0 else (cx - R, cx)
+        tris += box(x0, x1, cy - W / 2.0, cy + W / 2.0, Z1, Z1 + H)
 
     for bx, by in ((CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
                    (CONST["SH"] - CONST["BOSS_INSET"], CONST["BOSS_INSET"]),

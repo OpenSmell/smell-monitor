@@ -433,37 +433,41 @@ def banks_report():
 
 
 def lane_report():
-    """Analog-lane feasibility: can the derived analog count physically fit?
+    """Side-wall station feasibility: can the derived analog count physically fit?
 
     The information analysis says *how many* analog channels are worth having;
-    it cannot say whether they fit. This checks the 106 mm lane against the real
-    module footprints in ``sensor_data`` at a range of inter-module gaps, and
-    tests the depth-stagger fallback. Reads the same CONST as the CAD model.
+    it cannot say whether they fit.  This checks the two 108 mm wall rows at a
+    24 mm station pitch against the real module footprints in ``sensor_data``,
+    and prints the channel clearance the enclosure gives each card.  Reads the
+    same CONST as the CAD model.
     """
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     "..", "mechanical"))
     from constants import CONST
-    cx = float(CONST["CX"])
-    wall = 3.0
-    usable = cx - 2.0 * wall
+    wall_len = float(CONST["CY"])
+    pitch = float(CONST["ROW_Y"][1] - CONST["ROW_Y"][0])
+    card_w = 20.0
     analog = [s for s in SENSORS if s.get("iface") == "analog"]
-    print("== analog lane feasibility ==")
-    print("  chamber CX %.0f mm; usable %.0f mm (%.0f mm wall each side)"
-          % (cx, usable, wall))
+    print("== side-wall station feasibility ==")
+    print("  cavity depth %.0f mm; %d stations per wall at %.0f mm pitch"
+          % (wall_len, len(CONST["ROW_Y"]), pitch))
+    print("  max card width %.0f mm -> %.0f mm clear between neighbours"
+          % (card_w, pitch - card_w))
     print("  %-9s %-22s %-10s %s"
           % ("in-row w", "n fit @ gap 0/2/4", "max@2mm", "examples"))
     for w in sorted({s["footprint"][0] for s in analog}):
-        fits = [int((usable + g) // (w + g)) for g in (0, 2, 4)]
+        fits = [int((wall_len + g) // (w + g)) for g in (0, 2, 4)]
         ex = ", ".join(sorted(s["name"] for s in analog
                               if s["footprint"][0] == w)[:3])
         print("  %-9s %-22s %-10d %s"
               % ("%d mm" % w, "%d / %d / %d" % tuple(fits), fits[1], ex))
-    gap = float(CONST["A_Y0"]) - (float(CONST["D_Y0"]) + float(CONST["D_SY"]))
-    print("  row gap %.0f mm (digital row ends y=%.0f -> analog row y=%.0f);"
-          % (gap, CONST["D_Y0"] + CONST["D_SY"], CONST["A_Y0"]))
-    print("  analog row keeps %.0f mm to the rear wall (worst module 35 mm deep)."
-          % (CONST["WFB"] + CONST["CY"] - CONST["A_Y0"]))
+    span = (len(CONST["ROW_Y"]) - 1) * pitch + card_w
+    end_margin = (wall_len - span) / 2.0
+    print("  four cards span %.0f mm, leaving %.0f mm at each end of the wall"
+          % (span, end_margin))
+    print("  %.0f mm of wall clearance behind every socket for rear pins"
+          % CONST["WALL_GAP"])
 
 
 def _perturb_report(pool, n=200, lo=0.7, hi=1.3, seed=0):

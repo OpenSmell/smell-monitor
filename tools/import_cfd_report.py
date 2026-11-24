@@ -29,7 +29,7 @@ The tracer pass is transient (`Euler`, `deltaT = 4e-4 s`) on the converged
 steady flow field, with the scalar discretised by `bounded Gauss limitedLinear 1`
 (TVD, bounded, second-order). At the imposed 15 L/min the inlet jets reach
 ~2 m/s through 1 mm cells, so `deltaT` holds the Courant number at or below 0.8.
-The plug-flow reference for the empty chamber is V/Q = 1.72 s.
+The plug-flow reference for the empty chamber is V/Q = 2.28 s.
 
 | Check | Value | Criterion |
 |---|---:|---|
@@ -152,11 +152,12 @@ def main():
         b = rep.crossing(rows, i + 1, 0.90)
         t63[name] = a
         table.append((name, a, b))
-    dig_vals = [v for k, v in t63.items() if k.startswith("D") and v is not None]
-    ana_vals = [v for k, v in t63.items() if k.startswith("A") and v is not None]
-    dig = sum(dig_vals) / len(dig_vals) if dig_vals else None
-    ana = sum(ana_vals) / len(ana_vals) if ana_vals else None
-    cascade = ana - dig if dig is not None and ana is not None else None
+    # A probes sit at the left-wall card tips, D probes at the right-wall tips
+    left_vals = [v for k, v in t63.items() if k.startswith("A") and v is not None]
+    right_vals = [v for k, v in t63.items() if k.startswith("D") and v is not None]
+    left = sum(left_vals) / len(left_vals) if left_vals else None
+    right = sum(right_vals) / len(right_vals) if right_vals else None
+    wall_delta = right - left if left is not None and right is not None else None
 
     meta = log_summary(case)
     fmt = lambda v: "-" if v is None else "%.2f" % v
@@ -189,8 +190,8 @@ def main():
     lines += [
         "",
         "Plug-flow reference V/Q = %.2f s at 15 L/min.",
-        "Upstream row mean t63 %s s; downstream row mean t63 %s s; cascade %s s."
-        % (fmt(dig), fmt(ana), fmt(cascade)),
+        "Left wall mean t63 %s s; right wall mean t63 %s s; wall-to-wall delta %s s."
+        % (fmt(left), fmt(right), fmt(wall_delta)),
         "",
         SCHEME_NOTE % (meta["courant_max"] or "not parsed",
                        meta["continuity_global"] or "not parsed",

@@ -68,19 +68,26 @@ def main():
         check(0 <= cx <= CONST["PCB_X"] and 0 <= cy <= CONST["PCB_Y"],
               "digital header inside board", "(%.2f, %.2f)" % (cx, cy))
 
-    A = CONST["A_X"]
-    D = CONST["D_X"]
+    A = CONST["AN_Y"]
+    D = CONST["DI_Y"]
     a_gaps = sorted(round(A[i + 1] - A[i], 2) for i in range(len(A) - 1))
     d_gaps = sorted(round(D[i + 1] - D[i], 2) for i in range(len(D) - 1))
     check(len(set(a_gaps)) <= 1, "analog pitch uniform", "gaps=%s" % a_gaps)
     check(len(set(d_gaps)) <= 1, "digital pitch uniform", "gaps=%s" % d_gaps)
-    # a cartridge is at most 20 mm wide (OSM-1), so the row spans its centres
-    # plus 10 mm each side; both rows must stay inside the cavity walls.
-    for bank, xs in (("analog", A), ("digital", D)):
-        check(max(xs) - min(xs) + 20.0 <= CONST["CX"],
-              "%s row fits cavity" % bank,
+    # A cartridge is at most 20 mm along the wall (OSM-1), so each row spans its
+    # centres plus 10 mm each side; both rows must stay inside the cavity front
+    # to back.  The two walls sit WALL_GAP in from each inner side wall so a
+    # board's rear pins clear the wall.
+    for bank, ys in (("analog", A), ("digital", D)):
+        check(max(ys) - min(ys) + 20.0 <= CONST["CY"],
+              "%s row fits cavity front-to-back" % bank,
               "%.1f mm row in a %.0f mm cavity"
-              % (max(xs) - min(xs) + 20.0, CONST["CX"]))
+              % (max(ys) - min(ys) + 20.0, CONST["CY"]))
+    check(abs(CONST["SOCK_X_L"] - CONST["WALL"] - CONST["WALL_GAP"]) < 1e-9
+          and abs(CONST["CX1"] - CONST["SOCK_X_R"] - CONST["WALL_GAP"]) < 1e-9,
+          "both walls clear the inner side walls for rear pins",
+          "%.1f / %.1f mm" % (CONST["SOCK_X_L"] - CONST["WALL"],
+                             CONST["CX1"] - CONST["SOCK_X_R"]))
 
     print("== rails ==")
     for rail, amps in IF.railtotals().items():

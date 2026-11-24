@@ -7,18 +7,15 @@ FoamFile
 }
 // Second run, on the converged flow field: a unit step of a passive tracer at
 // the inlets.  t63 at a probe is that point's exchange time.
-// deltaT 4e-4 s keeps Courant <= 0.8 at the ~2 m/s inlet jets through 1 mm
-// cells; Euler + bounded limitedLinear resolves the transient without the
-// numerical diffusion of the earlier upwind/Co~40 setup.
 application     scalarTransportFoam;
 startFrom       startTime;
 startTime       0;
 stopAt          endTime;
-endTime         8;
-deltaT          0.0004;
+endTime         40;
+deltaT          0.02;
 writeControl    runTime;
-writeInterval   2;
-purgeWrite      2;
+writeInterval   1;
+purgeWrite      0;
 writeFormat     ascii;
 writePrecision  6;
 writeCompression off;
@@ -33,20 +30,18 @@ functions
         type            probes;
         libs            ("libsampling.so");
         fields          (T);
-        writeControl    runTime;
-        writeInterval   0.25;
         probeLocations
         (
-            (0.022000 0.091000 0.040500)   // A0
-            (0.048000 0.091000 0.040500)   // A1
-            (0.074000 0.091000 0.040500)   // A2
-            (0.100000 0.091000 0.040500)   // A3
-            (0.029500 0.049000 0.040500)   // D0
-            (0.050500 0.049000 0.040500)   // D1
-            (0.071500 0.049000 0.040500)   // D2
-            (0.092500 0.049000 0.040500)   // D3
-            (0.061000 0.012800 0.014000)   // bypass
-            (0.061000 0.105000 0.025000)   // outlet
+            (0.303279 0.210526 0.550000)   // A0
+            (0.303279 0.421053 0.550000)   // A1
+            (0.303279 0.631579 0.550000)   // A2
+            (0.303279 0.842105 0.550000)   // A3
+            (0.696721 0.210526 0.550000)   // D0
+            (0.696721 0.421053 0.550000)   // D1
+            (0.696721 0.631579 0.550000)   // D2
+            (0.696721 0.842105 0.550000)   // D3
+            (0.500000 0.047368 0.238333)   // bypass
+            (0.500000 0.991228 0.550000)   // outlet
         );
     }
 }

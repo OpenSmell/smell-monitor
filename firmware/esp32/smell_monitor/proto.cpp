@@ -135,8 +135,8 @@ int proto_to_json(const Record *r, char *buf, size_t n) {
   if (w < 0 || (size_t)(off + w) >= n) return -1;
   off += w;
 
-  // slots: eight identical OSM-1 positions.  Slot 0..3 sit downstream,
-  // slots 4..7 upstream; the records carry that flow position explicitly.
+  // slots: eight identical OSM-1 positions.  Slots 0..3 sit on the left wall,
+  // slots 4..7 on the right; both rows face the same central channel.
   w = snprintf(buf + off, n - off, "\"slots\":[");
   if (w < 0 || (size_t)(off + w) >= n) return -1;
   off += w;
@@ -146,11 +146,11 @@ int proto_to_json(const Record *r, char *buf, size_t n) {
 
     const bool i2c = i2c_model_present(r, i);
     const char *kind = i2c ? "I2C" : (r->ao[i] > 0.01f ? "ANALOG" : "EMPTY");
-    const char *where = (i >= 4) ? "upstream" : "downstream";
+    const char *where = (i >= 4) ? "right" : "left";
     w = snprintf(buf + off, n - off,
           "{\"index\":%d,\"flow_position\":%s,\"sensor_type\":%s,\"sensor_model\":",
           i,
-          fmt_str(tmp_where, sizeof(tmp_where), where) >= 0 ? tmp_where : "\"downstream\"",
+          fmt_str(tmp_where, sizeof(tmp_where), where) >= 0 ? tmp_where : "\"left\"",
           fmt_str(tmp_kind, sizeof(tmp_kind), kind) >= 0 ? tmp_kind : "\"EMPTY\"");
     if (w < 0 || (size_t)(off + w) >= n) return -1;
     off += w;

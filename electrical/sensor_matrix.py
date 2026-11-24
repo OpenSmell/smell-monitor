@@ -33,7 +33,7 @@ _AX = {s["name"]: set(s["axes"]) for s in SENSORS}
 # connection class (5 V analog cell or 3.3 V I2C module) can fill any slot.
 # The solver caps each class at the total slot count and the total at
 # max_slots, which is the real constraint.
-_N_SLOTS = len(CONST["A_X"]) + len(CONST["D_X"])
+_N_SLOTS = len(CONST["AN_Y"]) + len(CONST["DI_Y"])
 BANK_CAP = {"analog": _N_SLOTS, "digital": _N_SLOTS}
 BASE_SENSORS = [s["name"] for s in SENSORS if s["slot"] == "base"]
 

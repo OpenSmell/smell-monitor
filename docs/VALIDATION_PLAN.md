@@ -10,12 +10,15 @@ The CFD case and its numerical acceptance check are in `cfd/RESULTS.md`. This
 document is the hardware acceptance specification for a built unit; its
 criteria in §3 are the release gate.
 
-The chamber has **eight uniform OSM-1 slots**; front row slots 5–8 (J6–J9) are
-upstream at 22 mm spacing, rear row slots 1–4 (J2–J5) are downstream at 26 mm
-spacing. Every slot has the same gas-cell socket and Qwiic port. The inlet
-filter is a **thin woven PTFE mesh** in the front drawer; verify it is fitted
-and clean before testing (a 4 mm sintered panel would cost ≈ 3.8 kPa at 15 L/min
-against ≈ 50 Pa of fan head and must not be used).
+The chamber has **eight uniform OSM-1 slots** on two inward-facing side-wall
+rows: left wall slots 1–4 (J2–J5) and right wall slots 5–8 (J6–J9), both on
+24 mm Y-pitch stations with 13 mm of wall clearance behind each upright card.
+Every slot has the same gas-cell socket and Qwiic port, and every header and pin
+is silkscreened. The three centred nostrils feed the channel between the rows
+and the rear fan pulls the sample straight out. The inlet filter is a **thin
+woven PTFE mesh** in the front drawer; verify it is fitted and clean before
+testing (a 4 mm sintered panel would cost ≈ 3.8 kPa at 15 L/min against ≈ 50 Pa
+of fan head and must not be used).
 
 ---
 
@@ -68,17 +71,17 @@ against ≈ 50 Pa of fan head and must not be used).
 3. Measure time for all sensors to return to ≥ 95% of baseline.
 4. Pass criterion: ≤ 40 s (one full cycle).
 
-### 2.4 Row-to-row cascade test
+### 2.4 Wall-to-wall uniformity test
 
-**Objective:** Measure the delay between the upstream front row (slots 5–8) and
-the downstream rear row (slots 1–4).
+**Objective:** Measure the delay between the left inward-facing row (slots 1–4)
+and the right inward-facing row (slots 5–8).
 
-1. Populate the 4 front slots (5–8, J6–J9) with responsive sensors.
-2. Populate the 4 rear slots (1–4, J2–J5) with responsive sensors.
-3. Step tracer at t = 0.
-4. Record `t63` for the two rows separately.
-5. Report the row-to-row delta. The rows are identical electrically; only their
-   position in the flow differs.
+1. Populate the 4 left-wall slots (1–4, J2–J5) with responsive sensors.
+2. Populate the 4 right-wall slots (5–8, J6–J9) with responsive sensors.
+3. Step tracer at t = 0 through the centred nostrils.
+4. Record `t63` for the two walls separately.
+5. Report the wall-to-wall delta. The rows are identical electrically; only
+   their position in the channel differs.
 
 ---
 
@@ -86,9 +89,9 @@ the downstream rear row (slots 1–4).
 
 | Criterion | Threshold | Notes |
 |-----------|-----------|-------|
-| `t63` per slot | ≤ 3 s | Empty-chamber plug-flow reference V/Q ≈ 2.0 s |
+| `t63` per slot | ≤ 4 s | Empty-chamber plug-flow reference V/Q ≈ 2.28 s |
 | `t90` per slot | ≤ 22 s | Conservative: ~11× V/Q to allow for mixing |
-| Row-to-row delta | ≤ 5 s | Downstream row should not lag excessively |
+| Wall-to-wall delta | ≤ 5 s | The two facing rows should fill together |
 | Purge completeness | ≥ 95% baseline recovery ≤ 40 s | One full cycle must clear odor |
 | Face velocity at nostril | ≥ 2 m/s at 15 L/min | Confirms flow is entering, not bypassing |
 | Flow uniformity | All 8 slots within ±20% of mean `t63` | No dead zones or short-circuits |

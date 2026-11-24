@@ -1,6 +1,6 @@
 """Numeric verification of the CAD deliverables against the v1.1 source of truth.
 
-The agent cannot see rendered drawings, so correctness is proven with numbers:
+Correctness is proven with numbers rather than by eyeballing a render:
 the HLR projection data is measured and compared to CONST, the A3 sheet DXFs are
 audited and their dimensions checked to measure true model millimetres, the PDF
 is confirmed vector/A3/3-page, and the 3D model + print meshes are checked.
@@ -276,8 +276,8 @@ check("lid is a separate part spanning CAV_Z1..LID_Z1",
       "z %.2f..%.2f" % (min(_lz), max(_lz)))
 
 _probe = [(CONST["CX0"] + CONST["CX"] / 2.0, CONST["CY0"] + CONST["CY"] / 2.0)]
-_probe += [(x, CONST["A_Y0"]) for x in CONST["A_X"]]
-_probe += [(x, CONST["D_Y0"]) for x in CONST["D_X"]]
+_probe += [(CONST["AN_X"], y) for y in CONST["AN_Y"]]
+_probe += [(CONST["DI_X"], y) for y in CONST["DI_Y"]]
 _above = CONST["PCB_TOP"] + 0.5
 _blocked = []
 for x, y in _probe:

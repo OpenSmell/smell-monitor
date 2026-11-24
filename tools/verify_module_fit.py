@@ -114,9 +114,9 @@ check("the gas-cell socket implements the standard pinout",
       % (" ".join(IF.SLOT), " ".join(std_pins)))
 
 _win = {}
-for _bank, _x0 in (("analog", "A_X"), ("digital", "D_X")):
-    _xs = CONST[_x0]
-    _win[_bank] = dict(pitch=_xs[1] - _xs[0], win=(_xs[1] - _xs[0] - 2.0,
+for _bank, _ys in (("analog", "AN_Y"), ("digital", "DI_Y")):
+    _ys = CONST[_ys]
+    _win[_bank] = dict(pitch=_ys[1] - _ys[0], win=(_ys[1] - _ys[0] - 2.0,
                                                    S.SLOTS["reach"]))
 
 _lowp = {k: v["pitch"] for k, v in _win.items()
@@ -151,13 +151,23 @@ check("a starter-pack part conforms as a bare cartridge or Qwiic module",
       "%d of %d market parts conform; the rest are carrier builds"
       % (len(_nfit), len(RESULTS)))
 
-# the cartridge must ride inside the chamber's clear height
+# an upright cartridge must stand inside the chamber's clear height, leave the
+# flow hood over its top, and keep its rear pins off the inner side wall.
 _env = S.CARTRIDGE["envelope"]
 _h_clear = CONST["CAV_Z1"] - CONST["PCB_TOP"]
-check("cartridge rides inside the chamber's clear height",
-      _env["height"] + 8.5 <= _h_clear,
-      "%.0f mm cartridge + 8.5 mm socket <= %.1f mm clear"
-      % (_env["height"], _h_clear))
+check("upright cartridge rides inside the chamber's clear height",
+      _env["height"] + CONST["SOCK_H"] <= _h_clear,
+      "%.0f mm card + %.1f mm socket <= %.1f mm clear"
+      % (_env["height"], CONST["SOCK_H"], _h_clear))
+check("flow hood over the upright card is positive",
+      CONST["HOOD"] > 0, "%.1f mm hood" % CONST["HOOD"])
+check("side-wall sockets leave rear-pin clearance behind each card",
+      CONST["WALL_GAP"] >= S.CARTRIDGE["back_clear"] - 1e-6
+      and abs(CONST["SOCK_X_L"] - CONST["WALL"] - CONST["WALL_GAP"]) < 1e-6
+      and abs(CONST["CX1"] - CONST["SOCK_X_R"] - CONST["WALL_GAP"]) < 1e-6,
+      "left %.1f / right %.1f mm back gap"
+      % (CONST["SOCK_X_L"] - CONST["WALL"],
+         CONST["CX1"] - CONST["SOCK_X_R"]))
 
 # ------------------------------- report -------------------------------------
 print("module                    verdict   detail")

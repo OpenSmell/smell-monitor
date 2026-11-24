@@ -5,8 +5,8 @@ Two orthographic views generated from mechanical/constants.py, so the picture
 cannot drift from the CAD:
 
   * PLAN, lid removed - nostrils, filter drawer, both socket rows, fan, USB-C
-  * SECTION A-A along the flow - board-as-floor, sockets, flat cartridges,
-    4.9 mm flow hood, lid and the rear fan
+  * SECTION A-A along the flow - board-as-floor, side-wall sockets, upright
+    inward-facing cartridges, 4.9 mm flow hood, lid and the rear fan
 
 Output: docs/figures/cad/manual_linework.svg (vector) and .png (printable).
 No third-party renderer: primitives are emitted straight to SVG and to Pillow.
@@ -241,14 +241,15 @@ fy, fh = CONST["FILT_Y0"], CONST["FILT_T"]
 c.rect(px(fx), py(fy), fw * PS, fh * PS)
 c.hatch(px(fx), py(fy), fw * PS, fh * PS, 8, GREY)
 
-# sockets: 1x6, pin line across the flow
-for xs, ys, prefix, first in ((CONST["D_X"], CONST["D_Y0"], "D", 1),
-                              (CONST["A_X"], CONST["A_Y0"], "A", 5)):
-    for i, xc in enumerate(xs):
-        c.rect(px(xc - 7.62), py(ys - 1.27), 15.24 * PS, 2.54 * PS)
+# sockets: 1x6, pin line front-to-back (Y) on the two inner side walls;
+# boards stand upright in the Y-Z plane and face inward across the channel
+for wall_x, ys, prefix, first in ((CONST["DI_X"], CONST["DI_Y"], "D", 1),
+                                  (CONST["AN_X"], CONST["AN_Y"], "A", 5)):
+    for i, yc in enumerate(ys):
+        c.rect(px(wall_x - 1.27), py(yc - 6.35), 2.54 * PS, 12.7 * PS)
         for p in range(6):
-            c.circle(px(xc - 6.35 + p * 2.54), py(ys), 1.1, lw=1, color=GREY)
-        c.text(px(xc), py(ys - 4.0), "%s%d" % (prefix, i), 11, anchor="ma")
+            c.circle(px(wall_x), py(yc - 6.35 + p * 2.54), 1.1, lw=1, color=GREY)
+        c.text(px(wall_x), py(yc - 10.0), "%s%d" % (prefix, i), 11, anchor="ma")
 
 # SHT31 between the rows
 c.rect(px(58), py(54), 6 * PS, 6 * PS, lw=1)
@@ -273,10 +274,10 @@ def leader(x1, y1, x2, y2, label, anchor="la"):
 
 leader(px(35), py(1.5), px(8), py(-13), "3 x dia6 nostrils")
 leader(px(fx + 10), py(fy + 2), px(8), py(-6), "woven PTFE mesh filter")
-leader(px(CONST["D_X"][0]), py(CONST["D_Y0"]), px(-8), py(44),
-       "upstream row 1-4", "ra")
-leader(px(CONST["A_X"][0]), py(CONST["A_Y0"]), px(-8), py(86),
-       "downstream row 5-8", "ra")
+leader(px(CONST["AN_X"]), py(CONST["AN_Y"][2]), px(-8), py(44),
+       "left wall 5-8 (upright)", "ra")
+leader(px(CONST["DI_X"]), py(CONST["DI_Y"][2]), px(127), py(86),
+       "right wall 1-4 (upright)", "la")
 leader(px(CONST["FAN_X"] + 14), py(sw - 6), px(127), py(62), "40 mm fan (rear)")
 leader(px(CONST["USB_X"]), py(sw), px(127), py(96), "USB-C")
 
@@ -320,14 +321,15 @@ c.hatch(sx(CONST["FILT_Y0"]), sz(CONST["LID_Z0"]),
         CONST["FILT_T"] * SS,
         (CONST["LID_Z0"] - CONST["FILT_Z0"]) * SS, 8, GREY)
 
-# vertical sockets and the flat cartridges they carry
+# upright breakout boards on the two side-wall rows (both project onto the
+# same Y stations in this side view): 8.5 mm socket + 32 mm tall card
 sock_top = CONST["PCB_TOP"] + CONST["SOCK_H"]
-cart_top = sock_top + 21.0
-for pin_y in (CONST["D_Y0"], CONST["A_Y0"]):
-    c.rect(sx(pin_y - 0.6), sz(sock_top), 1.2 * SS,
-           (sock_top - CONST["PCB_TOP"]) * SS, lw=1)
-    c.rect(sx(pin_y), sz(cart_top), 32 * SS, (cart_top - sock_top) * SS)
-    c.hatch(sx(pin_y + 12), sz(cart_top), 8 * SS, 2.2 * SS, 5, GREY)
+cart_top = sock_top + CONST["CARD_H"]
+for pin_y in CONST["ROW_Y"]:
+    c.rect(sx(pin_y - 1.27), sz(CONST["PCB_TOP"]), 2.54 * SS,
+           CONST["SOCK_H"] * SS, lw=1)
+    c.rect(sx(pin_y - 10), sz(sock_top), 20 * SS, CONST["CARD_H"] * SS)
+    c.hatch(sx(pin_y - 6), sz(cart_top - 3), 12 * SS, 2.2 * SS, 5, GREY)
 
 # lid with screw heads
 c.rect(sx(0), sz(CONST["LID_Z1"]), sw * SS, CONST["LID_T"] * SS)
@@ -363,8 +365,8 @@ def slabel(y, z, text, dx=0, dy=0):
 
 slabel(1.5, CONST["NO_Z"] + 7, "3 x dia6 inlet")
 slabel(12.8, CONST["LID_Z0"] + 5, "PTFE mesh")
-slabel(49, cart_top + 7, "upstream cartridges")
-slabel(91, cart_top + 7, "downstream cartridges")
+slabel(49, cart_top + 7, "left-wall cards")
+slabel(91, cart_top + 7, "right-wall cards")
 slabel(61, 5.5, "PCB = chamber floor")
 slabel(61, CONST["LID_Z1"] + 4, "lid, 4 x M3 screws")
 c.text(sx(sw + CONST["FAN_T"]) + 6, sz(CONST["FAN_Z"]),
@@ -380,7 +382,7 @@ legend = [
     ("2", "Cleanable woven PTFE mesh filter, front drawer"),
     ("3", "Eight identical keyed 1x6 OSM-1 gas-cell sockets"),
     ("4", "Qwiic port beside every socket (own mux channel)"),
-    ("5", "Flat cartridges, sensing face up in the flow hood"),
+    ("5", "Upright cartridges facing inward across the central channel"),
     ("6", "SHT31 temperature / humidity reference, 1 Hz"),
     ("7", "ESP32 + two ADS1115s; board top is the chamber floor"),
     ("8", "40 mm PWM exhaust fan, outside the chamber"),

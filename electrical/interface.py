@@ -27,8 +27,8 @@ from constants import CONST  # noqa: E402
 
 
 # --- geometry-derived counts ----------------------------------------------
-N_ANALOG = len(CONST["A_X"])      # downstream row (gas-cell row)
-N_DIGITAL = len(CONST["D_X"])     # upstream row
+N_ANALOG = len(CONST["AN_Y"])     # left inner side wall (gas-cell bank)
+N_DIGITAL = len(CONST["DI_Y"])    # right inner side wall
 N_SLOTS = N_ANALOG + N_DIGITAL
 
 # --- the standard slot (physical pin order; index 0 == header pin 1) --------
@@ -123,8 +123,8 @@ PCB_W, PCB_D, PCB_T = CONST["PCB_X"], CONST["PCB_Y"], CONST["PCB_T"]
 PCB_X0 = (CONST["SH"] - PCB_W) / 2.0            # centred in the shell
 PCB_Y0 = (CONST["SW"] - PCB_D) / 2.0
 
-ANALOG_ROW_Y = CONST["A_Y0"]                              # shell frame, downstream
-DIGITAL_ROW_Y = CONST["D_Y0"]                             # shell frame, upstream
+ANALOG_WALL_X = CONST["AN_X"]     # shell frame, left inner side wall
+DIGITAL_WALL_X = CONST["DI_X"]    # shell frame, right inner side wall
 
 
 def board_xy(shell_x, shell_y):
@@ -132,8 +132,12 @@ def board_xy(shell_x, shell_y):
     return (shell_x - PCB_X0, shell_y - PCB_Y0)
 
 
-ANALOG_HEADERS = [board_xy(x, ANALOG_ROW_Y) for x in CONST["A_X"]]
-DIGITAL_HEADERS = [board_xy(x, DIGITAL_ROW_Y) for x in CONST["D_X"]]
+# Upright boards plug into sockets whose pin lines run front-to-back: a board
+# stands in the X-Z plane and faces inward across the central channel.  Analog
+# bank on the left wall, digital bank on the right; both rows on the same four
+# Y stations so the two faces look directly at each other.
+ANALOG_HEADERS = [board_xy(ANALOG_WALL_X, y) for y in CONST["AN_Y"]]
+DIGITAL_HEADERS = [board_xy(DIGITAL_WALL_X, y) for y in CONST["DI_Y"]]
 
 # --- rail budgets (design average, ampere; ESP32 peak ~0.5 A transient) -----
 # 5 V: eight 150 mA MOX heaters + fan + buzzer.  The USB-C input and the board

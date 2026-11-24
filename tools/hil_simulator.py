@@ -57,12 +57,13 @@ def make_slot(i, analog_v, adc_counts, digital_value, i2c_model,
               eeprom_id, sensor_model):
     """Build one OSM-1 slot entry matching the locked .osmell v1.0 shape.
 
-    Slot index tells the host where the slot sits in the cascade (0..3
-    downstream, 4..7 upstream); it does not say what kind of module is fitted.
+    Slot index tells the host which side-wall station the slot occupies
+    (0..3 left wall, 4..7 right wall); it does not say what module is fitted.
+    Both rows face the same central channel, so there is no cascade bank.
     """
     return {
         "index": i,
-        "flow_position": "downstream" if i < 4 else "upstream",
+        "flow_position": "left" if i < 4 else "right",
         "sensor_type": "I2C" if i2c_model else "ANALOG",
         "sensor_model": sensor_model or i2c_model,
         "eeprom_id": eeprom_id,
@@ -202,8 +203,8 @@ def main():
             sensor_model = "TGS-2600" if (phase == "intake" and not args.inject_eeprom) else None
 
             # Build eight uniform slots.  A mix is simulated here (analog MOX
-            # everywhere, I2C model on the downstream four), but the *schema*
-            # is identical for every position: index carries flow position,
+            # everywhere, I2C model on the right-wall four), but the *schema*
+            # is identical for every position: index carries the wall station,
             # not module type.
             slots = []
             for i in range(SLOTS):

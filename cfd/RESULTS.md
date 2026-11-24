@@ -35,7 +35,7 @@ v2 uses:
 | `ddtSchemes` | `Euler` | real transient time-stepping |
 | `div(phi,T)` | `bounded Gauss limitedLinear 1` | bounded, second-order, low diffusion |
 | `deltaT` | `4e-4 s` | Courant ≤ 0.8 at the 2 m/s inlet jets through 1 mm cells |
-| `endTime` | `8 s` | well beyond the 1.72 s plug-flow reference |
+| `endTime` | `8 s` | well beyond the 2.28 s plug-flow reference |
 | probe interval | `0.25 s` | resolves the breakthrough curve |
 
 The importer rejects a run whose logged max Courant exceeds 1, so a bad solve

@@ -5,17 +5,15 @@ FoamFile
     class       dictionary;
     object      controlDict;
 }
-// Second run, on the converged flow field: a unit step of a passive tracer at
-// the inlets.  t63 at a probe is that point's exchange time.
-application     scalarTransportFoam;
+application     simpleFoam;
 startFrom       startTime;
 startTime       0;
 stopAt          endTime;
-endTime         40;
-deltaT          0.02;
-writeControl    runTime;
-writeInterval   1;
-purgeWrite      0;
+endTime         3000;
+deltaT          1;
+writeControl    timeStep;
+writeInterval   500;
+purgeWrite      2;
 writeFormat     ascii;
 writePrecision  6;
 writeCompression off;
@@ -25,23 +23,14 @@ runTimeModifiable true;
 
 functions
 {
-    probes
+    // p is kinematic (p/rho): multiply by 1.2 to compare with the NF1 bench.
+    // The fan is not modelled as a curve; the flow rate is imposed, so this
+    // number IS the system pressure drop at that flow.
+    inletPressure
     {
-        type            probes;
-        libs            ("libsampling.so");
-        fields          (T);
-        probeLocations
-        (
-            (0.022000 0.091000 0.040500)   // A0
-            (0.048000 0.091000 0.040500)   // A1
-            (0.074000 0.091000 0.040500)   // A2
-            (0.100000 0.091000 0.040500)   // A3
-            (0.029500 0.049000 0.040500)   // D0
-            (0.050500 0.049000 0.040500)   // D1
-            (0.071500 0.049000 0.040500)   // D2
-            (0.092500 0.049000 0.040500)   // D3
-            (0.061000 0.012800 0.014000)   // bypass
-            (0.061000 0.105000 0.025000)   // outlet
-        );
+        type    patchAverage;
+        libs    ("libfieldFunctionObjects.so");
+        patches (inletFace);
+        fields  (p);
     }
 }
