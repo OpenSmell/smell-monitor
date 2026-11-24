@@ -35,7 +35,7 @@ The plug-flow reference for the empty chamber is V/Q = 2.28 s.
 |---|---:|---|
 | Max Courant number (tracer) | %s | <= 1 |
 | Final global continuity error | %s | <= 1e-6 |
-| Cell count | %s | ~3e5 |
+| Cell count | %s | checkMesh: Mesh OK |
 
 %s
 """
@@ -137,6 +137,10 @@ def main():
 
     label = args.label or case.name
     label = re.sub(r"[^A-Za-z0-9_.-]+", "_", label)
+    try:
+        case_display = case.relative_to(ROOT).as_posix()
+    except ValueError:
+        case_display = str(case)
     dest = None if args.no_copy else copy_artifacts(case, label)
 
     rep = load_report_module()
@@ -146,11 +150,12 @@ def main():
     n = len(rows[0]) - 1
     labels = rep.LABELS[:n] if n <= len(rep.LABELS) else ["P%d" % i for i in range(n)]
     table = []
-    t63 = {}
+    t63, t90 = {}, {}
     for i, name in enumerate(labels):
         a = rep.crossing(rows, i + 1, 0.63)
         b = rep.crossing(rows, i + 1, 0.90)
         t63[name] = a
+        t90[name] = b
         table.append((name, a, b))
     # A probes sit at the left-wall card tips, D probes at the right-wall tips
     left_vals = [v for k, v in t63.items() if k.startswith("A") and v is not None]
@@ -165,7 +170,7 @@ def main():
         "# CFD results",
         "",
         "**Imported:** %s" % datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        "**Case:** `%s` (label `%s`)" % (case, label),
+        "**Case:** `%s` (label `%s`)" % (case_display, label),
         "**Archive:** `%s`" % (dest.relative_to(ROOT).as_posix() if dest else "not copied"),
         "**Probe table:** `%s`" % pf.relative_to(case).as_posix(),
         "**Samples:** %d, t = %.2f .. %.2f s" % (len(rows), rows[0][0], rows[-1][0]),
@@ -187,9 +192,20 @@ def main():
     for name, a, b in table:
         lines.append("| %s | %s | %s | %s |" % (
             name, fmt(a), fmt(b), "-" if a is None else "%.2f" % (a / rep.TAU)))
+    slots = [n for n in labels if re.fullmatch(r"[AD][0-3]", n)]
+    slot_vals = [t63[n] for n in slots if t63[n] is not None]
+    overall = sum(slot_vals) / len(slot_vals) if slot_vals else None
+    band = 0.20 * overall if overall is not None else None
+    uniform = overall is not None and all(
+        abs(v - overall) <= band for v in slot_vals)
+    t63_ok = [n for n in slots if t63[n] is not None and t63[n] <= 4.0]
+    t90_ok = [n for n in slots if t90[n] is not None and t90[n] <= 22.0]
+    t90_missing = [n for n in slots if t90[n] is None]
+    fill = lambda names: ", ".join(names) if names else "none"
+
     lines += [
         "",
-        "Plug-flow reference V/Q = %.2f s at 15 L/min.",
+        "Plug-flow reference V/Q = %.2f s at 15 L/min." % rep.TAU,
         "Left wall mean t63 %s s; right wall mean t63 %s s; wall-to-wall delta %s s."
         % (fmt(left), fmt(right), fmt(wall_delta)),
         "",
@@ -197,6 +213,29 @@ def main():
                        meta["continuity_global"] or "not parsed",
                        meta["cells"] or "not parsed",
                        quality_note(meta)),
+        "",
+        "## Design-target check (numerical run only)",
+        "",
+        "| Target from `docs/VALIDATION_SPECS.md` | Result | Verdict |",
+        "|---|---|---|",
+        "| t63 <= 4 s at every card tip | pass: %s; fail: %s | %s |"
+        % (fill(t63_ok), fill([n for n in slots if n not in t63_ok]),
+           "PASS" if len(t63_ok) == len(slots) else "FAIL"),
+        "| t90 <= 22 s at every card tip | observed: %s; no crossing inside 8 s: %s | %s |"
+        % (fill(t90_ok), fill(t90_missing),
+           "PASS" if len(t90_ok) == len(slots) else "NOT CERTIFIED"),
+        "| Wall-to-wall delta <= 5 s | %s s | %s |"
+        % (fmt(wall_delta),
+           "PASS" if wall_delta is not None and wall_delta <= 5.0 else "FAIL"),
+        "| All 8 slots within +/-20%% of mean t63 | mean %s s; allowed band %s | %s |"
+        % (fmt(overall), "-" if band is None else "+/-%.2f s" % band,
+           "PASS" if uniform else "FAIL"),
+        "| Purge recovery >=95% within 40 s | not simulated | NOT ASSESSED |",
+        "| Face velocity at nostril >=2 m/s | imposed inlet boundary condition, not a prediction | NOT VALIDATED BY SIMULATION |",
+        "",
+        "**Release position:** the numerical solve is stable and bounded, but this run "
+        "does not demonstrate that all eight slots meet the t63 and exposure-uniformity "
+        "targets. Physical tracer and purge acceptance remain release gates.",
         "",
         "Raw probe tables and logs are archived under `%s`." % (
             dest.relative_to(ROOT).as_posix() if dest else "the original case"),

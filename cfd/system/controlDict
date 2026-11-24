@@ -30,7 +30,7 @@ functions
     {
         type    patchAverage;
         libs    ("libfieldFunctionObjects.so");
-        patches (inletFace);
+        patches (inlet0 inlet1 inlet2);
         fields  (p);
     }
 }

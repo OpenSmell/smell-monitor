@@ -102,9 +102,9 @@ def main():
         print("  -> the wall-to-wall delta is %.2f s; the centred nostrils "
               "should flood both facing rows evenly." % (right - left))
     by = t63.get("bypass")
-    if by is not None and dig is not None:
-        print("under-pad probe t63 %.2f s vs first row %.2f s" % (by, dig))
-        if by < 0.8 * dig:
+    if by is not None and right is not None:
+        print("under-pad probe t63 %.2f s vs first row %.2f s" % (by, right))
+        if by < 0.8 * right:
             print("  -> FASTER than the first row: the front slot is a bypass "
                   "around the filter. Seal the drawer's bottom gap.")
         else:

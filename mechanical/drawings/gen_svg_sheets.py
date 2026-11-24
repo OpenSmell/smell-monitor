@@ -177,7 +177,7 @@ def os004():
     <text x="0" y="38" class="tiny">2. Both walls are identical; each card faces the central stream.</text>
     <text x="0" y="50" class="tiny">3. Filter is a full-width series element; a bypassable filter is not a filter.</text>
     <text x="0" y="62" class="tiny">4. All wetted faces inert — no silicone, PVC or carbon in series.</text>
-    <text x="0" y="74" class="tiny">5. Source: mechanical/constants.py and blueprint §3 · acceptance in VALIDATION_PLAN.md.</text>
+    <text x="0" y="74" class="tiny">5. Source: mechanical/constants.py and blueprint §3 · acceptance in VALIDATION_SPECS.md.</text>
   </g>
 """)
     s.append(FOOT)

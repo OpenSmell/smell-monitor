@@ -10,13 +10,14 @@ internalField   uniform 256;
 
 boundaryField
 {
-    inletFace
+    "(inlet0|inlet1|inlet2)"
     {
         type            turbulentMixingLengthFrequencyInlet;
         mixingLength    0.001;
         value           uniform 256;
     }
-    outletFace  { type inletOutlet; inletValue uniform 256; value uniform 256; }
+    outlet      { type inletOutlet; inletValue uniform 256; value uniform 256; }
+    "(inletFace|outletFace)" { type zeroGradient; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        omegaWallFunction;

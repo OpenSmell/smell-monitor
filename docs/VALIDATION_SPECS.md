@@ -1,14 +1,17 @@
-# Flow Acceptance Test
+# Flow Acceptance Specifications
 
 **Document:** OSM-VP-001
-**Revision:** B
-**Date:** 2026-11-22
+**Revision:** C
+**Date:** 2026-11-24
 **Product:** Smell Monitor v1.1
-**Purpose:** Production acceptance of `t63`/`t90` exchange times and purge.
+**Purpose:** Define the numerical and physical quality gates for `t63`/`t90`
+exchange times, purge, wall-to-wall uniformity and nostril face velocity.
 
-The CFD case and its numerical acceptance check are in `cfd/RESULTS.md`. This
-document is the hardware acceptance specification for a built unit; its
-criteria in §3 are the release gate.
+The completed numerical run and its measured crossing times are in
+`cfd/RESULTS.md`. That run is stable and bounded, but it does not meet the
+per-slot `t63` and eight-slot uniformity criteria in §3. The criteria below are
+the release gates for a built unit; they are not weakened by the simulation
+result.
 
 The chamber has **eight uniform OSM-1 slots** on two inward-facing side-wall
 rows: left wall slots 1–4 (J2–J5) and right wall slots 5–8 (J6–J9), both on

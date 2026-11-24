@@ -23,24 +23,25 @@ NX, NY, NZ = 58, 54, 26         # 2 mm cells; snappy refines to 1 mm
 # nostrils on the channel centreline, centred on the upright card's sensing band
 INLETS = [(CONST["SH"] / 2.0 + k * CONST["NO_PITCH"], CONST["NO_Z"])
           for k in (-1, 0, 1)]
+INLET_R = CONST["NO_R"]
 OUTLET = (CONST["FAN_X"] - CONST["FAN_R"], CONST["FAN_X"] + CONST["FAN_R"],
           CONST["FAN_Z"] - CONST["FAN_R"], CONST["FAN_Z"] + CONST["FAN_R"])
-PAD = (X0 + CONST["RAIL_W"], X1 - CONST["RAIL_W"],
-       CONST["FILT_Y0"], CONST["FILT_Y1"], CONST["FILT_Z0"], Z1)
+PAD = (X0 + CONST["RAIL_W"], CONST["FILT_Y0"], CONST["FILT_Z0"],
+       X1 - CONST["RAIL_W"], CONST["FILT_Y1"], Z1)
 
 # probes at the inward tip of every card (left row +21 mm, right row -21 mm),
-# normalised by the outer shell dimensions
-SH, SW, SHH = CONST["SH"], CONST["SW"], CONST["SHH"]
+# in the same metres used by the mesh and the nostril patches
 PROBES = (
-    [(f"A{i}", ((CONST["AN_X"] + CONST["CARD_REACH"]) / SH,
-                y / SW, CONST["NO_Z"] / SHH))
+    [(f"A{i}", ((CONST["AN_X"] + CONST["CARD_REACH"]) / 1000.0,
+                y / 1000.0, CONST["NO_Z"] / 1000.0))
      for i, y in enumerate(CONST["AN_Y"])] +
-    [(f"D{i}", ((CONST["DI_X"] - CONST["CARD_REACH"]) / SH,
-                y / SW, CONST["NO_Z"] / SHH))
+    [(f"D{i}", ((CONST["DI_X"] - CONST["CARD_REACH"]) / 1000.0,
+                y / 1000.0, CONST["NO_Z"] / 1000.0))
      for i, y in enumerate(CONST["DI_Y"])] +
-    [("bypass", (CONST["SH"] / 2.0 / SH, CONST["FILT_Y0"] / SW / 2.0,
-                 (Z0 + CONST["FILT_Z0"]) / 2.0 / SHH)),
-     ("outlet", (CONST["FAN_X"] / SH, (Y1 + 2.0) / SW, CONST["FAN_Z"] / SHH))]
+    [("bypass", (CONST["SH"] / 2.0 / 1000.0, CONST["FILT_Y0"] / 2.0 / 1000.0,
+                 (Z0 + CONST["FILT_Z0"]) / 2.0 / 1000.0)),
+     ("outlet", (CONST["FAN_X"] / 1000.0, (Y1 - 2.0) / 1000.0,
+                 CONST["FAN_Z"] / 1000.0))]
 )
 
 Q_TOTAL = 2.5e-4          # 15 L/min, the design purge flow, m3/s
@@ -106,54 +107,37 @@ boundary
 # Total flow Q_TOTAL over front-face area (116 x 45.4 mm^2 = 0.00527 m^2)
 # gives mean velocity ~0.047 m/s.  The tracer pass uses dt=4e-4 and the inlet
 # jets, not this mean, set the Courant limit.
+INLET_ACTIONS = "\n".join(
+    """    {{
+        name    inlet{i};
+        type    faceSet;
+        action  new;
+        source  patchToFace;
+        patch   inletFace;
+    }}
+    {{
+        name    inlet{i};
+        type    faceSet;
+        action  subset;
+        source  boxToFace;
+        box     ({x0:.3f} {y0:.3f} {z0:.3f}) ({x1:.3f} {y1:.3f} {z1:.3f});
+    }}
+""".format(
+        i=i,
+        x0=(x - INLET_R) / 1000.0, x1=(x + INLET_R) / 1000.0,
+        y0=(Y0 + 0.002) / 1000.0, y1=(Y0 + 0.004) / 1000.0,
+        z0=(z - INLET_R) / 1000.0, z1=(z + INLET_R) / 1000.0,
+    )
+    for i, (x, z) in enumerate(INLETS)
+)
+
 FILES["system/topoSetDict"] = foam("topoSetDict", """
 // Cut the three nostril patches and the fan outlet out of the box faces.
-// Coordinates in metres (SI). The box subsets carve the nostril faces out
-// of inletFace and the fan face out of outletFace.
+// Coordinates in metres (SI). The boxes follow the mechanical constants, so a
+// nostril-position change cannot silently leave the airflow case behind.
 actions
 (
-    {
-        name    inlet0;
-        type    faceSet;
-        action  new;
-        source  patchToFace;
-        patch   inletFace;
-    }
-    {
-        name    inlet0;
-        type    faceSet;
-        action  subset;
-        source  boxToFace;
-        box     (0.032 0.002 0.027) (0.038 0.004 0.033);
-    }
-    {
-        name    inlet1;
-        type    faceSet;
-        action  new;
-        source  patchToFace;
-        patch   inletFace;
-    }
-    {
-        name    inlet1;
-        type    faceSet;
-        action  subset;
-        source  boxToFace;
-        box     (0.058 0.002 0.027) (0.064 0.004 0.033);
-    }
-    {
-        name    inlet2;
-        type    faceSet;
-        action  new;
-        source  patchToFace;
-        patch   inletFace;
-    }
-    {
-        name    inlet2;
-        type    faceSet;
-        action  subset;
-        source  boxToFace;
-        box     (0.084 0.002 0.027) (0.090 0.004 0.033);
-    }
+%s
     {
         name    outlet;
         type    faceSet;
@@ -166,10 +150,14 @@ actions
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (0.044 0.110 0.0086) (0.078 0.112 0.040);
+        box     (%.3f %.3f %.3f) (%.3f %.3f %.3f);
     }
 );
-""")
+""" % (
+    INLET_ACTIONS,
+    (OUTLET[0] + 2.0) / 1000.0, Y1 / 1000.0 - 0.002, OUTLET[2] / 1000.0,
+    (OUTLET[1] - 2.0) / 1000.0, Y1 / 1000.0, OUTLET[3] / 1000.0,
+))
 
 FILES["system/createPatchDict"] = foam("createPatchDict", """
 // Create separate inlet/outlet patches from the faceSets so each nostril
@@ -208,7 +196,7 @@ patches
 
 FILES["system/topoSetDict.pad"] = foam("topoSetDict", """
 // The filter pad is a porous zone, not a solid: a Darcy-Forchheimer sink in
-// the 4 mm slab the pad occupies, x 6..116, y 10.8..14.8, z 20..43.
+// the 4 mm slab the pad occupies, from x=6..116, y=10.8..14.8, z=20..cavity top.
 actions
 (
     {
@@ -327,7 +315,7 @@ mergeTolerance 1e-6;
 """)
 
 FILES["system/fvSchemes"] = foam("fvSchemes", """
-ddtSchemes      { default steadyState; }
+ddtSchemes      { default Euler; }
 gradSchemes     { default Gauss linear; }
 
 divSchemes
@@ -336,7 +324,7 @@ divSchemes
     div(phi,U)                  Gauss linearUpwind grad(U);
     div(phi,k)                  Gauss upwind;
     div(phi,omega)              Gauss upwind;
-    div(phi,T)                  Gauss upwind;
+    div(phi,T)                  bounded Gauss limitedLinear 1;
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 
@@ -413,7 +401,7 @@ functions
     {
         type    patchAverage;
         libs    ("libfieldFunctionObjects.so");
-        patches (inletFace);
+        patches (inlet0 inlet1 inlet2);
         fields  (p);
     }
 }
@@ -426,10 +414,10 @@ application     scalarTransportFoam;
 startFrom       startTime;
 startTime       0;
 stopAt          endTime;
-endTime         40;
-deltaT          0.02;
+endTime         8;
+deltaT          4e-4;
 writeControl    runTime;
-writeInterval   1;
+writeInterval   0.25;
 purgeWrite      0;
 writeFormat     ascii;
 writePrecision  6;
@@ -502,15 +490,19 @@ internalField   uniform (0 0 0);
 
 boundaryField
 {
-    // inletFace is the entire front wall. fixedValue with explicit +Y velocity
-    // drives flow INTO the domain (patch normals point OUT -Y, so
-    // flowRateInletVelocity with positive Q would push flow OUT -> zero flow).
-    // Mean velocity = Q_TOTAL / frontFaceArea = %(v).4f m/s.
-    inletFace  { type fixedValue; value uniform (0 %(v).4f 0); }
-    outletFace { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
-    "(sideX0|sideX1|board|lid|cartridges)" { type noSlip; }
+    // Each nostril carries one third of the design flow.  The source patches
+    // left behind by createPatch become walls so flow cannot bypass the
+    // three measured inlet openings.
+    "(inlet0|inlet1|inlet2)"
+    {
+        type                flowRateInletVelocity;
+        volumetricFlowRate  %(q).9g;
+        value               uniform (0 0 0);
+    }
+    outlet      { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
+    "(inletFace|outletFace|sideX0|sideX1|board|lid|cartridges)" { type noSlip; }
 }
-""" % dict(v=_INLET_V))
+""" % dict(q=Q_INLET))
 
 FILES["0/p"] = foam("p", """
 dimensions      [0 2 -2 0 0 0 0];
@@ -518,9 +510,8 @@ internalField   uniform 0;
 
 boundaryField
 {
-    outletFace { type fixedValue; value uniform 0; }
-    inletFace  { type zeroGradient; }
-    "(sideX0|sideX1|board|lid|cartridges)"
+    outlet      { type fixedValue; value uniform 0; }
+    "(inlet0|inlet1|inlet2|inletFace|outletFace|sideX0|sideX1|board|lid|cartridges)"
     {
         type zeroGradient;
     }
@@ -533,13 +524,14 @@ internalField   uniform 0.02;
 
 boundaryField
 {
-    inletFace
+    "(inlet0|inlet1|inlet2)"
     {
         type        turbulentIntensityKineticEnergyInlet;
         intensity   0.05;
         value       uniform 0.02;
     }
-    outletFace  { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
+    outlet      { type inletOutlet; inletValue uniform 0.02; value uniform 0.02; }
+    "(inletFace|outletFace)" { type zeroGradient; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        kqRWallFunction;
@@ -554,13 +546,14 @@ internalField   uniform 256;
 
 boundaryField
 {
-    inletFace
+    "(inlet0|inlet1|inlet2)"
     {
         type            turbulentMixingLengthFrequencyInlet;
         mixingLength    0.001;
         value           uniform 256;
     }
-    outletFace  { type inletOutlet; inletValue uniform 256; value uniform 256; }
+    outlet      { type inletOutlet; inletValue uniform 256; value uniform 256; }
+    "(inletFace|outletFace)" { type zeroGradient; }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        omegaWallFunction;
@@ -575,7 +568,11 @@ internalField   uniform 0;
 
 boundaryField
 {
-    "(inletFace|outletFace)" { type calculated; value uniform 0; }
+    "(inlet0|inlet1|inlet2|inletFace|outletFace|outlet)"
+    {
+        type        calculated;
+        value       uniform 0;
+    }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        nutkWallFunction;
@@ -590,9 +587,9 @@ internalField   uniform 0;
 
 boundaryField
 {
-    inletFace  { type fixedValue; value uniform 1; }
-    outletFace  { type inletOutlet; inletValue uniform 0; value uniform 0; }
-    "(sideX0|sideX1|board|lid|cartridges)" { type zeroGradient; }
+    "(inlet0|inlet1|inlet2)" { type fixedValue; value uniform 1; }
+    outlet  { type inletOutlet; inletValue uniform 0; value uniform 0; }
+    "(inletFace|outletFace|sideX0|sideX1|board|lid|cartridges)" { type zeroGradient; }
 }
 """)
 

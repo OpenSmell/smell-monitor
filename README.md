@@ -236,7 +236,7 @@ hand-verified numbers:
 - [x] Firmware — three-phase cycle, USB/Wi-Fi/BLE, compiles clean
 - [x] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004 — `mechanical/drawings/sheets/` (SVG, ASME Y14)
 - [x] Enclosure CAD — `mechanical/step/smell_monitor_assembly.step` exported (FreeCAD model + shell/lid STEPs alongside); PTFE-lined tray + lid per `docs/blueprint.md` §15; `mechanical/constants.py` is the single source
-- [x] Flow acceptance specification — `docs/VALIDATION_PLAN.md` (filter ΔP, tracer breakthrough, purge completeness, wall-to-wall uniformity, pass/fail t63/t90)
+- [x] Flow acceptance specification — `docs/VALIDATION_SPECS.md` (filter ΔP, tracer breakthrough, purge completeness, wall-to-wall uniformity, pass/fail t63/t90)
 - [x] HIL stream sanity — `tools/hil_simulator.py --cycles 1` emits a valid `.osmell` record with all five QC injection paths available
 - [x] Fabrication package generated — Gerbers, Excellon drill, CPL and BOM in `electrical/smell_monitor_v1_1/fab/`
 - [x] Coded assembly + flow animation rendered from the routed PCB — `docs/figures/cad/` (storyboard and header proof included)

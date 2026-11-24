@@ -1195,7 +1195,7 @@ path for automatic zero/baseline calibration.
 
 - **CFD.** Case v2 is committed with corrected numerics. Run and import with the
   two commands in `cfd/RESULTS.md`. The importer rejects a run with Courant > 1.
-- **Unit acceptance.** Execute `docs/VALIDATION_PLAN.md` on a built unit: filter
+- **Unit acceptance.** Execute `docs/VALIDATION_SPECS.md` on a built unit: filter
   ΔP, tracer exchange at all eight slots, purge completeness/carryover and
   fan-speed invariance. Its §3 thresholds are the release gate.
 - **Electrical detail:** the 5 V trunk is 0.30 mm track (≈ 21 °C rise at 1.4 A,

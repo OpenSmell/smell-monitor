@@ -10,9 +10,8 @@ internalField   uniform 0;
 
 boundaryField
 {
-    outletFace { type fixedValue; value uniform 0; }
-    inletFace  { type zeroGradient; }
-    "(sideX0|sideX1|board|lid|cartridges)"
+    outlet      { type fixedValue; value uniform 0; }
+    "(inlet0|inlet1|inlet2|inletFace|outletFace|sideX0|sideX1|board|lid|cartridges)"
     {
         type zeroGradient;
     }
