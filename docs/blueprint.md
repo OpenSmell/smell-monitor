@@ -5,7 +5,7 @@
 | **Document** | OS-BP-001 |
 | **Revision** | T |
 | **Date** | 2026-11-26 |
-| **Status** | One SKU to OSM-1: eight uniform slots, schematic ERC-clean, PCB routed/DRC-clean with a filled B.Cu GND return, sealed SSD1306 display in a shallow bezel on the fixed front wall with four reachable buttons and one harness grommet, device-verified signed OTA, versioned interpretation profiles and hardened telemetry. The lid is a plain flat plate with four M3 screws and no wires or holes. Enclosure CAD, dimensioned sheets, Gerbers and the assembly animation are generated and machine-verified. The stable side-wall-v2 CFD solve is reported in `cfd/RESULTS.md`; nostril geometry is unchanged and physical tracer/purge acceptance of a built unit follows `docs/VALIDATION_PLAN.md`. |
+| **Status** | One SKU to OSM-1: eight uniform slots, schematic ERC-clean, PCB routed/DRC-clean with a filled B.Cu GND return, sealed SSD1306 display in a shallow bezel on the fixed front wall with four reachable buttons and one harness grommet, device-verified signed OTA, versioned interpretation profiles and hardened telemetry. The lid is a plain flat plate with four M3 screws and no wires or holes. Enclosure CAD, dimensioned sheets, Gerbers and the assembly animation are generated and machine-verified. The stable side-wall-v2 CFD solve is reported in `cfd/RESULTS.md`; nostril geometry is unchanged and physical tracer/purge acceptance of a built unit follows `docs/VALIDATION_SPECS.md`. |
 | **License** | Hardware: CERN-OHL-S-2.0 · Firmware: MIT |
 | **Maintainer** | OpenSmell |
 
@@ -792,7 +792,7 @@ archived by the importer. It reports 3/8 slots at or below the 4 s t63 target,
 t90 recorded at A0/A3/D3, a wall-to-wall delta of 0.23 s and uniformity FAIL.
 The solve measures exchange time at each wall (4.9 mm card-top hood),
 wall-to-wall uniformity and neighbour interference (`bash run.sh --omit 3,6`).
-Physical tracer and purge acceptance in `docs/VALIDATION_PLAN.md` §3 is the
+Physical tracer and purge acceptance in `docs/VALIDATION_SPECS.md` §3 is the
 release gate. Nostril geometry is unchanged after CFD review.
 
 ### 8.4 Delivery checklist for fabrication
@@ -813,13 +813,13 @@ Machine-checked claims and the gate that re-derives each one:
 | Separately-built solids do not occupy the same space | `tools/verify_clearance.py`, `tools/verify_pcb.py` |
 | Modules fit the chamber envelope | `tools/verify_module_fit.py` |
 | Response-matrix rank for the eight slots | `tools/verify_orthogonality.py` |
-| Front display, buttons and sealing | `docs/VALIDATION_PLAN.md` §2.5–§2.7 |
-| OTA signature, SHA-256 and rollback | `docs/VALIDATION_PLAN.md` §2.8 |
-| Sequence replay, retained status/LWT and wall-clock timestamps | `docs/VALIDATION_PLAN.md` §2.9 |
-| Filter ΔP and fan operating point | NF1 (§3.8); `docs/VALIDATION_PLAN.md` §3 |
-| Purge completeness ≥ 99 %, carryover ≤ 5 % | §8.2; `docs/VALIDATION_PLAN.md` §3 |
+| Front display, buttons and sealing | `docs/VALIDATION_SPECS.md` §2.5–§2.7 |
+| OTA signature, SHA-256 and rollback | `docs/VALIDATION_SPECS.md` §2.8 |
+| Sequence replay, retained status/LWT and wall-clock timestamps | `docs/VALIDATION_SPECS.md` §2.9 |
+| Filter ΔP and fan operating point | NF1 (§3.8); `docs/VALIDATION_SPECS.md` §3 |
+| Purge completeness ≥ 99 %, carryover ≤ 5 % | §8.2; `docs/VALIDATION_SPECS.md` §3 |
 | Rail budgets (5 V 1.38 A, 3.3 V 0.40 A worst case) | `tools/verify_electrical.py`, `tools/verify_sensor_matrix.py` |
-| CFD exchange time and wall-to-wall uniformity | `cfd/RESULTS.md`; acceptance in `docs/VALIDATION_PLAN.md` §3 |
+| CFD exchange time and wall-to-wall uniformity | `cfd/RESULTS.md`; acceptance in `docs/VALIDATION_SPECS.md` §3 |
 
 ---
 
@@ -1044,9 +1044,10 @@ never be silently destroyed or faked:
 | Rev | Date | Change |
 |-----|------|--------|
 | v1.0 | 2026-11-25 | Shipped configuration: one SKU, eight uniform OSM-1 slots, two ADS1115s, TCA9548A, shared 1-Wire bus with host-managed identity, canonical raw-only records, woven PTFE mesh filter and the driven three-phase cycle. |
-| v1.1-T | 2026-11-26 | Sealed SSD1306 front-wall display with a 27 × 13 mm window at shell (61,45), four reachable front buttons and one sealed Ø6 grommet at (82,45); plain flat lid with four M3 screws; device-verified signed OTA with rollback; versioned profiles with additive derived fields; sequence IDs, 32-record replay, retained MQTT status/LWT, NTP `wall_clock` and power-fail flush; inert-gas materials rule. Stable `side-wall-v2-linux` CFD solve reported in `cfd/RESULTS.md` with physical acceptance in `docs/VALIDATION_PLAN.md`; nostril geometry unchanged. |
+| v1.1 | 2026-11-26 | Sealed SSD1306 front-wall display with a 27 × 13 mm window at shell (61,45), four reachable front buttons and one sealed Ø6 grommet at (82,45); plain flat lid with four M3 screws; device-verified signed OTA with rollback; versioned profiles with additive derived fields; sequence IDs, 32-record replay, retained MQTT status/LWT, NTP `wall_clock` and power-fail flush; inert-gas materials rule. Stable `side-wall-v2-linux` CFD solve reported in `cfd/RESULTS.md` with physical acceptance in `docs/VALIDATION_SPECS.md`; nostril geometry unchanged. |
 
 ---
 
 *Changes to a locked section require a revision bump and a row in the revision
 table (§13).*
+

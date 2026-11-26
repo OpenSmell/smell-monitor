@@ -183,7 +183,7 @@ smell-monitor/
 │   ├── blueprint.md         # single source of truth: objective, design,
 │   │                        #   verification, BOM, assembly, manual, drawings
 │   ├── MANUAL.md            # user-facing display, buttons, OTA, profile, replay
-│   ├── VALIDATION_PLAN.md   # physical acceptance gates for a built unit
+│   ├── VALIDATION_SPECS.md   # physical acceptance gates for a built unit
 │   ├── CFD_NOTES.md         # numerical results
 │   └── module-standard.md   # OpenSmell Module Standard v1 (OSM-1): the slot,
 │                            #   pinouts, cartridge envelope, host identity, materials
@@ -230,7 +230,7 @@ hand-verified numbers:
 2. **Design a module:** `docs/module-standard.md` — the slot, pinouts, cartridge envelope, host-managed identity, conformance checklist
 3. **Build one:** `bom-sourced.csv` (build inputs) → `docs/blueprint.md` §9 (BOM) → §10 (assembly)
 4. **Use one:** `docs/MANUAL.md` — display screens, buttons, OTA, profiles, status and replay
-5. **Accept one:** `docs/VALIDATION_PLAN.md` — physical tracer/purge and interface/data gates; `cfd/RESULTS.md` and `docs/CFD_NOTES.md` for numerical results
+5. **Accept one:** `docs/VALIDATION_SPECS.md` — physical tracer/purge and interface/data gates; `cfd/RESULTS.md` and `docs/CFD_NOTES.md` for numerical results
 6. **Fabricate a board:** `tools/export_fab.py` exports Gerbers, Excellon drill and a CPL to `electrical/smell_monitor_v1_1/fab/`
 
 ## Project status
@@ -244,11 +244,11 @@ hand-verified numbers:
 - [x] Firmware — three-phase cycle, local SSD1306 front-panel display and four buttons, device-verified OTA with rollback, versioned profiles, sequence/replay telemetry, USB/Wi-Fi/BLE
 - [x] Electrical sheet OS-003 (PCB floor plan) + pneumatic sheet OS-004 — `mechanical/drawings/sheets/` (SVG, ASME Y14)
 - [x] Enclosure CAD — `mechanical/step/smell_monitor_assembly.step` exported (FreeCAD model + shell/lid STEPs alongside); sealed tray, plain flat lid and front-panel display bezel per `docs/blueprint.md` §6.1; `mechanical/constants.py` is the single source
-- [x] Acceptance specification — `docs/VALIDATION_PLAN.md` (tracer breakthrough, purge, wall-to-wall uniformity, front-panel display readability, four-button debounce, bezel/grommet sealing, OTA verification and rollback, power-fail flush/replay)
+- [x] Acceptance specification — `docs/VALIDATION_SPECS.md` (tracer breakthrough, purge, wall-to-wall uniformity, front-panel display readability, four-button debounce, bezel/grommet sealing, OTA verification and rollback, power-fail flush/replay)
 - [x] HIL stream sanity — `tools/hil_simulator.py --cycles 1` emits a valid `.osmell` record with all five QC injection paths available
 - [x] Fabrication package generated — Gerbers, Excellon drill, CPL and BOM in `electrical/smell_monitor_v1_1/fab/`
 - [x] Coded assembly + flow animation rendered from the routed PCB — `docs/figures/cad/` (storyboard and header proof included)
-- [x] CFD baseline — stable `side-wall-v2-linux` solve in `cfd/RESULTS.md`: 81,432 cells, Courant 0.783, continuity -5.65e-08, 3/8 slots at or below 4 s t63, 0.23 s wall-to-wall delta. Nostril geometry unchanged after CFD review. Numerical results in `cfd/RESULTS.md`; physical acceptance in `docs/VALIDATION_PLAN.md` §3.
+- [x] CFD baseline — stable `side-wall-v2-linux` solve in `cfd/RESULTS.md`: 81,432 cells, Courant 0.783, continuity -5.65e-08, 3/8 slots at or below 4 s t63, 0.23 s wall-to-wall delta. Nostril geometry unchanged after CFD review. Numerical results in `cfd/RESULTS.md`; physical acceptance in `docs/VALIDATION_SPECS.md` §3.
 - [x] Black-and-white plan and section drawing in the user manual — `docs/figures/cad/manual_linework.svg`
 
 ## Contributing
@@ -264,3 +264,4 @@ Open issues for hardware bugs or component suggestions. Contributions are welcom
 ## Community
 
 OpenSmell · [github.com/OpenSmell](https://github.com/OpenSmell) · smell-monitor issues are monitored.
+

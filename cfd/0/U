@@ -10,11 +10,15 @@ internalField   uniform (0 0 0);
 
 boundaryField
 {
-    // inletFace is the entire front wall. fixedValue with explicit +Y velocity
-    // drives flow INTO the domain (patch normals point OUT -Y, so
-    // flowRateInletVelocity with positive Q would push flow OUT -> zero flow).
-    // Mean velocity = Q_TOTAL / frontFaceArea = 0.0475 m/s.
-    inletFace  { type fixedValue; value uniform (0 0.0475 0); }
-    outletFace { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
-    "(sideX0|sideX1|board|lid|cartridges)" { type noSlip; }
+    // Each nostril carries one third of the design flow.  The source patches
+    // left behind by createPatch become walls so flow cannot bypass the
+    // three measured inlet openings.
+    "(inlet0|inlet1|inlet2)"
+    {
+        type                flowRateInletVelocity;
+        volumetricFlowRate  8.33333333e-05;
+        value               uniform (0 0 0);
+    }
+    outlet      { type inletOutlet; inletValue uniform (0 0 0); value uniform (0 0 0); }
+    "(inletFace|outletFace|sideX0|sideX1|board|lid|cartridges)" { type noSlip; }
 }

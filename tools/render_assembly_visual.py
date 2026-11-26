@@ -621,6 +621,16 @@ def draw_shell_near(d):
     txt(d, (p[0], p[1]), "USB-C POWER + DATA", F_TINY, (*C_GOLD, 220), "mm")
 
 
+def draw_nostril_callout(d):
+    """Keep the inlet bores legible where the bezel projection overlaps them."""
+    for nx in NO_X:
+        vcircle(d, nx, -0.6, CONST["NO_Z"], CONST["NO_R"],
+                (5, 11, 19, 255), (*C_CYAN, 240), 2, 24)
+    p = P(NO_X[0] - 8, -0.8, CONST["NO_Z"] - CONST["NO_R"] * 2.1)
+    txt(d, (p[0], p[1]), "3 x dia6 NOSTRILS (INLET, BELOW UI)",
+        F_TINY, (*C_CYAN, 245), "mm")
+
+
 def draw_front_panel_ui(d):
     """Sealed front-wall UI: gasket/acrylic/bezel stack, OLED, grommet, buttons."""
     gt = CONST["DISP_GASKET"]
@@ -675,8 +685,12 @@ def draw_ui_detail(d):
     def uz(z):
         return 646 - (z - 34) * S
 
-    d.rectangle([ux(46), uz(55), ux(106), uz(35)],
+    d.rectangle([ux(44), uz(55), ux(106), uz(28)],
                 fill=(58, 76, 98, 70), outline=(*C_SHELL, 200), width=1)
+    for nx in NO_X:
+        d.ellipse([ux(nx) - CONST["NO_R"] * S, uz(CONST["NO_Z"]) - CONST["NO_R"] * S,
+                   ux(nx) + CONST["NO_R"] * S, uz(CONST["NO_Z"]) + CONST["NO_R"] * S],
+                  fill=(5, 11, 19, 255), outline=(*C_CYAN, 235), width=2)
     d.rectangle([ux(DISP_X0 - 1), uz(DISP_Z1 + 1), ux(DISP_X1 + 1), uz(DISP_Z0 - 1)],
                 outline=(*C_GOLD, 170), width=1)
     d.rectangle([ux(DISP_X0), uz(DISP_Z1), ux(DISP_X1), uz(DISP_Z0)],
@@ -704,11 +718,13 @@ def draw_ui_detail(d):
         d.text((ux(bx), uz(bz) + CONST["BTN_HOLE_D"] * S + 3), lab,
                font=F_TINY, fill=(*ring, 230), anchor="ma")
     txt(d, (x0 + 16, 660),
+        "3 x dia6 inlet nostrils remain clear below the panel",
+        F_SMALL, (*C_CYAN, 235))
+    txt(d, (x0 + 16, 682),
         "gasket %.0f / acrylic %.0f / bezel %.0f mm" %
         (CONST["DISP_GASKET"], CONST["DISP_GASKET"], CONST["DISP_POD_D"]),
         F_SMALL, C_WHITE)
-    txt(d, (x0 + 16, 682), "4 x dia3.4 front bores + caps", F_SMALL, C_WHITE)
-    txt(d, (x0 + 16, 704), "dia6 harness passes the fixed front wall",
+    txt(d, (x0 + 16, 704), "4 x dia3.4 front bores + caps; dia6 harness in wall",
         F_SMALL, C_MUTED)
 
 
@@ -815,6 +831,7 @@ def render_frame(i, total):
     draw_effects(d, t, led_on, buzz_on)
     draw_shell_near(d)
     draw_front_panel_ui(d)
+    draw_nostril_callout(d)
     draw_lid(d, lid_u)
     draw_panels(d, t)
     draw_ui_detail(d)
@@ -1003,6 +1020,12 @@ def render_header_proof(path):
                 fill=(14, 32, 42), outline=(30, 150, 215), width=2)
     d.text((ux(CONST["DISP_X"]), uz(CONST["DISP_Z"]) - 6), "0x3C",
            font=F_TINY, fill=(210, 245, 255), anchor="mm")
+    for nx in NO_X:
+        d.ellipse([ux(nx) - CONST["NO_R"] * us, uz(CONST["NO_Z"]) - CONST["NO_R"] * us,
+                   ux(nx) + CONST["NO_R"] * us, uz(CONST["NO_Z"]) + CONST["NO_R"] * us],
+                  fill=(30, 150, 215))
+    d.text((ux(NO_X[0]) - 4, 626), "3 x dia6 NOSTRILS", font=F_TINY,
+           fill=(20, 90, 140))
     fx, fz = CONST["UI_FEED_X"], CONST["UI_FEED_Z"]
     fr = CONST["UI_FEED_D"] / 2.0
     d.ellipse([ux(fx - fr), uz(fz + fr), ux(fx + fr), uz(fz - fr)],

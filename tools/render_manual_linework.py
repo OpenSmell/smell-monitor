@@ -500,6 +500,10 @@ c.text(sx(sw + CONST["FAN_T"]) + 6, sz(CONST["FAN_Z"]) + 16, "PWM fan, J10 at re
 # ---- FRONT WALL UI / ELEVATION -------------------------------------------
 c.text(lx(sh / 2), 606, "FRONT WALL UI - ELEVATION", 17, True, anchor="ma")
 c.rect(lx(0), lz(60), sh * LS, 60 * LS)
+for nx in NO_X:
+    c.circle(lx(nx), lz(CONST["NO_Z"]), CONST["NO_R"] * LS)
+c.text(lx(NO_X[0]), lz(CONST["NO_Z"]) + 18, "3 x dia6 nostrils, clear below panel",
+       10, color=GREY)
 c.rect(lx(DISP_X0), lz(DISP_Z1), CONST["DISP_W"] * LS,
        CONST["DISP_H"] * LS, lw=1, color=GREY)
 c.rect(lx(WIN_X0), lz(WIN_Z1), CONST["DISP_WIN_W"] * LS,

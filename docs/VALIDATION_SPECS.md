@@ -4,21 +4,16 @@
 **Revision:** D
 **Date:** 2026-11-26
 **Product:** Smell Monitor v1.1 (one SKU)
-**Purpose:** Production acceptance of tracer exchange, purge, display, controls,
-sealing, OTA rollback and data replay on a built unit.
+**Purpose:** Production acceptance of tracer exchange, purge, wall-to-wall
+uniformity, nostril face velocity, display, controls, sealing, OTA rollback and
+data replay on a built unit.
 
-The CFD case and its numerical stability check are in `cfd/RESULTS.md`; the
-interpretation notes are in `docs/CFD_NOTES.md`. This document is the hardware
-acceptance specification for a built unit; its criteria in §3 are the release
-gate.
-
-## Numerical results
-
-The `side-wall-v2-linux` solve is numerically stable (81,432 cells, Courant
-0.783, continuity -5.65e-08) and gives a wall-to-wall t63 delta of 0.23 s. It
-also reports uniformity FAIL and 3/8 slots at or below the 4 s t63 target, with
-t90 recorded at A0, A3 and D3. Physical tracer and purge acceptance in §2.2–§2.4
-is the release gate. Nostril geometry is unchanged after CFD review.
+The numerical run and its measured crossing times are in `cfd/RESULTS.md`; the
+interpretation notes are in `docs/CFD_NOTES.md`. The `side-wall-v2-linux` solve
+records 81,432 cells, Courant 0.783, continuity -5.65e-08, a 0.23 s wall-to-wall
+t63 delta, uniformity FAIL, 3/8 slots at or below the 4 s t63 target, and t90
+recorded at A0, A3 and D3. The criteria in §3 apply to a built unit. Nostril
+geometry is unchanged after CFD review.
 
 The chamber has **eight uniform OSM-1 slots** on two inward-facing side-wall
 rows: left wall slots 1–4 (J2–J5) and right wall slots 5–8 (J6–J9), both on

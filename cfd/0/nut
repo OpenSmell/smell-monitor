@@ -10,7 +10,11 @@ internalField   uniform 0;
 
 boundaryField
 {
-    "(inletFace|outletFace)" { type calculated; value uniform 0; }
+    "(inlet0|inlet1|inlet2|inletFace|outletFace|outlet)"
+    {
+        type        calculated;
+        value       uniform 0;
+    }
     "(sideX0|sideX1|board|lid|cartridges)"
     {
         type        nutkWallFunction;

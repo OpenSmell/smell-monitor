@@ -19,8 +19,7 @@ PROVENANCE -- WHAT IS DATA AND WHAT IS ESTIMATE (read before trusting a number)
 * `src` is a **human note** -- it names the part and what its stated range or
   cross-sensitivity table says. `source` is the **cited document** for the
   product line (see `SOURCES`); every row carries one and the verify gate
-  rejects `UNSOURCED`. `source` is family-level for now; tighten to a
-  part+revision string when a profile is re-derived verbatim from one table.
+  rejects `UNSOURCED`.
 * `gases` ranges are the datasheet detection ranges and ARE taken as stated.
 * Because profiles are estimates, every downstream metric is re-run under
   x[0.7,1.3] jitter (`orthogonality.py --perturb`); conclusions that do not
@@ -116,8 +115,7 @@ GASES = {
 # --- citable documents ------------------------------------------------------
 # One reference per product line. `source` is auto-attached to every record by
 # name prefix so each row points at a real document; `basis` says how the
-# profile was derived from it. Family-level (not per-revision) for now; refine
-# to a part+revision string when a profile is re-derived verbatim.
+# profile was derived from it. Part-level references are listed below.
 # Part-level citations for sensors whose exact document we have verified.
 # Checked before the family prefix in `_source_for`.
 SOURCE_OVERRIDE = {

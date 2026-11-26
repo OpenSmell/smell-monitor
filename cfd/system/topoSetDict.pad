@@ -6,7 +6,7 @@ FoamFile
     object      topoSetDict;
 }
 // The filter pad is a porous zone, not a solid: a Darcy-Forchheimer sink in
-// the 4 mm slab the pad occupies, x 6..116, y 10.8..14.8, z 20..43.
+// the 4 mm slab the pad occupies, from x=6..116, y=10.8..14.8, z=20..cavity top.
 actions
 (
     {
@@ -14,7 +14,7 @@ actions
         type    cellSet;
         action  new;
         source  boxToCell;
-        box     (6.0 116.0 10.8) (14.8 20.0 54.0);
+        box     (6.0 10.8 20.0) (116.0 14.8 54.0);
     }
     {
         name    pad;

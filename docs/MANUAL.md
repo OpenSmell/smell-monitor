@@ -275,7 +275,7 @@ them; the same record shape travels over every enabled transport.
 
 Use `status` to see the active firmware version, radio state, fan settings,
 timing and OTA state. Physical acceptance of the sample path and these data
-paths is specified in `docs/VALIDATION_PLAN.md`.
+paths is specified in `docs/VALIDATION_SPECS.md`.
 
 ---
 
@@ -365,7 +365,7 @@ poisons SnO₂ MOX cells.
 | Local UI | Sealed SSD1306 128×64 OLED at master I²C `0x3C` in a shallow fixed-front-wall bezel (27 × 13 mm window at shell (61,45)), gasket outside the sample path; MEASURE/OK (88,49), MENU/BACK (100,49), BOOT (88,39) and RESET (100,39) on the same panel, one sealed 6 mm harness grommet at (82,45); plain four-screw lid |
 | Acquisition | 2 × ADS1115 (8 channels), TCA9548A (8 channels), SHT31 at 1 Hz |
 | Cycle time | ≈ 40 s (10 s intake / 10 s hold / 20 s purge) |
-| Airflow | 15 L/min design purge; physical acceptance in `docs/VALIDATION_PLAN.md` |
+| Airflow | 15 L/min design purge; physical acceptance in `docs/VALIDATION_SPECS.md` |
 | Filter | Thin woven PTFE mesh, cleanable; front drawer |
 | Wetted surfaces | Sealed PETG tray, lid and filter drawer; inert gas path only; acrylic/PU conformal coat, never silicone |
 | Lid | Flat lid, four M3 screws |
@@ -392,3 +392,4 @@ github.com/OpenSmell/smell-monitor
 ---
 
 *End of manual — OSM-UM-001 Rev E*
+

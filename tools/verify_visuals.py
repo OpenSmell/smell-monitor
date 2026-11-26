@@ -241,7 +241,8 @@ for name, src in (("assembly", asm_src), ("manual linework", lw_src)):
           "plain representation statement")
 
 for sym in ("draw_keyed_socket", "draw_upright_card", "draw_gas_cell",
-            "draw_fan_harness", "draw_front_panel_ui", "geom_pnginfo"):
+            "draw_fan_harness", "draw_front_panel_ui", "draw_nostril_callout",
+            "geom_pnginfo"):
     check("assembly generator defines %s" % sym,
           re.search(r"def\s+%s\s*\(" % sym, asm_src) is not None,
           "parametric primitive")
@@ -250,10 +251,19 @@ for token in ("front_panel_ui", "front_wall_display", "ui_harness_grommet",
               "keyed_socket", "upright_card", "gas_cell", "qwiic_port"):
     check("visual metadata names %s" % token,
           token in asm_src and token in lw_src, "in both generators")
+check("assembly keeps nostrils visible below the front UI",
+      "3 x dia6 NOSTRILS (INLET, BELOW UI)" in asm_src
+      and "3 x dia6 inlet nostrils remain clear below the panel" in asm_src
+      and "draw_nostril_callout(d)" in asm_src,
+      "iso callout + front elevation + panel gap")
 check("assembly uses canonical wall/row constants",
       all(k in asm_src for k in ("SOCK_X_L", "SOCK_X_R", "ROW_Y", "NO_Z",
                                  "NO_PITCH", "FAN_Z", "CARD_TOP")),
       "CONST identities, not mirrored numbers")
+check("manual linework keeps nostrils below the front UI",
+      "3 x dia6 nostrils, clear below panel" in lw_src
+      and "for nx in NO_X:" in lw_src,
+      "front-wall elevation shows the inlet bores")
 check("manual linework uses canonical wall/row constants",
       all(k in lw_src for k in ("SOCK_X_L", "SOCK_X_R", "ROW_Y", "NO_Z",
                                 "CARD_TOP", "BTN_FRONT", "DISP_WIN_W")),
@@ -390,6 +400,9 @@ svg_text = read(lw_svg)
 check("manual linework references the hood and nostril count",
       all(s in svg_text for s in ("4.9 hood", "3 x dia6", "SECTION A-A")),
       "4.9 mm hood, 3 nostrils, section view")
+check("manual linework front elevation shows nostrils below the UI",
+      "3 x dia6 nostrils, clear below panel" in svg_text,
+      "three inlet bores in the same elevation as OLED and buttons")
 check("manual linework carries the front-wall UI and side-wall rows",
       all(s in svg_text for s in ("FRONT WALL UI", "OLED 0x3C", "MEASURE/OK",
                                   "MENU/BACK", "BOOT", "RESET", "OTA", "J10",

@@ -6,8 +6,8 @@ FoamFile
     object      topoSetDict;
 }
 // Cut the three nostril patches and the fan outlet out of the box faces.
-// Coordinates in metres (SI). The box subsets carve the nostril faces out
-// of inletFace and the fan face out of outletFace.
+// Coordinates in metres (SI). The boxes follow the mechanical constants, so a
+// nostril-position change cannot silently leave the airflow case behind.
 actions
 (
     {
@@ -22,8 +22,9 @@ actions
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (0.032 0.002 0.027) (0.038 0.004 0.033);
+        box     (0.044 0.003 0.030) (0.050 0.003 0.036);
     }
+
     {
         name    inlet1;
         type    faceSet;
@@ -36,8 +37,9 @@ actions
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (0.058 0.002 0.027) (0.064 0.004 0.033);
+        box     (0.058 0.003 0.030) (0.064 0.003 0.036);
     }
+
     {
         name    inlet2;
         type    faceSet;
@@ -50,8 +52,9 @@ actions
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (0.084 0.002 0.027) (0.090 0.004 0.033);
+        box     (0.072 0.003 0.030) (0.078 0.003 0.036);
     }
+
     {
         name    outlet;
         type    faceSet;
@@ -64,6 +67,6 @@ actions
         type    faceSet;
         action  subset;
         source  boxToFace;
-        box     (0.044 0.110 0.0086) (0.078 0.112 0.040);
+        box     (0.044 0.109 0.014) (0.078 0.111 0.052);
     }
 );
