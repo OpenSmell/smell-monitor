@@ -192,8 +192,15 @@ DECISIONS = [
     "pair keeps a bare module working without loading any other segment.",
     "AO input divider 10k/10k: maps the 0-5 V slot output to <=2.5 V at the "
     "ADS1115, one divider per slot.",
-    "The on-board OLED is not fitted: v1 is headless and the UI is Osmograph. "
-    "Removing it also removes the only display library dependency.",
+    "v1.1 puts the UI on the FIXED FRONT WALL: an SSD1306 0x3C OLED in a sealed "
+    "bezel on the MASTER I2C bus via J19 (Qwiic/JST-SH 1x04) and a 100nF supply "
+    "decoupler at the header.  The lid is plain, so opening it never breaks an "
+    "electrical connection.",
+    "The four front-panel buttons (MEASURE / MENU / BOOT / RESET) are "
+    "panel-mounted: pressing one shorts its signal to GND.  A single 1x05 "
+    "harness, J20, brings MEASURE, BUTTON_MENU, BOOT, EN and GND to the board; "
+    "the old board-mounted SMD switches are gone.  Pull-ups hold every input "
+    "high while released.",
 ]
 
 N = IF.N_SLOTS
@@ -232,15 +239,19 @@ def build():
     for k in range(N):
         part("J%d" % (11 + k), "Connector_Generic:Conn_01x04", "Qwiic",
              QWIIC_FP)
+    # J19 is NOT a slot port: it is the front-panel bezel's cable entry on the
+    # master bus (0x3C SSD1306), so it is deliberately outside the TCA9548A.
+    part("J19", "Connector_Generic:Conn_01x04", "Qwiic OLED", QWIIC_FP)
+    # J20 is the single harness entry for the four panel-mounted buttons:
+    # MEASURE, BUTTON_MENU, BOOT, EN, GND.  A press shorts the signal to GND.
+    part("J20", "Connector_Generic:Conn_01x05", "1x05 button harness",
+         "Connector_JST:JST_PH_B5B-PH-K_1x05_P2.00mm_Vertical")
 
     part("Q1", "Transistor_FET:Q_NMOS_GSD", "AO3400A", "Package_TO_SOT_SMD:SOT-23")
     part("Q2", "Transistor_BJT:Q_NPN_BCE", "MMBT3904", "Package_TO_SOT_SMD:SOT-23")
     part("D1", "Device:D", "SS14", "Diode_SMD:D_SOD-123")
     part("BZ1", "Device:Buzzer", "MBT-12A05", "Buzzer_Beeper:Buzzer_12x9.5RM7.6")
     part("LED1", "Device:LED", "Red", "LED_SMD:LED_0603_1608Metric")
-    part("SW1", "Switch:SW_Push", "MEASURE", "Button_Switch_SMD:SW_SPST_TL3342")
-    part("SW2", "Switch:SW_Push", "BOOT", "Button_Switch_SMD:SW_SPST_TL3342")
-    part("SW3", "Switch:SW_Push", "RESET", "Button_Switch_SMD:SW_SPST_TL3342")
 
     # --- U1 ESP32 ----------------------------------------------------------
     connect_name("+3V3", "U1", "VDD")
@@ -253,6 +264,7 @@ def build():
     connect_name("BUZZER", "U1", _gpio_name("BUZZER"))
     connect_name("LED", "U1", _gpio_name("LED"))
     connect_name("MEASURE", "U1", _gpio_name("BUTTON"))
+    connect_name("BUTTON_MENU", "U1", _gpio_name("BUTTON_MENU"))
     connect_name("UART_TX", "U1", "TXD0/IO1")
     connect_name("UART_RX", "U1", "RXD0/IO3")
     connect_name("ONEWIRE", "U1", _gpio_name("ONEWIRE"))
@@ -361,6 +373,12 @@ def build():
                    "SDA": "SD%d" % k, "SCL": "SC%d" % k}[name]
             connect(net, qref, pin_no)
 
+    # --- front-panel bezel display (J19): master bus, not a mux segment -----
+    for name, pin_no in zip(IF.QWIC, (1, 2, 3, 4)):
+        net = {"GND": "GND", "3V3": "+3V3",
+               "SDA": "I2C_SDA", "SCL": "I2C_SCL"}[name]
+        connect(net, "J19", pin_no)
+
     # --- fan (J10) + Q1 ----------------------------------------------------
     connect("+5V", "J10", "1")
     connect("FAN_NEG", "J10", "2")
@@ -390,10 +408,13 @@ def build():
     connect("LED_A", "LED1", "2")
     connect("GND", "LED1", "1")
 
-    # --- buttons -----------------------------------------------------------
-    connect("MEASURE", "SW1", "1"); connect("GND", "SW1", "2")
-    connect("BOOT", "SW2", "1");    connect("GND", "SW2", "2")
-    connect("EN", "SW3", "1");      connect("GND", "SW3", "2")
+    # --- front-panel button harness (J20) ----------------------------------
+    # The switches live in the front bezel, not on this board: each press
+    # shorts its signal pin to GND.  Pin order is fixed here and re-checked in
+    # validate(), so the harness cannot be swapped without the gate noticing.
+    for _pin, _net in enumerate(("MEASURE", "BUTTON_MENU", "BOOT", "EN", "GND"),
+                                start=1):
+        connect(_net, "J20", _pin)
 
     # --- pull-ups / housekeeping -------------------------------------------
     pull("I2C_SDA", "+3V3", "4.7k")
@@ -406,6 +427,7 @@ def build():
     for i in range(N):                        # per-channel bus pull-ups
         pull("SD%d" % i, "+3V3", "4.7k")
         pull("SC%d" % i, "+3V3", "4.7k")
+    pull("BUTTON_MENU", "+3V3")               # R54: keep R37..R53 refs stable
 
     # EN RC delay
     c = new_c("100nF"); connect("EN", c, "1"); connect("GND", c, "2")
@@ -416,6 +438,7 @@ def build():
     decouple("+5V")                            # U3 bridge runs from 5 V
     c = new_c("100nF"); connect("U3_V3", c, "1"); connect("GND", c, "2")
     decouple("+5V")                            # LDO input
+    decouple("+3V3")                   # J19 front-panel display supply at the cable
     for _ in range(2):
         c = new_c("10uF"); connect("+3V3", c, "1"); connect("GND", c, "2")
     c = new_c("10uF"); connect("+5V", c, "1"); connect("GND", c, "2")
@@ -462,7 +485,8 @@ def validate():
                               % (ref, pin, seen[key], net))
             seen[key] = net
 
-    for req in ("+5V", "+3V3", "GND", "I2C_SDA", "I2C_SCL", "ONEWIRE"):
+    for req in ("+5V", "+3V3", "GND", "I2C_SDA", "I2C_SCL", "ONEWIRE",
+                "MEASURE", "BUTTON_MENU", "BOOT", "EN"):
         if not NETS.get(req):
             errors.append("required net %r missing/empty" % req)
 
@@ -492,6 +516,29 @@ def validate():
             if net != want:
                 errors.append("Qwiic %d pin %d (%s) -> %r, expected %r"
                               % (k, pin_no, name, net, want))
+
+    # v1.1 local UI: the front-panel bezel display is on the MASTER bus, and
+    # MENU is a dedicated harness input, not a second slot DO.
+    for name, pin_no in zip(IF.QWIC, (1, 2, 3, 4)):
+        want = {"GND": "GND", "3V3": "+3V3",
+                "SDA": "I2C_SDA", "SCL": "I2C_SCL"}[name]
+        net = seen.get(("J19", str(pin_no)))
+        if net != want:
+            errors.append("display header J19 pin %d (%s) -> %r, expected %r"
+                          % (pin_no, name, net, want))
+    for _pin, _net in enumerate(("MEASURE", "BUTTON_MENU", "BOOT", "EN", "GND"),
+                                start=1):
+        if seen.get(("J20", str(_pin))) != _net:
+            errors.append("button harness J20 pin %d -> %r, expected %r"
+                          % (_pin, seen.get(("J20", str(_pin))), _net))
+    for _ref in ("SW1", "SW2", "SW3", "SW4"):
+        if _ref in PARTS:
+            errors.append("board-mounted switch %s must be removed" % _ref)
+    mcu_menu_pin = [n for n, nm in pin_numbers(PARTS["U1"]["lib"])
+                    if nm == _gpio_name("BUTTON_MENU")][0]
+    if seen.get(("U1", mcu_menu_pin)) != "BUTTON_MENU":
+        errors.append("GPIO%d (symbol pin %s) is not BUTTON_MENU"
+                      % (PM["mcu"]["BUTTON_MENU"], mcu_menu_pin))
 
     return errors
 

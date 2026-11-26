@@ -2,13 +2,17 @@
 # Build:  arduino-cli compile --profile default
 # Upload: arduino-cli upload  --profile default -p <COMx>
 #
+# 'no_fs' is two 2 MB app partitions on the 4 MB WROOM-32E flash: required for
+# OTA (huge_app has no second app partition). USB serial upload is unchanged
+# and remains the recovery path. Preferences/NVS has its own partition.
+#
 # Requires the ESP32 board-manager URL once per machine:
 #   arduino-cli config add board_manager.additional_urls \
 #     https://espressif.github.io/arduino-esp32/package_esp32_index.json
 #   arduino-cli core update-index && arduino-cli core install esp32:esp32@3.3.12
 profiles:
   default:
-    fqbn: esp32:esp32:esp32:PartitionScheme=huge_app
+    fqbn: esp32:esp32:esp32:PartitionScheme=no_fs
     platforms:
       - platform: esp32:esp32
     libraries:

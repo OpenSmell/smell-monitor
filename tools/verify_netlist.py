@@ -18,6 +18,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "electrical"))
 import board as B  # noqa: E402
+import interface as IF  # noqa: E402
 
 KICAD_CLI = r"C:\Program Files\KiCad\10.0\bin\kicad-cli.exe"
 SCH = os.path.join(ROOT, "electrical", "smell_monitor_v1_1",
@@ -125,6 +126,13 @@ def exported_nets(path):
     return nets
 
 
+def _net_of(pinmap, ref, pin):
+    """Return the single net carrying (ref, pin) in a ref->pin set map."""
+    hits = [name for name, pins in pinmap.items()
+            if (ref, str(pin)) in pins]
+    return hits[0] if len(hits) == 1 else None
+
+
 def main():
     B.build()
     with tempfile.TemporaryDirectory() as tmp:
@@ -166,7 +174,45 @@ def main():
                 errors.append("net %-12s  model-only=%s  sheet-only=%s"
                               % (net, missing, extra))
 
+    # v1.1 local UI: the display header must be on the MASTER I2C bus, and
+    # MENU must be its own GPIO input with a pull-up - not a slot DO line.
+    display_want = dict(zip((1, 2, 3, 4),
+                            ("GND", "+3V3", "I2C_SDA", "I2C_SCL")))
+    got_display = {p: _net_of(got, "J19", p) for p in (1, 2, 3, 4)}
+    model_display = {p: _net_of(want, "J19", p) for p in (1, 2, 3, 4)}
+    if got_display != display_want or model_display != display_want:
+        errors.append("J19 display header: sheet=%s model=%s expected=%s"
+                      % (got_display, model_display, display_want))
+
+    # v1.1 front-panel UI: the buttons are panel-mounted and reach the board
+    # through ONE 1x05 harness.  Its pin order is part of the contract.
+    panel_pins = (1, 2, 3, 4, 5)
+    panel_want = dict(zip(panel_pins, ("MEASURE", "BUTTON_MENU", "BOOT", "EN",
+                                       "GND")))
+    got_panel = {p: _net_of(got, "J20", p) for p in panel_pins}
+    model_panel = {p: _net_of(want, "J20", p) for p in panel_pins}
+    if got_panel != panel_want or model_panel != panel_want:
+        errors.append("J20 button harness: sheet=%s model=%s expected=%s"
+                      % (got_panel, model_panel, panel_want))
+    for ref in ("SW1", "SW2", "SW3", "SW4"):
+        if ref in B.PARTS or any(r == ref for pins in got.values()
+                                 for r, _ in pins):
+            errors.append("board-mounted switch %s must not be fitted" % ref)
+    menu_name = "IO%d" % IF.PINMAP["mcu"]["BUTTON_MENU"]
+    menu_pin = [n for n, nm in B.pin_numbers(B.PARTS["U1"]["lib"])
+                if nm == menu_name][0]
+    if _net_of(got, "U1", menu_pin) != "BUTTON_MENU":
+        errors.append("U1.%s (%s, GPIO%d) is not BUTTON_MENU on the sheet"
+                      % (menu_pin, menu_name,
+                         IF.PINMAP["mcu"]["BUTTON_MENU"]))
+    if sorted({_net_of(got, "R54", 1), _net_of(got, "R54", 2)}) != \
+            ["+3V3", "BUTTON_MENU"]:
+        errors.append("R54 must pull BUTTON_MENU up to +3V3")
+
     print("model nets=%d  sheet nets=%d" % (len(want), len(got)))
+    print("J19 (master bus): %s" % got_display)
+    print("J20 (front-panel harness): %s" % got_panel)
+    print("U1.%s=%s" % (menu_pin, _net_of(got, "U1", menu_pin)))
     if erc_line:
         print("ERC: %s" % erc_line)
     if rc != 0 and not errors:

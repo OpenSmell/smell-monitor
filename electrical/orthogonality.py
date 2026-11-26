@@ -377,7 +377,7 @@ def slots_report():
     print()
     print("  => analog floor to serve every SINGLE-domain use case = %d" % floor)
     print("  => the %d-gas 'broad' set needs %d analog and does not fit the bank"
-          " (deliberate limitation)" % (len(ANALYTES), min_analog(ANALYTES)))
+          % (len(ANALYTES), min_analog(ANALYTES)))
     print("  => digital pool rank %.1f, VOC-clustered; it cannot see the "
           "analog-only gases above" % dr)
     # recommended: floor analog + most digital that still closes the MCU pins

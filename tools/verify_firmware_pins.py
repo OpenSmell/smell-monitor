@@ -52,7 +52,14 @@ def main():
     check("OS_PIN_LED", "LED")
     check("OS_PIN_BUZZER", "BUZZER")
     check("OS_PIN_BUTTON", "BUTTON")
+    check("OS_PIN_BUTTON_MENU", "BUTTON_MENU")
     check("OS_PIN_ONEWIRE", "ONEWIRE")
+
+    # 1-Wire is open-drain: the electrical contract reserves a bidirectional
+    # GPIO for it before assigning the buttons / DO inputs.
+    if pm.get("ONEWIRE") not in IF.PINS_BIDIR or d.get("OS_PIN_ONEWIRE") not in IF.PINS_BIDIR:
+        errors.append("  ONEWIRE must be on a bidirectional GPIO: config.h=%s interface=%s"
+                      % (d.get("OS_PIN_ONEWIRE"), pm.get("ONEWIRE")))
 
     # Eight digital read-back lines, slots 0-7.
     got = parse_array(text, "OS_PIN_DO")
@@ -76,17 +83,14 @@ def main():
     for define, key in (("ADDR_ADS1115_A", "ADS1115_A"),
                         ("ADDR_ADS1115_B", "ADS1115_B"),
                         ("ADDR_TCA9548A", "TCA9548A"),
-                        ("ADDR_SHT31", "SHT31")):
+                        ("ADDR_SHT31", "SHT31"),
+                        ("ADDR_DISPLAY", "DISPLAY")):
         want = IF.I2C.get(key)
         got = d.get(define)
         want_i = int(want, 0) if isinstance(want, str) else want
         if got != want_i:
             errors.append("  %-18s config.h=%s  interface=%s (%s)"
                           % (define, got, want_i, key))
-
-    # Nothing may reference the removed OLED address.
-    if d.get("ADDR_OLED") is not None:
-        errors.append("  ADDR_OLED still defined (OLED removed in OSM-1 re-lay)")
 
     print("interface MCU signals: %d / capacity %d"
           % (IF.PINMAP["mcu_signals"], IF.PINMAP["capacity"]))

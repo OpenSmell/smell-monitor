@@ -480,7 +480,8 @@ def bom(psp, x0, y0):
         ("1", "Shell \u2013 open tray  %d \u00d7 %d \u00d7 %d"
          % (SH, SW, CONST["CAV_Z1"]),
          "1", "PETG FDM (or AL 6061-T6)", "make"),
-        ("2", "Lid \u2013 flat plate  %d \u00d7 %d \u00d7 %d" % (SH, SW, LID_T),
+        ("2", "Lid \u2013 PLAIN plate, 4 \u00d7 M3 only  %d \u00d7 %d \u00d7 %d"
+         % (SH, SW, LID_T),
          "1", "PETG FDM, same spool", "make"),
         ("3", "Filter pad  %d \u00d7 %d \u00d7 %d" % (FILT_W, FILT_T, FILT_H),
          "1", "non-woven or PTFE felt", "buy"),
@@ -488,6 +489,19 @@ def bom(psp, x0, y0):
          "1", "FR4 1.6 mm + build (OS-003)", "make"),
         ("5", "Fan  DIA40 \u00d7 t10, 5 V", "1", "any 40 mm axial", "buy"),
         ("6", "Screw  M3 \u00d7 12, socket head", "4", "A2 stainless", "buy"),
+        ("7", "Front-panel bezel ring  %d \u00d7 %d \u00d7 %g deep" % (
+            CONST["DISP_W"], CONST["DISP_H"], CONST["DISP_POD_D"]),
+         "1", "PETG, outside front wall", "make"),
+        ("8", "Display acrylic window  %d \u00d7 %d \u00d7 %g" % (
+            CONST["DISP_W"], CONST["DISP_H"], CONST["DISP_GASKET"]),
+         "1", "PMMA; only wetted UI face", "buy"),
+        ("9", "Display gasket ring", "1", "PTFE; inert, PU-compatible",
+         "buy"),
+        ("10", "OLED module behind the acrylic", "1", "user-supplied display",
+         "buy"),
+        ("11", "Front switch caps  \u00d74, DIA%g" % (
+            2 * CONST["BTN_HOLE_D"]),
+         "1", "PETG; on BTN_FRONT centres", "make"),
     ]
     colw = [12, 92, 10, 74, 14]
     psp.add_text("BILL OF MATERIALS", height=3.4,
@@ -529,6 +543,25 @@ FILT_T = CONST["FILT_T"]
 FILT_W = CONST["CX"] - 2 * CONST["RAIL_W"]
 FILT_H = CONST["CAV_Z1"] - CONST["FILT_Z0"]
 MIDX = SH / 2.0
+# Front-panel UI: all cuts are in the fixed front wall (y=0..WALL) and the
+# gasket / acrylic / bezel stack sits outside it in negative Y.
+WIN_X0 = CONST["DISP_X"] - CONST["DISP_WIN_W"] / 2.0
+WIN_X1 = CONST["DISP_X"] + CONST["DISP_WIN_W"] / 2.0
+WIN_Z0 = CONST["DISP_Z"] - CONST["DISP_WIN_H"] / 2.0
+WIN_Z1 = CONST["DISP_Z"] + CONST["DISP_WIN_H"] / 2.0
+PAN_X0 = CONST["DISP_X"] - CONST["DISP_W"] / 2.0
+PAN_X1 = CONST["DISP_X"] + CONST["DISP_W"] / 2.0
+PAN_Z0 = CONST["DISP_Z"] - CONST["DISP_H"] / 2.0
+PAN_Z1 = CONST["DISP_Z"] + CONST["DISP_H"] / 2.0
+ACRYLIC_T = CONST["DISP_GASKET"]
+GASKET_Y0, GASKET_Y1 = -CONST["DISP_GASKET"], 0.0
+ACRYLIC_Y1 = GASKET_Y0
+ACRYLIC_Y0 = ACRYLIC_Y1 - ACRYLIC_T
+BEZEL_Y1 = ACRYLIC_Y0
+BEZEL_Y0 = BEZEL_Y1 - CONST["DISP_POD_D"]
+FEED_X, FEED_Z = CONST["UI_FEED_X"], CONST["UI_FEED_Z"]
+FEED_R = CONST["UI_FEED_D"] / 2.0
+BTN_ORDER = sorted(CONST["BTN_FRONT"].items(), key=lambda kv: kv[1][0])
 
 
 def sheet_assembly(doc):
@@ -538,8 +571,8 @@ def sheet_assembly(doc):
     psp.add_text("ASSEMBLY \u2013 OpenSmell v1.1 sensing platform", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    psp.add_text("four screws out, lid off, modules in, lid back.  That is the "
-                 "entire service procedure.", height=3,
+    psp.add_text("four screws out, lid off, modules in, lid back; the front "
+                 "panel and all wiring stay put.", height=3,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
@@ -554,13 +587,15 @@ def sheet_assembly(doc):
                 + off["fan"][1], CONST["FAN_Z"]), 34, 16, 5)
     ex.balloon((CONST["BOSS_INSET"], CONST["BOSS_INSET"],
                 CONST["LID_Z1"] + off["screws"][2]), -20, 14, 6)
+    ex.balloon((CONST["DISP_X"], BEZEL_Y0 + off["display"][1],
+                CONST["DISP_Z"]), 24, 18, 7)
 
-    s = View(psp, "assembly", "SECTION_B", 90, 1.25, 205, 205, hidden=False,
+    s = View(psp, "assembly", "SECTION_B", 90, 1.2, 205, 190, hidden=False,
              hatch=1.1)
-    caption(psp, s.centre[0], 180,
-            "SECTION B-B \u2013 x=%d, the whole stack  1.25:1" % MIDX)
-    s.dim_x((0, 0, 0), (0, CONST["SW"] + CONST["FAN_PLATE_T"]
-                        + CONST["FAN_T"], 0), 8)
+    caption(psp, s.centre[0], 175,
+            "SECTION B-B \u2013 x=%d, the whole stack  1.2:1" % MIDX)
+    s.dim_x((0, BEZEL_Y0, 0), (0, CONST["SW"] + CONST["FAN_PLATE_T"]
+                               + CONST["FAN_T"], 0), 8)
     s.dim_x((0, CONST["WALL"], 0), (0, CONST["CY1"], 0), 18)
     s.dim_y((0, 0, 0), (0, 0, CONST["PCB_TOP"]), 10, "left")
     s.dim_y((0, 0, CONST["CAV_Z1"]), (0, 0, SHH), 10, "left")
@@ -569,6 +604,15 @@ def sheet_assembly(doc):
     s.leader((0, 5.0, 30.0), 16, -8, "FILTER PAD")
     s.leader((0, 30.0, CONST["PCB_TOP"] - 0.8), 24, 10, "PCB 1.6")
     s.leader((0, CONST["SW"] - 1.5, CONST["FAN_Z"]), 12, -22, "DIA38 + FAN")
+    # The front-panel stack, measured on the real section through x=DISP_X.
+    s.dim_y((0, 0, WIN_Z0), (0, 0, WIN_Z1), 10, "left")
+    s.dim_y((0, 0, PAN_Z0), (0, 0, PAN_Z1), 16, "left")
+    s.dim_x((0, GASKET_Y0, WIN_Z0), (0, GASKET_Y1, WIN_Z0), 4, above=True)
+    s.dim_x((0, ACRYLIC_Y0, WIN_Z0), (0, ACRYLIC_Y1, WIN_Z0), 8, above=True)
+    s.dim_x((0, BEZEL_Y0, WIN_Z0), (0, BEZEL_Y1, WIN_Z0), 12, above=True)
+    s.dim_x((0, BEZEL_Y0, WIN_Z0), (0, GASKET_Y1, WIN_Z0), 16, above=True)
+    s.leader((0, ACRYLIC_Y0, CONST["DISP_Z"]), -22, 20, "ACRYLIC (WETTED)")
+    s.leader((0, CONST["WALL"], CONST["LID_Z1"]), 10, 8, "PLAIN LID")
 
     # Modules are user-supplied, so they are not in the solid.  Draw the OSM-1
     # envelope as a phantom: without it the 4.9 mm hood over the sensing face -
@@ -598,6 +642,10 @@ def sheet_assembly(doc):
         "BALLOON NUMBERS MATCH THE BOM; THE EXPLODED VIEW IS TRUE HLR.",
         "DASHED = OSM-1 MODULE (USER-SUPPLIED); %0.1f mm AIR ABOVE ITS FACE."
         % CONST["HOOD"],
+        "FRONT PANEL: PTFE GASKET / ACRYLIC / PETG BEZEL; ACRYLIC IS THE ONLY",
+        "WETTED UI FACE.  PLAIN LID; NO WIRE CROSSES THE LID SEAM.",
+        "UI GROMMET DIA%g AT (%g,%g); 4 FRONT SWITCHES ON BTN_FRONT."
+        % (CONST["UI_FEED_D"], FEED_X, FEED_Z),
     ])
     title_block(psp, dict(COMMON, title="ASSEMBLY", no="OS-000", sheet="1",
                           sheets="3", scale="AS NOTED", material="see BOM",
@@ -620,7 +668,7 @@ def sheet_shell(doc):
 
     # ---- FRONT: the intake face, X (horizontal) x Z (vertical), 1:1 ------
     v = View(psp, "shell", "FRONT", 270, 1.0, 25, 215, hidden=False)
-    caption(psp, v.centre[0], 192, "FRONT \u2013 intake face  1:1")
+    caption(psp, v.centre[0], 192, "FRONT \u2013 intake + UI face  1:1")
     v.chain_x([(0, 0, 0), (MIDX - CONST["NO_PITCH"], 0, 0), (MIDX, 0, 0),
                (MIDX + CONST["NO_PITCH"], 0, 0), (SH, 0, 0)], 8)
     v.dim_x((0, 0, 0), (SH, 0, 0), 16)
@@ -633,6 +681,26 @@ def sheet_shell(doc):
              "3 \u00d7 DIA%d" % (2 * CONST["NO_R"]))
     v.leader((CONST["USB_X"], 0, CONST["USB_Z"]), -8, 10,
              "DIA%d" % (2 * CONST["USB_R"]))
+    # v1.1 UI: every hole here is through this FIXED wall, never through the lid.
+    v.dim_x((WIN_X0, 0, WIN_Z0), (WIN_X1, 0, WIN_Z0), 5, above=True)
+    v.dim_y((WIN_X1, 0, WIN_Z0), (WIN_X1, 0, WIN_Z1), 5, "right")
+    v.dim_x((0, 0, 0), (CONST["DISP_X"], 0, 0), 12)
+    v.dim_y((0, 0, 0), (0, 0, CONST["DISP_Z"]), 12, "left")
+    v.leader((WIN_X1, 0, WIN_Z1), 8, 5,
+             "DISPLAY APERTURE %g \u00d7 %g" % (
+                 CONST["DISP_WIN_W"], CONST["DISP_WIN_H"]))
+    v.dim_x((FEED_X - FEED_R, 0, FEED_Z), (FEED_X + FEED_R, 0, FEED_Z),
+            3, above=True)
+    v.dim_x((0, 0, 0), (FEED_X, 0, 0), 10)
+    v.dim_y((0, 0, 0), (0, 0, FEED_Z), 8, "left")
+    v.leader((FEED_X, 0, FEED_Z), 6, -8, "DIA%g UI HARNESS" % CONST["UI_FEED_D"])
+    _bx, _bz = BTN_ORDER[0][1]
+    v.dim_x((_bx - CONST["BTN_HOLE_D"] / 2.0, 0, _bz),
+            (_bx + CONST["BTN_HOLE_D"] / 2.0, 0, _bz), 3, above=True)
+    for _nm, (_mx, _mz) in BTN_ORDER:
+        v.cross((_mx, 0, _mz), size=2.0)
+    v.leader((_bx, 0, _bz), 6, 8,
+             "4 \u00d7 DIA%g BUTTONS" % CONST["BTN_HOLE_D"])
     v.cut_line(MIDX, "A", both=False)
 
     # ---- SECTION A-A on x=61: Y (horizontal) x Z (vertical), 1.25:1 ------
@@ -680,6 +748,14 @@ def sheet_shell(doc):
         "BOSSES; LID ADDS %d mm." % (CONST["BOSS_D"], CONST["LID_T"]),
         "FILTER PAD %d \u00d7 %d \u00d7 %d DROPS IN FROM THE TOP, HELD BY THE "
         "LID." % (FILT_W, FILT_T, FILT_H),
+        "FRONT WALL: APERTURE %g \u00d7 %g AT (%g,%g); UI GROMMET DIA%g AT "
+        "(%g,%g)." % (CONST["DISP_WIN_W"], CONST["DISP_WIN_H"],
+                     CONST["DISP_X"], CONST["DISP_Z"], CONST["UI_FEED_D"],
+                     FEED_X, FEED_Z),
+        "4 \u00d7 DIA%g FRONT BUTTONS AT %s."
+        % (CONST["BTN_HOLE_D"],
+           ", ".join("%s(%g,%g)" % (k, x, z) for k, (x, z) in BTN_ORDER)),
+        "PLAIN LID (OS-002): NO UI CUTS, NO WIRES ACROSS THE LID SEAM.",
         "NO SILICONE, PVC, PAPER OR FOAM IN THE GAS PATH.  DIMS IN mm.",
     ])
     title_block(psp, dict(COMMON, title="SHELL \u2013 open tray", no="OS-001",
@@ -696,8 +772,8 @@ def sheet_lid(doc):
     psp.add_text("LID  (OS-002)", height=5,
                  dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 18), align=_ALIGN["c"])
-    psp.add_text("a flat plate with four counterbored holes: it closes the "
-                 "chamber, holds the filter down and clamps nothing else",
+    psp.add_text("a PLAIN flat plate: four counterbored M3 holes only.  It "
+                 "closes the chamber, holds the filter down, and carries no UI",
                  height=3, dxfattribs={"layer": "TXT"}).set_placement(
         (PW / 2, PH - 24), align=_ALIGN["c"])
 
@@ -708,11 +784,29 @@ def sheet_lid(doc):
     p.dim_y((0, 0, 0), (0, SW, 0), 8, "left")
     p.chain_x([(0, SW, 0), (CONST["BOSS_INSET"], SW, 0),
                (SH - CONST["BOSS_INSET"], SW, 0), (SH, SW, 0)], 10, above=True)
-    p.dim_y((0, CONST["BOSS_INSET"], 0), (0, SW - CONST["BOSS_INSET"], 0),
-            10, "right")
+    p.chain_y([(SH, 0, 0), (SH, CONST["BOSS_INSET"], 0),
+               (SH, SW - CONST["BOSS_INSET"], 0), (SH, SW, 0)], 14, "right")
+    p.dim_y((SH, CONST["BOSS_INSET"], 0),
+            (SH, SW - CONST["BOSS_INSET"], 0), 10, "right")
+    p.dim_x((CONST["BOSS_INSET"], SW, 0),
+            (SH - CONST["BOSS_INSET"], SW, 0), 14, above=True)
     p.leader((CONST["BOSS_INSET"], SW - CONST["BOSS_INSET"], 0), 14, -10,
              "4 \u00d7 DIA%d THRU, CBORE DIA%d \u00d7 %d" % (
                  CONST["SCREW_D"], CONST["CBORE_D"], CONST["CBORE_T"]))
+    # The counterbore and the through hole are dimensioned on one boss; the
+    # chains above locate all four.  There is nothing else in this plate.
+    p.dim_x((CONST["BOSS_INSET"] - CONST["CBORE_D"] / 2.0,
+             CONST["BOSS_INSET"], 0),
+            (CONST["BOSS_INSET"] + CONST["CBORE_D"] / 2.0,
+             CONST["BOSS_INSET"], 0), 3, above=True)
+    p.dim_y((CONST["BOSS_INSET"],
+             CONST["BOSS_INSET"] - CONST["CBORE_D"] / 2.0, 0),
+            (CONST["BOSS_INSET"],
+             CONST["BOSS_INSET"] + CONST["CBORE_D"] / 2.0, 0), 3, "left")
+    p.dim_x((CONST["BOSS_INSET"] - CONST["SCREW_D"] / 2.0,
+             CONST["BOSS_INSET"], 0),
+            (CONST["BOSS_INSET"] + CONST["SCREW_D"] / 2.0,
+             CONST["BOSS_INSET"], 0), 8, above=True)
 
     # ---- SECTION C-C through the front screw pair, 1.5:1 -----------------
     c = View(psp, "lid", "SECTION_C", 270, 1.5, 200, 236, hidden=False,
@@ -735,6 +829,9 @@ def sheet_lid(doc):
         "MATING FACE FLAT WITHIN 0.2; NO GASKET - THE FAN RUNS AT NEGATIVE "
         "PRESSURE.",
         "THE UNDERSIDE HOLDS THE FILTER PAD DOWN: NO ADHESIVE, NO FASTENER.",
+        "NO WINDOW, NO GROMMET, NO SWITCH HOLES: FOUR M3 HOLES ONLY.",
+        "ALL UI IS ON THE FIXED FRONT WALL (OS-001); ACRYLIC IS THE ONLY WETTED",
+        "UI FACE.  NOTHING IS FASTENED TO THE LID, SO NO WIRE CROSSES ITS SEAM.",
     ])
     title_block(psp, dict(COMMON, title="LID \u2013 flat plate", no="OS-002",
                           sheet="3", sheets="3", scale="AS NOTED",

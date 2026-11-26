@@ -53,6 +53,16 @@
     <rect x="99.5" y="87.69" width="5" height="7.62" stroke="#cc6600" stroke-width="0.5" fill="none" />
     <text x="102" y="82.5" class="tiny" text-anchor="middle" fill="#cc6600">J9</text>
     <text x="102" y="113" class="tiny" text-anchor="middle">right wall (J6–J9)</text>
+    <circle cx="84" cy="0" r="1.7" stroke="#cc0000" stroke-width="0.4" fill="none" />
+    <text x="84" y="-3" class="tiny" text-anchor="middle" fill="#cc0000">MEASURE z=49</text>
+    <circle cx="96" cy="0" r="1.7" stroke="#cc0000" stroke-width="0.4" fill="none" />
+    <text x="96" y="-3" class="tiny" text-anchor="middle" fill="#cc0000">MENU z=49</text>
+    <circle cx="84" cy="0" r="1.7" stroke="#cc0000" stroke-width="0.4" fill="none" />
+    <text x="84" y="-3" class="tiny" text-anchor="middle" fill="#cc0000">BOOT z=39</text>
+    <circle cx="96" cy="0" r="1.7" stroke="#cc0000" stroke-width="0.4" fill="none" />
+    <text x="96" y="-3" class="tiny" text-anchor="middle" fill="#cc0000">RESET z=39</text>
+    <circle cx="78" cy="0" r="3" stroke="#cc0000" stroke-width="0.4" fill="none" />
+    <text x="78" y="-7" class="tiny" text-anchor="middle" fill="#cc0000">UI FEED z=45</text>
     <rect x="33" y="0" width="48" height="105" stroke="#0066cc" stroke-width="0.2" stroke-dasharray="2,2" fill="none" />
     <text x="57" y="52.5" class="label" fill="#0066cc">central flow channel · 48 mm clear</text>
     <text x="57" y="58.5" class="tiny" text-anchor="middle">front → rear · fan at shell x = 61, z = 33</text>
@@ -67,24 +77,30 @@
     <text x="120" y="8" class="tiny">Qwiic J11–J18 ×8 · SDA/SCL on mux channels 0–7</text>
   </g>
   <g transform="translate(280,90)">
-    <rect x="0" y="0" width="135" height="150" stroke="#000" stroke-width="0.5" fill="#fafafa" />
+    <rect x="0" y="0" width="135" height="162" stroke="#000" stroke-width="0.5" fill="#fafafa" />
     <text x="67" y="16" class="hdr" text-anchor="middle">MECHANICAL DATA — OS-003</text>
     <text x="8" y="30" class="cell">PCB outline</text>
     <text x="128" y="30" class="cell" text-anchor="end">114 × 105 × 1.6 mm</text>
-    <text x="8" y="44" class="cell">Left wall sockets J2–J5</text>
-    <text x="128" y="44" class="cell" text-anchor="end">x = 16, Y = 24 / 48 / 72 / 96</text>
-    <text x="8" y="58" class="cell">Right wall sockets J6–J9</text>
-    <text x="128" y="58" class="cell" text-anchor="end">x = 106, Y = 24 / 48 / 72 / 96</text>
-    <text x="8" y="72" class="cell">Socket pin line</text>
-    <text x="128" y="72" class="cell" text-anchor="end">1×6 @ 2.54 mm, front-to-back (along Y)</text>
-    <text x="8" y="86" class="cell">Wall clearance behind card</text>
-    <text x="128" y="86" class="cell" text-anchor="end">13 mm</text>
-    <text x="8" y="100" class="cell">Upright card envelope</text>
-    <text x="128" y="100" class="cell" text-anchor="end">≤ 20 wide × 32 tall, reach 21</text>
-    <text x="8" y="114" class="cell">Boss cut-outs</text>
-    <text x="128" y="114" class="cell" text-anchor="end">r 4.3 ×4 (Ø8 boss + 0.3)</text>
-    <text x="8" y="128" class="cell">USB-C bulkhead</text>
-    <text x="128" y="128" class="cell" text-anchor="end">Ø 12 @ (18, 10)</text>
+    <text x="8" y="42" class="cell">Left wall sockets J2–J5</text>
+    <text x="128" y="42" class="cell" text-anchor="end">x = 16, Y = 24 / 48 / 72 / 96</text>
+    <text x="8" y="54" class="cell">Right wall sockets J6–J9</text>
+    <text x="128" y="54" class="cell" text-anchor="end">x = 106, Y = 24 / 48 / 72 / 96</text>
+    <text x="8" y="66" class="cell">Socket pin line</text>
+    <text x="128" y="66" class="cell" text-anchor="end">1×6 @ 2.54 mm, front-to-back (along Y)</text>
+    <text x="8" y="78" class="cell">Wall clearance behind card</text>
+    <text x="128" y="78" class="cell" text-anchor="end">13 mm</text>
+    <text x="8" y="90" class="cell">Upright card envelope</text>
+    <text x="128" y="90" class="cell" text-anchor="end">≤ 20 wide × 32 tall, reach 21</text>
+    <text x="8" y="102" class="cell">Boss cut-outs</text>
+    <text x="128" y="102" class="cell" text-anchor="end">r 4.3 ×4 (Ø8 boss + 0.3)</text>
+    <text x="8" y="114" class="cell">USB-C bulkhead</text>
+    <text x="128" y="114" class="cell" text-anchor="end">Ø 12 @ (18, 10)</text>
+    <text x="8" y="126" class="cell">Front button holes</text>
+    <text x="128" y="126" class="cell" text-anchor="end">Ø 3.4 × 4 (shell X,Z)</text>
+    <text x="8" y="138" class="cell">BTN_FRONT centres</text>
+    <text x="128" y="138" class="cell" text-anchor="end">MEASURE(88,49), MENU(100,49), BOOT(88,39), RESET(100,39)</text>
+    <text x="8" y="150" class="cell">UI grommet (front wall)</text>
+    <text x="128" y="150" class="cell" text-anchor="end">Ø 6 @ (82,45)</text>
   </g>
   <g transform="translate(20,220)">
     <text x="0" y="12" class="hdr">NOTES:</text>

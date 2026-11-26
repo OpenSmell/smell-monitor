@@ -49,6 +49,7 @@ I2C = {
     "ADS1115_B": 0x49,
     "TCA9548A": 0x70,
     "SHT31": 0x44,
+    "DISPLAY": 0x3C,        # SSD1306 in the sealed front-panel bezel, master bus
 }
 
 # --- ESP32-WROOM-32E usable pins -------------------------------------------
@@ -58,7 +59,7 @@ PINS_STRAP = [0, 2, 5, 12, 15]          # boot strapping: avoided by design
 PINS_RESERVED = {"I2C_SDA": 21, "I2C_SCL": 22, "UART_TX": 1, "UART_RX": 3}
 
 OUTPUTS = ["FAN_PWM", "BUZZER", "LED"]
-INPUTS = ["BUTTON"]
+INPUTS = ["BUTTON", "BUTTON_MENU"]
 
 
 def build_pinmap(n_slots=N_SLOTS):
@@ -90,18 +91,12 @@ def build_pinmap(n_slots=N_SLOTS):
     in_only = list(PINS_IN_ONLY)
     for s in outputs:
         mcu[s] = bidir.pop(0)
+    # 1-Wire is open-drain and must have a bidirectional pin.  Reserve it
+    # BEFORE the buttons/DO inputs so adding a UI button can never silently
+    # move the shared ID bus to an input-only GPIO.
+    mcu["ONEWIRE"] = bidir.pop(0)
     for s in inputs:
         mcu[s] = (bidir or in_only).pop(0)
-    # 1-Wire needs a bidirectional pin (the bus is open-drain).  If every
-    # bidirectional pin is consumed, fall back to an input-only pin with a
-    # warning: that still reads bus presence but cannot drive it.
-    if bidir:
-        mcu["ONEWIRE"] = bidir.pop(0)
-    elif in_only:
-        mcu["ONEWIRE"] = in_only.pop(0)
-        warnings.append("ONEWIRE on input-only pin %d" % mcu["ONEWIRE"])
-    else:
-        warnings.append("INFEASIBLE: no pin left for ONEWIRE")
 
     return {
         "mcu": mcu,

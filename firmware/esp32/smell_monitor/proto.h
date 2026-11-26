@@ -13,7 +13,12 @@ enum Phase : uint8_t {
 };
 
 struct Record {
-  uint32_t ts;          // ms since boot
+  uint32_t ts;          // ms since boot (kept for schema compatibility)
+  // Persistent, monotonic record id allocated when the record is generated;
+  // survives reboots and is used by the NVS ring /data?since= replay.
+  uint32_t seq;
+  // ISO-8601 UTC ("YYYY-MM-DDTHH:MM:SSZ"), empty when SNTP never synced.
+  char     wall_clock[25];
   uint8_t  phase;       // cycle phase of the record ("report" when published)
   uint16_t cycle_id;
   float    ao[8];       // all eight slots, volts at the SLOT (ADC node x 2)
@@ -35,6 +40,14 @@ struct Record {
   // driver supplies a reading.  Gas, pH and T/H therefore travel in one record.
   int8_t   ph_slot;
   float    ph_value;
+
+  // Optional interpretation profile (additive, schema version stays "1.0").
+  // Raw `ao` values above remain canonical; these are host/display convenience
+  // fields only. Empty version / NaN values are emitted as JSON null.
+  char     profile_version[16];  // "v1" when a profile was applied
+  float    derived[8];           // per-slot derived values, NaN = unconfigured
+  float    aqi;                  // aggregate over configured slots
+  char     aqi_label[16];        // e.g. "good"
 };
 
 // Serialise `r` into `buf` as one JSON object (no trailing newline added here).

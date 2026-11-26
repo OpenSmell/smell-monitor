@@ -77,6 +77,22 @@ CONST = {
     # nostrils, pulling air straight out of the back of the box.
     "FAN_R": 19.0, "FAN_T": 10.0, "FAN_Z": 33.0, "FAN_X": 61.0,
     "FAN_PLATE": 44.0, "FAN_PLATE_T": 4.0,
+    # ---- local UI (v1.1 refresh): front-panel bezel + buttons -------------
+    # The OLED sits in a shallow sealed bezel on the FIXED FRONT WALL, above
+    # the nostrils and clear of the USB-C/filter openings.  Its cable and the
+    # four button harness pass through one grommet in that same fixed wall to
+    # the base board.  The lid is a plain flat plate: opening it never breaks
+    # an electrical connection.
+    "DISP_X": 61.0, "DISP_Z": 45.0, "DISP_W": 30.0, "DISP_H": 17.0,
+    "DISP_WIN_W": 27.0, "DISP_WIN_H": 13.0, "DISP_POD_D": 6.0,
+    "DISP_GASKET": 1.0, "UI_FEED_D": 6.0,
+    "UI_FEED_X": 82.0, "UI_FEED_Z": 45.0,
+    # Four front-panel buttons: MEASURE/OK, MENU/BACK, BOOT, RESET.  Routine
+    # updates are OTA; BOOT/RESET remain reachable on the panel for recovery
+    # without opening the enclosure.
+    "BTN_HOLE_D": 3.4,
+    "BTN_FRONT": {"MEASURE": (88.0, 49.0), "MENU": (100.0, 49.0),
+                  "BOOT": (88.0, 39.0), "RESET": (100.0, 39.0)},
 }
 
 # Derived, so "the lid sits on the wall tops" and "the board top is the chamber
@@ -100,6 +116,11 @@ CONST["FILT_Y1"] = CONST["FILT_Y0"] + CONST["FILT_T"]
 # the underside of the lid.  This is the flow hood the CFD case reports on.
 CONST["CARD_TOP"] = CONST["PCB_TOP"] + CONST["SOCK_H"] + CONST["CARD_H"]
 CONST["HOOD"] = CONST["LID_Z0"] - CONST["CARD_TOP"]
+# Board origin, shared with interface.py.
+CONST["PCB_X0"] = (CONST["SH"] - CONST["PCB_X"]) / 2.0
+CONST["PCB_Y0"] = (CONST["SW"] - CONST["PCB_Y"]) / 2.0
+CONST["DISP_X0"] = CONST["DISP_X"] - CONST["DISP_W"] / 2.0
+CONST["DISP_Z0"] = CONST["DISP_Z"] - CONST["DISP_H"] / 2.0
 
 # Material / process decision (engineering rationale -- see DRAWINGS_NOTES):
 #   The wetted flow path (anything the sample gas touches) sets carryover

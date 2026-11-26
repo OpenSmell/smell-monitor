@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the OpenSmell v1.1 parametric 3D model headlessly (FreeCAD cmd).
+"""Build the OpenSmell v1.1 parametric 3D model with FreeCADCmd.
 
 Emitter: mechanical/freecad/build_smell_monitor.py
 Outputs:
@@ -9,8 +9,13 @@ Outputs:
 
 Coordinate frame (mm), origin = front-lower-left outer corner of shell:
   X = width  (0..122)
-  Y = depth  (front = 0 .. rear = 114, + 4 mm fan plate)
-  Z = height (0..49, up)
+  Y = depth  (front outer face = 0, cavity = WALL..SW, rear fan plate to SW+4)
+  Z = height (0..60; the flat lid top is SHH, nothing stands above it)
+
+The v1.1 UI lives on the FIXED FRONT WALL: the aperture, harness grommet and
+four button bores are cut through y=0..WALL, and the sealed panel stacks out
+into negative Y.  The lid is a plain plate with four M3 counterbores only, so
+opening it never breaks a wire.
 
 All dimensions live in the CONST dict -> single source of truth.
 Run:  freecadcmd.exe mechanical/freecad/build_smell_monitor.py
@@ -43,7 +48,39 @@ PCB_X1 = PCB_X0 + CONST["PCB_X"]
 PCB_Y1 = PCB_Y0 + CONST["PCB_Y"]
 PZ0, PZ1 = CONST["PCB_Z"], CONST["PCB_TOP"]
 FAN_Y0 = SW + CONST["FAN_PLATE_T"]          # outer face of the rear fan plate
-SEC_B_Z = 13.5                              # mid-socket horizontal section
+
+# ---- front-panel UI (all cuts in the FIXED front wall, y = 0..WALL) --------
+# Aperture: 27 x 13 centred on (DISP_X, DISP_Z) = (61, 45).  Its bottom z=38.5
+# clears the nostril tops (z=36) by 2.5 mm; the bezel clears the lid seam by
+# 0.5 mm at both ends of its z=36.5..53.5 envelope.
+WIN_X0 = CONST["DISP_X"] - CONST["DISP_WIN_W"] / 2.0
+WIN_X1 = CONST["DISP_X"] + CONST["DISP_WIN_W"] / 2.0
+WIN_Z0 = CONST["DISP_Z"] - CONST["DISP_WIN_H"] / 2.0
+WIN_Z1 = CONST["DISP_Z"] + CONST["DISP_WIN_H"] / 2.0
+# The panel envelope is the display module footprint in X-Z.  It spans
+# z=36.5..53.5: 0.5 mm above the nostril tops and 0.5 mm below the lid seam.
+PAN_X0 = CONST["DISP_X"] - CONST["DISP_W"] / 2.0
+PAN_X1 = CONST["DISP_X"] + CONST["DISP_W"] / 2.0
+PAN_Z0 = CONST["DISP_Z"] - CONST["DISP_H"] / 2.0
+PAN_Z1 = CONST["DISP_Z"] + CONST["DISP_H"] / 2.0
+# No new free dimensions: acrylic thickness is the gasket thickness, and the
+# outward stack depth is DISP_POD_D plus the two 1 mm gasket/acrylic layers.
+# Y is negative OUTSIDE the front wall; the gasket touches the wall at y=0.
+ACRYLIC_T = CONST["DISP_GASKET"]
+GASKET_Y1 = 0.0
+GASKET_Y0 = GASKET_Y1 - CONST["DISP_GASKET"]
+ACRYLIC_Y1 = GASKET_Y0
+ACRYLIC_Y0 = ACRYLIC_Y1 - ACRYLIC_T
+BEZEL_Y1 = ACRYLIC_Y0
+BEZEL_Y0 = BEZEL_Y1 - CONST["DISP_POD_D"]
+FEED_X, FEED_Z = CONST["UI_FEED_X"], CONST["UI_FEED_Z"]
+FEED_R = CONST["UI_FEED_D"] / 2.0
+BTN_FRONT = CONST["BTN_FRONT"]
+# Button caps cover the bores from the dry side.  Their diameter is twice the
+# bore diameter (derived, not a new free dimension) and they stop at y=0.
+CAP_R = CONST["BTN_HOLE_D"]
+CAP_Y0 = -CONST["DISP_GASKET"]
+CAP_Y1 = 0.0
 
 BOSSES = [(CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
           (SH - CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
@@ -88,6 +125,16 @@ for cx in NO_X:                                    # 3 x d6 intake bores
                           cx, CONST["NO_Z"]))
 body = body.cut(cyl_y(CONST["USB_R"], -1.0, CONST["WALL"] + 1.0,
                       CONST["USB_X"], CONST["USB_Z"]))
+# ---- v1.1 front-panel UI: every cut in the FIXED front wall ---------------
+# Display aperture (27 x 13) and one d6 harness grommet.  Both are through the
+# wall only; neither touches the lid, so no wire ever crosses the lid seam.
+body = body.cut(box(WIN_X0, -1.0, WIN_Z0,
+                    WIN_X1, CONST["WALL"] + 1.0, WIN_Z1))
+body = body.cut(cyl_y(FEED_R, -1.0, CONST["WALL"] + 1.0, FEED_X, FEED_Z))
+# Four front-panel switches: MEASURE / MENU / BOOT / RESET at (x, z).
+for bx, bz in BTN_FRONT.values():
+    body = body.cut(cyl_y(CONST["BTN_HOLE_D"] / 2.0, -1.0,
+                          CONST["WALL"] + 1.0, bx, bz))
 # Filter drawer: two side rails and a bottom rail.  The pad drops in from the
 # top and the lid is what holds it down - no fasteners, no adhesive.
 _fz0, _rw, _rd = CONST["FILT_Z0"], CONST["RAIL_W"], CONST["RAIL_D"]
@@ -112,7 +159,9 @@ for sx, sz in FAN_SCREWS:
     body = body.cut(cyl_y(1.4, FAN_Y0 - 6.0, FAN_Y0 + 1.0, sx, sz))
 shell.Shape = body
 
-# --- lid: a flat plate with four counterbored M3 screws -------------------
+# --- lid: a PLAIN flat plate with four counterbored M3 screws -------------
+# Nothing else cuts this plate: no window, no pod, no grommet, no switches.
+# Opening the box therefore never breaks an electrical connection.
 lid = doc.addObject("Part::Feature", "Lid")
 lid.Label = "lid"
 plate = box(0, 0, LZ0, SH, SW, LZ1)
@@ -122,6 +171,47 @@ for bx, by in BOSSES:
     plate = plate.cut(cylinder(CONST["CBORE_D"] / 2.0, LZ1 - CONST["CBORE_T"],
                                LZ1 + 1.0, bx, by))
 lid.Shape = plate
+
+# --- sealed front-panel stack, entirely OUTSIDE the front wall (y <= 0) ---
+# Layer order from the wall outward: PTFE gasket ring (y=-1..0), PMMA acrylic
+# sheet (y=-2..-1), then the PETG bezel ring (y=-8..-2).  The gasket and bezel
+# are annular: neither occupies the 27 x 13 opening, so the only solid the
+# sample gas can touch is the acrylic.  The OLED module sits behind that
+# acrylic, inside the bezel cavity, wholly on the dry side.
+gasket = doc.addObject("Part::Feature", "DisplayGasket")
+gasket.Label = "display gasket"
+gasket.Shape = box(PAN_X0, GASKET_Y0, PAN_Z0,
+                   PAN_X1, GASKET_Y1, PAN_Z1).cut(
+    box(WIN_X0, GASKET_Y0 - 1.0, WIN_Z0,
+        WIN_X1, GASKET_Y1 + 1.0, WIN_Z1))
+
+window = doc.addObject("Part::Feature", "DisplayWindow")
+window.Label = "display window"
+window.Shape = box(PAN_X0, ACRYLIC_Y0, PAN_Z0,
+                   PAN_X1, ACRYLIC_Y1, PAN_Z1)
+
+bezel = doc.addObject("Part::Feature", "DisplayBezel")
+bezel.Label = "display bezel"
+bezel.Shape = box(PAN_X0, BEZEL_Y0, PAN_Z0,
+                  PAN_X1, BEZEL_Y1, PAN_Z1).cut(
+    box(WIN_X0, BEZEL_Y0 - 1.0, WIN_Z0,
+        WIN_X1, BEZEL_Y1 + 1.0, WIN_Z1))
+
+oled = doc.addObject("Part::Feature", "DisplayOLED")
+oled.Label = "OLED module"
+oled.Shape = box(WIN_X0, BEZEL_Y0, WIN_Z0,
+                 WIN_X1, ACRYLIC_Y0, WIN_Z1)
+
+# Button caps are simple representations of the four front switches.  They are
+# outside the wall (y <= 0), tied to BTN_FRONT, and seal their bores from the
+# dry side; nothing protrudes into the sample channel.
+caps = doc.addObject("Part::Feature", "ButtonCaps")
+caps.Label = "button caps"
+_cs = None
+for bx, bz in BTN_FRONT.values():
+    one = cyl_y(CAP_R, CAP_Y0, CAP_Y1, bx, bz)
+    _cs = one if _cs is None else _cs.fuse(one)
+caps.Shape = _cs
 
 # --- PCB: the chamber floor, carrying the eight sockets -------------------
 pcb = doc.addObject("Part::Feature", "PCB")
@@ -166,7 +256,7 @@ for bx, by in BOSSES:
     ss = one if ss is None else ss.fuse(one)
 screws.Shape = ss
 
-# NOTE: ViewProvider appearance (transparency/colour) cannot be set headless
+# NOTE: ViewProvider appearance (transparency/colour) cannot be set in cmd mode
 # (freecadcmd has no Gui). Run style_smell_monitor.py through the GUI once
 # after rebuilding so internals are visible when people open the .FCStd.
 doc.recompute()
@@ -305,11 +395,15 @@ def cut_faces(shape, axis, coord, tol=1e-3):
     return out
 
 
+display_assembly = (gasket.Shape.fuse(window.Shape).fuse(bezel.Shape)
+                    .fuse(oled.Shape))
 assembly = shell.Shape.fuse(lid.Shape).fuse(pcb.Shape).fuse(
-    filt.Shape).fuse(fan.Shape).fuse(screws.Shape)
+    filt.Shape).fuse(fan.Shape).fuse(screws.Shape).fuse(
+    display_assembly).fuse(caps.Shape)
 sec_a = half_space_cut(shell.Shape, 0, MIDX, keep_less=True)      # shell
 sec_b = half_space_cut(assembly, 0, MIDX, keep_less=True)         # full stack
 sec_c = half_space_cut(lid.Shape, 1, CONST["BOSS_INSET"], keep_less=True)
+sec_d = half_space_cut(display_assembly, 0, CONST["DISP_X"], keep_less=True)
 
 
 def moved(shape, v):
@@ -323,22 +417,25 @@ def moved(shape, v):
     return r if r is not None else s
 
 
-# Exploded general arrangement: the parts come out along +Z, which is the
-# direction a builder actually moves them (lid off, filter out, board up), and
-# the fan pulls straight back off its plate.  The offsets travel to the drawing
-# as data, so the balloon leaders always point at the real exploded positions.
+# Exploded general arrangement: internals come out along +Z (lid off, filter
+# out, board up), the fan pulls back off its plate, and the front-panel UI
+# assembly lifts straight out of the front wall along -Y.  The offsets travel
+# to the drawing as data, so balloon leaders point at real exploded positions.
 EXPLODE = {
     "pcb": (0, 0, 50),
     "filter": (0, 0, 80),
     "lid": (0, 0, 128),
     "screws": (0, 0, 128),
     "fan": (0, 46, 0),
+    "display": (0, -2.0 * CONST["DISP_POD_D"], 0),
 }
 exploded = shell.Shape
 for _s, _v in ((pcb.Shape, EXPLODE["pcb"]),
                (filt.Shape, EXPLODE["filter"]),
                (lid.Shape, EXPLODE["lid"]),
                (screws.Shape, EXPLODE["screws"]),
+               (display_assembly, EXPLODE["display"]),
+               (caps.Shape, EXPLODE["display"]),
                (fan.Shape, EXPLODE["fan"])):
     exploded = exploded.fuse(moved(_s, _v))
 
@@ -350,6 +447,10 @@ VIEW_REQUESTS = [
     ("lid", "PLAN", lid.Shape, (0, 0, 1)),
     ("lid", "SECTION_C", sec_c, (0, 1, 0)),
     ("lid", "ISO", lid.Shape, (1, -1, 1)),
+    ("display", "FRONT", display_assembly, (0, -1, 0)),
+    ("display", "PLAN", display_assembly, (0, 0, 1)),
+    ("display", "SECTION_D", sec_d, (1, 0, 0)),
+    ("display", "ISO", display_assembly, (1, -1, 1)),
     ("assembly", "SECTION_B", sec_b, (1, 0, 0)),
     ("assembly", "ISO", assembly, (1, -1, 1)),
     ("assembly", "EXPLODED", exploded, (1, -1, 1)),
@@ -360,6 +461,7 @@ CUTS = {
     ("shell", "SECTION_A"): cut_faces(sec_a, 0, MIDX),
     ("assembly", "SECTION_B"): cut_faces(sec_b, 0, MIDX),
     ("lid", "SECTION_C"): cut_faces(sec_c, 1, CONST["BOSS_INSET"]),
+    ("display", "SECTION_D"): cut_faces(sec_d, 0, CONST["DISP_X"]),
 }
 for part, view, shp, direction in VIEW_REQUESTS:
     rec = hlr_view(shp, direction)
@@ -409,8 +511,18 @@ def _part_stl(shape, name):
 
 _part_step(shell.Shape, "smell_monitor_shell.STEP")
 _part_step(lid.Shape, "smell_monitor_lid.STEP")
+_part_step(gasket.Shape, "smell_monitor_display_gasket.STEP")
+_part_step(window.Shape, "smell_monitor_display_window.STEP")
+_part_step(bezel.Shape, "smell_monitor_display_bezel.STEP")
+_part_step(oled.Shape, "smell_monitor_display_oled.STEP")
+_part_step(caps.Shape, "smell_monitor_button_caps.STEP")
 _part_stl(shell.Shape, "smell_monitor_shell.stl")
 _part_stl(lid.Shape, "smell_monitor_lid.stl")
+_part_stl(gasket.Shape, "smell_monitor_display_gasket.stl")
+_part_stl(window.Shape, "smell_monitor_display_window.stl")
+_part_stl(bezel.Shape, "smell_monitor_display_bezel.stl")
+_part_stl(oled.Shape, "smell_monitor_display_oled.stl")
+_part_stl(caps.Shape, "smell_monitor_button_caps.stl")
 
 print("model OK ->", OUT_FCSTD)
 print("step   OK ->", OUT_STEP)

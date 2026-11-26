@@ -1,6 +1,6 @@
 Group,Reference,Qty,Value,MPN,Manufacturer,Package,Source,Notes
 PCB,U1,1,ESP32-WROOM-32E-N4,ESP32-WROOM-32E-N4,Espressif,RF module,LCSC / Digi-Key / Mouser,pre-certified radio; N4 is 4 MB flash
-PCB,"U2,U8",2,ADS1115,ADS1115IDGSR,Texas Instruments,MSOP-10,Digi-Key / Mouser,"16-bit 4-ch ADC; 0x48 left wall slots 0-3, 0x49 right wall slots 4-7"
+PCB,"U2,U8",2,ADS1115,ADS1115IDGSR,Texas Instruments,MSOP-10,Digi-Key / Mouser,"16-bit 4-ch ADC; 0x48 slots 0-3, 0x49 slots 4-7"
 PCB,U3,1,CH340C,CH340C,WCH,SOIC-16,LCSC,USB-UART bridge
 PCB,U4,1,TCA9548A,TCA9548APWR,Texas Instruments,TSSOP-24,Digi-Key / Mouser,"8-ch I2C mux, channel n = slot n, 0x70"
 PCB,U5,1,SHT31-DIS-B,SHT31-DIS-B,Sensirion,DFN-8 2.5x2.5,Digi-Key / Mouser,"T/RH reference, 0x44"
@@ -10,24 +10,34 @@ PCB,Q2,1,MMBT3904,MMBT3904,onsemi,SOT-23,LCSC,buzzer driver
 PCB,D1,1,SS14,SS14,Diodes Inc.,SOD-123,LCSC / Digi-Key / Mouser,flyback clamp across buzzer coil; keeps switching spikes off 5 V / GND
 PCB,LED1,1,Red LED,KT-0603R,Kingbright,0603,LCSC,status LED
 PCB,BZ1,1,MBT-12A05,MBT-12A05,generic,D10.2 mm,LCSC,5 V magnetic buzzer; verify lead spacing at order
-PCB,"SW1,SW2,SW3",3,TL3342,TL3342F160QG,E-Switch,SMD tact,Digi-Key / Mouser,MEASURE / BOOT / RESET
 PCB,"R1,R2",2,5.1k,RC0603FR-075K1L,Yageo,0603,LCSC / Digi-Key,USB-C CC pulldowns
-PCB,"R3-R29,R33-R36",31,10k,RC0603FR-0710KL,Yageo,0603,LCSC / Digi-Key,"AO dividers, DO series, button and gate pull-ups"
+PCB,"R3-R29,R33-R36,R54",32,10k,RC0603FR-0710KL,Yageo,0603,LCSC / Digi-Key,"AO dividers, DO series, button, gate and MENU pull-ups"
 PCB,R30,1,330R,RC0603FR-07330RL,Yageo,0603,LCSC / Digi-Key,LED series
 PCB,"R31,R32,R37-R53",19,4.7k,RC0603FR-074K7L,Yageo,0603,LCSC / Digi-Key,"master I2C, 1-Wire and per-channel Qwiic pull-ups"
-PCB,C1-C9,9,100nF,CC0603KRX7R9BB104,Yageo,0603,LCSC / Digi-Key,decoupling
-PCB,C10-C12,3,10uF,CL10A106KP8NNNC,Samsung,0603,LCSC,bulk
+PCB,C1-C10,10,100nF,CC0603KRX7R9BB104,Yageo,0603,LCSC / Digi-Key,decoupling including J19 header supply
+PCB,C11-C13,3,10uF,CL10A106KP8NNNC,Samsung,0603,LCSC,bulk
 PCB,J1,1,USB4105-GF-A,USB4105-GF-A,GCT,USB-C 16P top-mount,Digi-Key / Mouser,USB-C receptacle
 PCB,J2-J9,8,1x6 2.54 mm female,PPTC061LFBN-RC,Sullins,THT,Digi-Key,OSM-1 gas-cell sockets (identical in every slot)
 PCB,J10,1,B2B-PH-K-S,B2B-PH-K-S,JST,2.00 mm 2P,Digi-Key,fan connector
 PCB,J11-J18,8,Qwiic (JST-SH 4P),SM04B-SRSS-TB(LF)(SN),JST,1.00 mm 4P horizontal,Digi-Key / Mouser,one per slot; TCA9548A channel n
-PCB,PCB1,1,114 x 105 mm PCB,-,fab-house-neutral,2-layer 1.6 mm HASL,-,qty 10; ENIG adds ~$0.60
-Enclosure,TRAY,1,PETG tray, PTFE-lined wetted faces,-,FDM print,-,2.50
-Enclosure,LID,1,PETG lid, PTFE-lined wetted faces,-,FDM print,-,1.00
-Enclosure,FAN,1,40 x 40 x 10 mm 5 V PWM fan,-,generic,-,LCSC / Digi-Key,"axial, 15 L/min class"
-Enclosure,FILTER,1,Woven PTFE mesh 110 x 4 x 23,-,generic,-,custom cut,"permanent, washable, zero recurring cost; stops dust/hair only"
+PCB,J19,1,Qwiic OLED (JST-SH 4P),SM04B-SRSS-TB(LF)(SN),JST,1.00 mm 4P horizontal,Digi-Key / Mouser,front-panel bezel cable entry on master I2C bus 0x3C
+PCB,J20,1,Button harness (JST-PH 5P),B5B-PH-K-S,JST,2.00 mm 5P,Digi-Key / Mouser,"front-panel buttons: 1 MEASURE, 2 BUTTON_MENU, 3 BOOT, 4 EN, 5 GND"
+PCB,PCB1,1,114 x 105 mm PCB,-,fab-house-neutral,2-layer 1.6 mm HASL,-,qty 10; ENIG finish available on request
+Front UI,OLED-DISP,1,SSD1306 0.96 in I2C OLED module,SSD1306-0.96-I2C,generic,30 x 22 x 12 mm bezel,Digi-Key / LCSC,sealed in the fixed front wall; I2C address 0x3C on master bus
+Front UI,OLED-WINDOW,1,Acrylic window 27 x 13 x 1 mm,-,generic,cut sheet,custom cut,clear viewing face bonded to the OLED bezel
+Front UI,OLED-GASKET,1,Closed-cell gasket 1 mm,-,generic,1 mm sheet,custom cut,seal between OLED bezel and front wall
+Panel,PANEL-MEASURE,1,Panel pushbutton MEASURE/OK,-,generic,Ø3.4 panel mount,Digi-Key / Mouser / local,front wall (88,49); normally open to GND
+Panel,PANEL-MENU,1,Panel pushbutton MENU/BACK,-,generic,Ø3.4 panel mount,Digi-Key / Mouser / local,front wall (100,49); normally open to GND
+Panel,PANEL-BOOT,1,Panel pushbutton BOOT,-,generic,Ø3.4 panel mount,Digi-Key / Mouser / local,front wall (88,39); normally open to GND
+Panel,PANEL-RESET,1,Panel pushbutton RESET/EN,-,generic,Ø3.4 panel mount,Digi-Key / Mouser / local,front wall (100,39); normally open to GND
+Enclosure,TRAY,1,PETG tray,PETG,-,FDM print,-,PTFE-lined wetted faces
+Enclosure,LID,1,PETG lid,PETG,-,FDM print,-,plain flat lid; no display or button holes
+Enclosure,FAN,1,40 x 40 x 10 mm 5 V PWM fan,-,generic,-,LCSC / Digi-Key,axial 15 L/min class
+Enclosure,FILTER,1,Woven PTFE mesh 110 x 4 x 23,-,generic,-,custom cut,washable; no scheduled replacement; stops dust and hair only
 Enclosure,SCREW-M3,4,M3 x 8 BHCS,-,generic,-,local,lid to standoffs
 Enclosure,SCREW-M2.8,4,M2.8 x 6 self-tapping,-,generic,-,local,fan plate
-Harness,USB-PIGTAIL,1,USB-C panel pigtail 0.3 m,-,generic,-,LCSC / local,"bulkhead, seals the wall hole"
+Harness,USB-PIGTAIL,1,USB-C panel pigtail 0.3 m,-,generic,-,LCSC / local,bulkhead seal for the wall hole
 Harness,USB-CABLE,1,USB-C data cable 1 m,-,generic,-,local,host link
 Harness,AUX-LEAD,1,2-pin JST-PH 5 V lead,-,generic,-,local,power-bank input
+Harness,DISP-CABLE,1,JST-SH 4-pin lead 0.3 m,SM04B-SRSS-TB cable assembly,generic,1.00 mm 4P,LCSC / custom assembly,links J19 to the front-panel OLED bezel through the single UI grommet
+Harness,BTN-HARNESS,1,JST-PH 5-pin lead 0.3 m,B5B-PH-K-S cable assembly,generic,2.00 mm 5P,LCSC / custom assembly,links J20 to the four front-panel buttons through the same UI grommet

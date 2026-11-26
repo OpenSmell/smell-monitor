@@ -5,11 +5,17 @@
 #include "net.h"
 #include "config.h"
 #include "cycle.h"
+#include "ota.h"
+#include "profile.h"
+#include "store.h"
+#include "ui.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
+#include <esp_sntp.h>
+#include <time.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -29,19 +35,29 @@ static PubSubClient mqtt(wifi_client);
 static bool g_wifi_on = false;
 static bool g_ble_on  = false;
 static bool g_wifi_connected = false;
+static bool g_force_ap = false;      // MENU long press: always raise setup AP
+
+static char g_disp1[17] = "";
+static char g_disp2[17] = "";
+static bool g_disp_manual = false;
 
 static char g_ssid[33] = "";
 static char g_pass[65] = "";
 static char g_broker[64] = "";
 static uint16_t g_broker_port = 1883;
 static char g_topic[48] = "opensmell/record";
+static char g_mqtt_user[33] = "";     // optional, anonymous by default
+static char g_mqtt_pass[65] = "";
+static char g_ntp_host[64] = "pool.ntp.org";
+static bool g_sntp_running = false;
+static bool g_time_synced = false;
 
 static char g_latest[4096] = "{}";   // one full 8-slot .osmell record
 static NetCommandFn g_on_command = nullptr;
 
 // BLE writes arrive on the BLE stack task; hand them to the main loop instead
 // of mutating loop-owned state from another task.
-static char          g_ble_cmd[160];
+static char          g_ble_cmd[512];
 static volatile bool g_ble_cmd_pending = false;
 
 static BLEServer *g_ble_server = nullptr;
@@ -58,6 +74,13 @@ static void load_cfg() {
   prefs.getString("broker", g_broker, sizeof(g_broker));
   g_broker_port = prefs.getUShort("port", 1883);
   prefs.getString("topic", g_topic, sizeof(g_topic));
+  prefs.getString("mqtt_user", g_mqtt_user, sizeof(g_mqtt_user));
+  prefs.getString("mqtt_pass", g_mqtt_pass, sizeof(g_mqtt_pass));
+  prefs.getString("ntp", g_ntp_host, sizeof(g_ntp_host));
+  if (!g_ntp_host[0]) strcpy(g_ntp_host, "pool.ntp.org");
+  prefs.getString("disp1", g_disp1, sizeof(g_disp1));
+  prefs.getString("disp2", g_disp2, sizeof(g_disp2));
+  g_disp_manual = prefs.getBool("disp_manual", false);
 
   CycleConfig c = cycle_get_config();
   c.fan_intake  = prefs.getUChar ("fan_in",  c.fan_intake);
@@ -71,6 +94,9 @@ static void load_cfg() {
   cycle_set_config(c);
 
   prefs.end();
+  // ui_begin() has already run when net_begin() loads configuration.
+  if (g_disp_manual) ui_manual_text(g_disp1, g_disp2);
+  else ui_auto();
 }
 
 static void save_cfg() {
@@ -80,6 +106,12 @@ static void save_cfg() {
   prefs.putString("broker", g_broker);
   prefs.putUShort("port", g_broker_port);
   prefs.putString("topic", g_topic);
+  prefs.putString("mqtt_user", g_mqtt_user);
+  prefs.putString("mqtt_pass", g_mqtt_pass);
+  prefs.putString("ntp", g_ntp_host);
+  prefs.putString("disp1", g_disp1);
+  prefs.putString("disp2", g_disp2);
+  prefs.putBool("disp_manual", g_disp_manual);
 
   CycleConfig c = cycle_get_config();
   prefs.putUChar ("fan_in",  c.fan_intake);
@@ -92,6 +124,38 @@ static void save_cfg() {
   prefs.putBool  ("muted",   c.muted);
 
   prefs.end();
+}
+
+// ---------------------------------------------------------------------------
+// Wall clock (SNTP).  Started only while Wi-Fi STA is connected; all calls
+// are non-blocking and never delay boot or a measurement cycle.
+// ---------------------------------------------------------------------------
+static void ntp_start() {
+  if (g_sntp_running || !g_wifi_connected || WiFi.status() != WL_CONNECTED)
+    return;                                  // no NTP in setup AP / Wi-Fi off
+  esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+  esp_sntp_setservername(0, g_ntp_host);
+  esp_sntp_init();
+  g_sntp_running = true;
+}
+
+static void ntp_stop() {
+  if (!g_sntp_running) return;
+  esp_sntp_stop();
+  g_sntp_running = false;
+}
+
+size_t net_wall_clock(char *buf, size_t n) {
+  if (!buf || !n) return 0;
+  buf[0] = 0;
+  // 2025-01-01: reject the unsynced epoch (1970) and any absurd pre-2025 time.
+  if (!g_time_synced || time(nullptr) < 1735689600L) return 0;
+  struct tm utc;
+  time_t now = time(nullptr);
+  if (!gmtime_r(&now, &utc)) return 0;
+  size_t len = strftime(buf, n, "%Y-%m-%dT%H:%M:%SZ", &utc);
+  if (!len) buf[0] = 0;
+  return len;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +182,44 @@ void net_dispatch(const char *cmd) {
       strncpy(g_pass, sp + 1, sizeof(g_pass) - 1);
       save_cfg();
       net_set_wifi(true);
+    }
+    return;
+  }
+
+  // "ntp <host>" (default pool.ntp.org), or "ntp" / "ntp status" to inspect.
+  // SNTP is restarted in net_loop() only if Wi-Fi STA is actually connected.
+  if (!strcmp(cmd, "ntp") || !strcmp(cmd, "ntp status") ||
+      !strncmp(cmd, "ntp ", 4)) {
+    if (!strcmp(cmd, "ntp") || !strcmp(cmd, "ntp status")) {
+      char clk[25];
+      net_wall_clock(clk, sizeof(clk));
+      Serial.printf("{\"ntp\":\"%s\",\"synced\":%d,\"utc\":\"%s\"}\n",
+                    g_ntp_host, g_time_synced ? 1 : 0, clk[0] ? clk : "");
+      return;
+    }
+    char host[sizeof(g_ntp_host)];
+    strncpy(host, cmd + 4, sizeof(host) - 1);
+    host[sizeof(host) - 1] = 0;
+    if (!host[0]) { Serial.print("?ntp <host>\n"); return; }
+    strncpy(g_ntp_host, host, sizeof(g_ntp_host) - 1);
+    g_ntp_host[sizeof(g_ntp_host) - 1] = 0;
+    save_cfg();
+    if (g_sntp_running) { ntp_stop(); ntp_start(); }
+    Serial.printf("{\"ok\":true,\"ntp\":\"%s\"}\n", g_ntp_host);
+    return;
+  }
+
+  // "mqtt auth <user> <pass>" - optional credentials, persisted in NVS.
+  if (!strncmp(cmd, "mqtt auth ", 10)) {
+    char user[sizeof(g_mqtt_user)], pass[sizeof(g_mqtt_pass)];
+    if (sscanf(cmd + 10, "%32s %64s", user, pass) == 2) {
+      strncpy(g_mqtt_user, user, sizeof(g_mqtt_user) - 1);
+      strncpy(g_mqtt_pass, pass, sizeof(g_mqtt_pass) - 1);
+      save_cfg();
+      mqtt.disconnect();                   // reconnect with new credentials
+      Serial.print("{\"ok\":true,\"mqtt\":\"auth\"}\n");
+    } else {
+      Serial.print("?mqtt auth <user> <pass>\n");
     }
     return;
   }
@@ -195,15 +297,104 @@ void net_dispatch(const char *cmd) {
     return;
   }
 
+  // "display <line1>|<line2>" - persistent manual text on the local OLED.
+  // "display auto" returns to the live status screens.
+  if (!strcmp(cmd, "display") || !strncmp(cmd, "display ", 8)) {
+    if (!strcmp(cmd, "display")) {
+      Serial.print("?display <line1>|<line2> | display auto\n");
+      return;
+    }
+    const char *arg = cmd + 8;
+    if (!strcmp(arg, "auto")) {
+      g_disp_manual = false;
+      save_cfg();
+      ui_auto();
+      Serial.print("{\"ok\":true,\"display\":\"auto\"}\n");
+      return;
+    }
+    const char *bar = strchr(arg, '|');
+    size_t n1 = bar ? (size_t)(bar - arg) : strlen(arg);
+    if (n1 >= sizeof(g_disp1)) n1 = sizeof(g_disp1) - 1;
+    memset(g_disp1, 0, sizeof(g_disp1));
+    memcpy(g_disp1, arg, n1);
+    memset(g_disp2, 0, sizeof(g_disp2));
+    if (bar) {
+      size_t n2 = strlen(bar + 1);
+      if (n2 >= sizeof(g_disp2)) n2 = sizeof(g_disp2) - 1;
+      memcpy(g_disp2, bar + 1, n2);
+    }
+    g_disp_manual = true;
+    save_cfg();
+    ui_manual_text(g_disp1, g_disp2);
+    Serial.print("{\"ok\":true,\"display\":\"manual\"}\n");
+    return;
+  }
+
+  // "profile <json>" / "profile clear" / "profile get".
+  if (!strcmp(cmd, "profile") || !strncmp(cmd, "profile ", 8)) {
+    const char *arg = cmd[7] ? cmd + 8 : "";
+    if (!strcmp(arg, "clear")) {
+      Profile::clear();
+      Serial.print("{\"ok\":true,\"profile\":null}\n");
+    } else if (!strcmp(arg, "get")) {
+      char raw[1100];
+      if (Profile::get_json(raw, sizeof(raw))) Serial.print(raw);
+      else Serial.print("null");
+      Serial.print("\n");
+    } else if (!strcmp(arg, "")) {
+      Serial.print("?profile <json> | profile clear | profile get\n");
+    } else if (Profile::set_json(arg)) {
+      Serial.print("{\"ok\":true}\n");
+    } else {
+      Serial.print("?profile invalid JSON\n");
+    }
+    return;
+  }
+
+  // "ota <url> <sha256>" - host-signed manifest must live at <url>.json.
+  // "ota status" reports progress without starting a download.
+  if (!strcmp(cmd, "ota") || !strncmp(cmd, "ota ", 4)) {
+    if (!strcmp(cmd, "ota status")) {
+      char b[256];
+      ota_status(b, sizeof(b));
+      Serial.print(b);
+      Serial.print("\n");
+      return;
+    }
+    char url[160], digest[65];
+    if (!strncmp(cmd, "ota ", 4) &&
+        sscanf(cmd + 4, "%159s %64s", url, digest) == 2) {
+      if (ota_start(url, digest)) Serial.print("{\"ok\":true,\"ota\":\"queued\"}\n");
+      else Serial.print("?ota busy or invalid arguments\n");
+    } else {
+      Serial.print("?ota <url> <sha256> | ota status\n");
+    }
+    return;
+  }
+
+  // "replay [since]" - dump the persisted NVS ring as a JSON array. With no
+  // argument, since=0 emits every buffered record (oldest surviving first).
+  if (!strcmp(cmd, "replay") || !strncmp(cmd, "replay ", 7)) {
+    uint32_t since = (cmd[6] == ' ')
+        ? (uint32_t)strtoul(cmd + 7, nullptr, 10) : 0;
+    String body;
+    store_write_replay(since, body);
+    Serial.println(body);
+    return;
+  }
+
   if (!strcmp(cmd, "status")) {
     CycleConfig c = cycle_get_config();
-    char b[320];
+    char b[448];
     snprintf(b, sizeof(b),
              "{\"fw\":\"" FW_VERSION "\",\"wifi\":%d,\"ble\":%d,"
-             "\"ssid\":\"%s\",\"broker\":\"%s\","
+             "\"ssid\":\"%s\",\"broker\":\"%s\",\"sequence\":%lu,"
+             "\"ntp\":\"%s\",\"synced\":%d,"
              "\"fan\":[%u,%u,%u],\"timing_ms\":[%lu,%lu,%lu],"
              "\"rate_ms\":%u,\"muted\":%d}\n",
              g_wifi_on, g_ble_on, g_ssid, g_broker,
+             (unsigned long)store_last_sequence(),
+             g_ntp_host, g_time_synced ? 1 : 0,
              (unsigned)c.fan_intake, (unsigned)c.fan_hold,
              (unsigned)c.fan_purge,
              (unsigned long)c.t_intake_ms, (unsigned long)c.t_hold_ms,
@@ -221,23 +412,47 @@ void net_on_command(NetCommandFn fn) { g_on_command = fn; }
 // ---------------------------------------------------------------------------
 static void start_wifi() {
   if (!g_wifi_on) return;
-  WiFi.mode(WIFI_STA);
-  if (g_ssid[0]) {
-    WiFi.begin(g_ssid, g_pass);
-  } else {
-    // No credentials yet: raise a password-protected setup AP.
+  if (g_force_ap || !g_ssid[0]) {
+    // No credentials (or MENU long press): password-protected setup AP.
     WiFi.mode(WIFI_AP);
     WiFi.softAP("OpenSmell-setup", "opensmell");
+  } else {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(g_ssid, g_pass);
   }
   server.begin();
 }
 
 static void stop_wifi() {
   server.stop();
+  ntp_stop();
+  if (mqtt.connected()) {
+    // Graceful disconnect does not trigger the LWT; make retained status
+    // consistent in that case too.
+    mqtt.publish((String(g_topic) + "/status").c_str(), "\"offline\"", true);
+  }
   mqtt.disconnect();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   g_wifi_connected = false;
+  g_force_ap = false;
+}
+
+void net_enter_ap() {
+  // net_set_wifi(true) is a no-op while already on; cycle it so a connected
+  // STA setup is replaced by the setup AP.
+  if (g_wifi_on) net_set_wifi(false);   // stop_wifi() clears g_force_ap
+  g_force_ap = true;
+  net_set_wifi(true);
+}
+
+void net_factory_reset() {
+  Preferences p;
+  p.begin("opensmell", false);  p.clear(); p.end();
+  p.begin("opensmellpf", false); p.clear(); p.end();
+  store_factory_reset();
+  ota_factory_reset();
+  ESP.restart();
 }
 
 static void mqtt_ensure() {
@@ -245,8 +460,20 @@ static void mqtt_ensure() {
   mqtt.setServer(g_broker, g_broker_port);
   // Record + topic exceed PubSubClient's 256-byte default.
   mqtt.setBufferSize(768);
-  if (mqtt.connect(FW_NAME "-" FW_VERSION)) {
-    mqtt.publish((String(g_topic) + "/status").c_str(), "\"online\"");
+
+  // Unique per device so two monitors do not evict each other's session.
+  char client_id[64];
+  snprintf(client_id, sizeof(client_id), "%s-%s-%08lX",
+           FW_NAME, FW_VERSION,
+           (unsigned long)((uint32_t)ESP.getEfuseMac() & 0xFFFFFFFFUL));
+  const String status_topic = String(g_topic) + "/status";
+
+  // Retained LWT: the broker stores "offline" NOW and publishes it to
+  // <topic>/status if this client disconnects ungracefully.
+  if (mqtt.connect(client_id, g_mqtt_user, g_mqtt_pass,
+                   status_topic.c_str(), 1, true, "\"offline\"")) {
+    // Take over the retained slot immediately after connecting.
+    mqtt.publish(status_topic.c_str(), "\"online\"", true);
   }
 }
 
@@ -256,7 +483,18 @@ static void http_setup() {
                  FW_VERSION "</h3><p><a href=\"/data\">/data</a></p>");
     server.send(200, "text/html", h);
   });
+  // NOTE: /data is now a JSON ARRAY of the persisted NVS ring (additive
+  // change from the previous single-object body); /latest keeps the old
+  // single-record body for hosts that only want the last record.
+  // /data?since=<seq> returns only records with sequence > <seq>.
   server.on("/data", HTTP_GET, []() {
+    uint32_t since = server.hasArg("since")
+        ? (uint32_t)strtoul(server.arg("since").c_str(), nullptr, 10) : 0;
+    String body;
+    store_write_replay(since, body);
+    server.send(200, "application/json", body);
+  });
+  server.on("/latest", HTTP_GET, []() {
     server.send(200, "application/json", g_latest);
   });
   server.on("/measure", HTTP_POST, []() {
@@ -265,6 +503,15 @@ static void http_setup() {
   });
   server.on("/cmd", HTTP_POST, []() {
     if (server.hasArg("c")) net_dispatch(server.arg("c").c_str());
+    server.send(200, "application/json", "{\"ok\":true}");
+  });
+  // POST /display?c=display%20LINE1%7CLINE2 (or via /cmd with the same text).
+  server.on("/display", HTTP_POST, []() {
+    if (server.hasArg("c")) {
+      String c = server.arg("c");
+      if (!c.startsWith("display")) c = "display " + c;
+      net_dispatch(c.c_str());
+    }
     server.send(200, "application/json", "{\"ok\":true}");
   });
 }
@@ -337,13 +584,15 @@ void net_set_ble(bool on) {
 // ---------------------------------------------------------------------------
 void net_begin() {
   Serial.begin(SERIAL_BAUD);
+  Profile::load();
   load_cfg();
   http_setup();
   // Radios intentionally left off.
 }
 
 static void poll_serial() {
-  static char buf[160];
+  // Long enough for a full eight-slot profile JSON on one serial line.
+  static char buf[1200];
   static size_t n = 0;
   while (Serial.available()) {
     char c = (char)Serial.read();
@@ -368,11 +617,17 @@ void net_loop() {
   if (g_wifi_on) {
     g_wifi_connected = (WiFi.status() == WL_CONNECTED);
     if (g_wifi_connected) {
+      ntp_start();                       // no-op unless SNTP is not running
+      if (esp_sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED)
+        g_time_synced = true;
       mqtt_ensure();
       mqtt.loop();
+    } else {
+      ntp_stop();                        // never poll NTP while Wi-Fi is down
     }
     server.handleClient();
   }
+  ota_loop();   // OTA state machine; self-gates on WiFi + pending request
 }
 
 void net_publish(const char *json) {

@@ -15,6 +15,13 @@ DRC and hand to a fabricator:
 
 Run with KiCad's own Python (it ships pcbnew):
   & "C:\\Program Files\\KiCad\\10.0\\bin\\python.exe" electrical/gen_pcb.py
+
+Three fine-pitch escapes (USB-C CC1/A5, USB-C D_N/A7+B7 and TCA9548A SD7/pin
+19) are seeded from the proven baseline copper before routing - see
+``SEED_TRACKS`` below.  Because the placed board then already contains copper,
+route it with ``electrical/smell_monitor_v1_1/route_seeded.py`` (a thin wrapper
+around the standard FreeRouting driver) rather than ``electrical/route_pcb.py``,
+whose "fresh board" guard intentionally rejects any existing tracks.
 """
 import math
 import os
@@ -43,6 +50,21 @@ OUT_PCB = os.path.join(OUT_DIR, PROJECT + ".kicad_pcb")
 
 PCB_W, PCB_D = CONST["PCB_X"], CONST["PCB_Y"]
 
+
+def _pad_numbers(pin):
+    """Model pin token -> real pad numbers.
+
+    The ESP32 library symbol groups its four GND pads into one token,
+    ``[1,15,38,39]``.  The board model keeps that token (the schematic symbol
+    only has one logical pin), but the physical package has four separate pads
+    and every one of them must get the GND net.
+    """
+    s = str(pin)
+    if s.startswith("[") and s.endswith("]"):
+        return [n.strip() for n in s[1:-1].split(",") if n.strip()]
+    return [s]
+
+
 # ---------------------------------------------------------------------------
 # placement (board-local mm, origin lower-left, Y up).  Sensing headers come
 # from the chamber contract; everything else is grouped by subsystem.
@@ -64,9 +86,18 @@ PLACE = {
     "J1": (14.0, 6.0, 0),
     "R1": (21.0, 6.0, 0), "R2": (24.0, 6.0, 0),
     "U7": (31.0, 8.0, 0),
+    "C13": (38.0, 6.0, 0),     # +5 V bulk at the LDO input
     "C9": (42.0, 6.0, 0), "C12": (46.0, 6.0, 0),
     "C10": (50.0, 6.0, 0), "C11": (54.0, 6.0, 0),
-    "SW1": (74.0, 12.0, 0), "SW2": (83.0, 12.0, 0), "SW3": (92.0, 12.0, 0),
+    # Both front-panel harnesses enter through the ONE grommet in the fixed
+    # front wall at shell x = UI_FEED_X (82 mm) -> board x = 78.  J19 (display)
+    # sits 6 mm to its left, J20 (buttons) 6 mm to its right; both are on the
+    # front strip behind the filter rails, clear of the corner bosses.  Their
+    # JST courtyards are 1.5 mm apart and end by y=15.3, 3.4 mm before the
+    # Qwiic row at y=22.
+    "J19": (72.0, 12.0, 0),
+    "J20": (84.0, 12.0, 0),
+    "R54": (65.0, 6.0, 0),     # BUTTON_MENU pull-up at the front strip
     # --- AO dividers + DO series, left of the centre line ------------------
     # Three shallow rows beside the side-wall sockets: DO series nearest the
     # sockets (short 5 V stub), then the two divider rows.
@@ -105,7 +136,10 @@ PLACE = {
     # 94.4, not 95.0: at 95.0 the module outline silk pokes 0.18 mm past the
     # top Edge.Cuts and trips silk_edge_clearance.  The antenna keep-out still
     # overhangs the edge by >20 mm either way, so nothing electrical changes.
-    "U1": (68.0, 94.4, 0),
+    # x moved 68.0 -> 69.1 only to open the notch under the antenna overhang
+    # for J10 at the fan centre line (see J10 below); the keep-out still
+    # overhangs the rear edge and no electrical contract changes.
+    "U1": (69.1, 94.4, 0),
     "C1": (46.0, 92.0, 0), "C2": (50.0, 92.0, 0),
     # --- outputs, rear strip -----------------------------------------------
     # BZ1 moved from the rear-left corner (12, 93): the rear-left boss needs an
@@ -114,7 +148,14 @@ PLACE = {
     "Q2": (24.0, 92.0, 0),
     "R28": (29.0, 90.0, 0), "R29": (32.0, 90.0, 0),
     "LED1": (40.0, 94.0, 0), "R30": (36.5, 94.0, 0),
-    "Q1": (92.0, 88.0, 0), "J10": (108.0, 88.0, 90), "R27": (96.0, 88.0, 0),
+    "Q1": (92.0, 88.0, 0), "R27": (96.0, 88.0, 0),
+    # Fan harness: shell x = PCB_X0 + 57 = 61 = FAN_X, and the connector sits
+    # in the notch under the ESP32 antenna overhang as far rearward as DRC
+    # allows (courtyard top y=104.20, 0.13 mm clear of U1's keep-out and
+    # 0.80 mm inside Edge.Cuts).  Rotation 270 puts the 2 mm pin line along Y,
+    # pointing the cable at the rear fan; the reference is moved clear in
+    # tools/add_board_markings.py.
+    "J10": (57.0, 100.7, 270),
 }
 
 # The eight gas-cell sockets are derived from the chamber contract
@@ -138,6 +179,36 @@ for _ref, (_x, _y) in zip(range(15, 19),
                            (69.5, 22.0), (91.5, 22.0)]):
     PLACE[f"J{_ref}"] = (_x, _y, 0)
 
+# The four buttons are panel-mounted in the fixed front wall (CONST['BTN_FRONT'])
+# and reach this board only through J20.  There are no board-mounted switches:
+# PLACE therefore has exactly one entry per board.py part, nothing derived from
+# the old lid-hole table.
+
+# FreeRouting's fanout occasionally loses the escape from three fine-pitch
+# pads (USB-C CC1/A5, USB-C D_N/A7+B7, TCA9548A SD7/pin 19): its session then
+# reports 0 unrouted but KiCad's SES importer finds those pads still open.
+# Seed the proven, DRC-clean local escapes before DSN export so the router
+# sees them as connected.  All three are existing contract nets; no netlist
+# or placement changes are involved.  Coordinates are KiCad board mm.
+SEED_TRACKS = {
+    "CC1": [
+        ((12.7500, 96.6225), (12.7500, 97.2651), 0.30),
+        ((12.7500, 97.2651), (14.4849, 99.0000), 0.30),
+        ((14.4849, 99.0000), (20.1750, 99.0000), 0.30),
+    ],
+    "D_N": [
+        ((13.2500, 96.6225), (13.2500, 96.0041), 0.30),
+        ((13.2500, 96.0041), (13.5135, 95.7406), 0.30),
+        ((13.5135, 95.7406), (14.2423, 95.7406), 0.30),
+        ((14.2423, 95.7406), (14.2500, 95.7483), 0.30),
+        ((14.2500, 95.7483), (14.2500, 96.6225), 0.30),
+    ],
+    "SD7": [
+        ((54.8625, 56.6750), (54.7131, 56.5256), 0.225),
+        ((54.7131, 56.5256), (53.4387, 56.5256), 0.225),
+    ],
+}
+
 
 def _bbox(fp):
     """Pads-and-body bounding box in mm (x0,y0,x1,y1), pcbnew coordinates.
@@ -160,9 +231,21 @@ def _bbox(fp):
     return (min(xs) - m, min(ys) - m, max(xs) + m, max(ys) + m)
 
 
+def _courtyard_bbox(fp):
+    """True F.CrtYd outline in mm, or None for a footprint without one."""
+    if fp is None:
+        return None
+    bb = fp.GetCourtyard(pcbnew.F_CrtYd).BBox()
+    if bb.GetWidth() <= 0 or bb.GetHeight() <= 0:
+        return None
+    return (pcbnew.ToMM(bb.GetX()), pcbnew.ToMM(bb.GetY()),
+            pcbnew.ToMM(bb.GetRight()), pcbnew.ToMM(bb.GetBottom()))
+
+
 def check_placement(board):
-    """Report courtyard overlaps and parts outside the board outline."""
+    """Report pad-field overlaps, new-part courtyard clashes and strays."""
     fps = list(board.GetFootprints())
+    by_ref = {fp.GetReference(): fp for fp in fps}
     boxes = [(fp.GetReference(), _bbox(fp)) for fp in fps]
     overlaps = []
     for i in range(len(boxes)):
@@ -176,7 +259,26 @@ def check_placement(board):
         if b[0] < -0.01 or b[1] < -0.01 or b[2] > PCB_W + 0.01 \
                 or b[3] > PCB_D + 0.01:
             outside.append(ref)
-    return overlaps, outside
+
+    # The inherited layout has a few documented pad-field near-touches, but the
+    # two front-panel harness connectors must not add a single real F.CrtYd
+    # clash.  Check their courtyards against every other footprint on the board.
+    courtyard_overlaps = []
+    for ref in ("J19", "J20"):
+        a = _courtyard_bbox(by_ref.get(ref))
+        if a is None:
+            courtyard_overlaps.append((ref, "NO COURTYARD"))
+            continue
+        for other, fp in by_ref.items():
+            if other == ref:
+                continue
+            b = _courtyard_bbox(fp)
+            if b is None:
+                continue
+            if min(a[2], b[2]) - max(a[0], b[0]) > 0.01 and \
+                    min(a[3], b[3]) - max(a[1], b[1]) > 0.01:
+                courtyard_overlaps.append((ref, other))
+    return overlaps, outside, courtyard_overlaps
 
 
 def set_rules(board):
@@ -258,6 +360,13 @@ def main():
         ni = pcbnew.NETINFO_ITEM(board, name)
         board.Add(ni)
         nets[name] = ni
+
+    # One lookup for every real pad, including the ESP32's grouped GND token.
+    pad_net = {}
+    for name, conns in B.NETS.items():
+        for ref, pin in conns:
+            for num in _pad_numbers(pin):
+                pad_net[(ref, num)] = nets[name]
 
     # --- board outline -----------------------------------------------------
     # Not a plain rectangle: the tray's four M3 bosses stand inside the board
@@ -347,11 +456,7 @@ def main():
             fp.Move(pcbnew.VECTOR2I(target.x - cx, target.y - cy))
         board.Add(fp)
         for pad in fp.Pads():
-            net = None
-            for nname, conns in B.NETS.items():
-                if (ref, str(pad.GetNumber())) in [(r, str(p)) for r, p in conns]:
-                    net = nets[nname]
-                    break
+            net = pad_net.get((ref, str(pad.GetNumber())))
             if net is not None:
                 pad.SetNet(net)
 
@@ -359,24 +464,49 @@ def main():
         print("MISSING FOOTPRINTS:", sorted(set(missing)))
         return 1
 
+    # Seed the three fine-pitch local escapes before DSN export.  FreeRouting
+    # otherwise reports 0 unrouted in its own session but drops these pads on
+    # KiCad's SES import; the router then sees them as already connected and
+    # routes only the remaining connections around this known-good copper.
+    for net_name, segments in SEED_TRACKS.items():
+        net = nets.get(net_name)
+        if net is None:
+            print("SEED NET MISSING:", net_name)
+            return 1
+        for a, b, width in segments:
+            t = pcbnew.PCB_TRACK(board)
+            t.SetLayer(pcbnew.F_Cu)
+            t.SetWidth(pcbnew.FromMM(width))
+            t.SetNet(net)
+            t.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(a[0]),
+                                       pcbnew.FromMM(a[1])))
+            t.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(b[0]),
+                                     pcbnew.FromMM(b[1])))
+            board.Add(t)
+
     set_rules(board)
     board.Save(OUT_PCB)
     patch_project(os.path.join(OUT_DIR, PROJECT + ".kicad_pro"))
     placed = len(list(board.GetFootprints()))
-    overlaps, outside = check_placement(board)
+    overlaps, outside, new_courtyard = check_placement(board)
     unrouted = board.GetConnectivity().GetUnconnectedCount(False)
     print("wrote %s" % OUT_PCB)
     print("  footprints=%d nets=%d unconnected=%s"
           % (placed, len(nets), unrouted))
     if overlaps:
-        print("  COURTYARD OVERLAPS (%d):" % len(overlaps))
+        print("  PAD-FIELD TOUCHES (%d):" % len(overlaps))
         for a, b in overlaps:
+            print("    %s <-> %s" % (a, b))
+    if new_courtyard:
+        print("  NEW-PART COURTYARD OVERLAPS (%d):" % len(new_courtyard))
+        for a, b in new_courtyard:
             print("    %s <-> %s" % (a, b))
     if outside:
         print("  OUTSIDE OUTLINE:", outside)
-    if not overlaps and not outside:
-        print("  placement OK (no courtyard overlaps, all inside outline)")
-    return 0
+    if not overlaps and not outside and not new_courtyard:
+        print("  placement OK (no pad-field touches or new courtyard "
+              "overlaps, all inside outline)")
+    return 0 if not outside and not new_courtyard else 1
 
 
 if __name__ == "__main__":

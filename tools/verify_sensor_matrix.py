@@ -67,7 +67,7 @@ def main():
     check(not unsourced, "every sensor cites a source document",
           "" if not unsourced else str(unsourced))
     # `inferred` flags profile keys no datasheet backs; if it names a key that
-    # is not even in the profile it is a stale annotation, not a caveat.
+    # is not even in the profile it is a stale annotation.
     bad_inf = {s["name"]: sorted(set(s.get("inferred", ())) - set(s["profile"]))
                for s in SM.SENSORS if set(s.get("inferred", ())) - set(s["profile"])}
     check(not bad_inf, "inferred keys are subset of profile",

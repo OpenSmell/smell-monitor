@@ -7,7 +7,9 @@
 #include "cycle.h"
 #include "config.h"
 #include "proto.h"
+#include "profile.h"
 #include "sensors.h"
+#include "store.h"
 #include "ui.h"
 #include "net.h"
 #include <Arduino.h>
@@ -126,8 +128,27 @@ static void acquire_finish() {
 static void report() {
   Record r = g_last;
   r.phase = PH_REPORT;                 // "a completed measurement"
-  char buf[4096];                  // eight full OSM-1 slot entries + pH + T/H
+  r.seq = store_next_sequence();       // monotonic, survives reboots
+  char clk[sizeof(r.wall_clock)];
+  if (net_wall_clock(clk, sizeof(clk)))
+    strncpy(r.wall_clock, clk, sizeof(r.wall_clock) - 1);
+
+  // Optional interpretation: raw slots are untouched; derived values are an
+  // additive convenience for the host and the local display.
+  ProfileResult pr;
+  Profile::compute(r.ao, &pr);
+  strncpy(r.profile_version, pr.version, sizeof(r.profile_version) - 1);
+  memcpy(r.derived, pr.derived, sizeof(r.derived));
+  r.aqi = pr.aqi;
+  strncpy(r.aqi_label, pr.aqi_label, sizeof(r.aqi_label) - 1);
+
+  // Journal the generated record BEFORE publishing: NVS putBytes commits
+  // synchronously, so power loss after this point cannot lose the record.
+  store_append(r);
+
+  char buf[4608];                  // eight full OSM-1 slots + derived object
   if (proto_to_json(&r, buf, sizeof(buf)) > 0) net_publish(buf);
+  ui_set_values(pr.derived, 8, pr.aqi_label, pr.aqi);
   ui_show(r.phase, r.t, r.rh, r.ao[0], net_wifi_on(), net_ble_on());
   if (!g_cfg.muted) ui_beep(120);
 }
@@ -136,7 +157,7 @@ static void report() {
 void cycle_begin() {
   fan_begin();
   for (int i = 0; i < 8; i++) pinMode(OS_PIN_DO[i], INPUT);
-  pinMode(OS_PIN_BUTTON, INPUT_PULLUP);
+  // Buttons are owned by ui.cpp (debounce + short/long/very-long press).
   g_phase = PH_IDLE;
   g_phase_start = millis();
 }
@@ -162,6 +183,10 @@ static void enter(uint8_t p) {
     case PH_PURGE:  fan_set(g_cfg.fan_purge);  break;
     default:        fan_set(FAN_DUTY_OFF);     break;
   }
+  // Refresh the display on every phase transition (never blocks).
+  ui_show(g_phase, g_env_t, g_env_rh,
+          (g_phase == PH_HOLD || g_phase == PH_REPORT) ? g_last.ao[0] : NAN,
+          net_wifi_on(), net_ble_on());
 }
 
 void cycle_loop() {
@@ -175,11 +200,7 @@ void cycle_loop() {
     if (Sht::read(&t, &rh)) { g_env_t = t; g_env_rh = rh; }
   }
 
-  // MEASURE button (active low) starts a cycle from idle.
-  static bool prev_btn = HIGH;
-  bool btn = digitalRead(OS_PIN_BUTTON);
-  if (prev_btn == HIGH && btn == LOW && g_phase == PH_IDLE) g_request = true;
-  prev_btn = btn;
+  // Button handling (both buttons) is in ui_loop(); it calls cycle_request().
 
   switch (g_phase) {
     case PH_IDLE:
@@ -207,5 +228,8 @@ void cycle_loop() {
   if (now - last_ui > 500) {
     last_ui = now;
     ui_led(g_phase, g_phase != PH_IDLE);
+    ui_show(g_phase, g_env_t, g_env_rh,
+            (g_phase == PH_HOLD || g_phase == PH_REPORT) ? g_last.ao[0] : NAN,
+            net_wifi_on(), net_ble_on());
   }
 }

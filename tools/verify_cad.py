@@ -16,6 +16,7 @@ No drawing change may be accepted while any check here FAILs.
 import json
 import os
 import sys
+import xml.etree.ElementTree as ET
 
 import ezdxf
 from pypdf import PdfReader
@@ -27,6 +28,16 @@ from constants import CONST  # noqa: E402
 HLR = os.path.join(ROOT, "mechanical", "drawings", "model_hlr.json")
 SHEETS = os.path.join(ROOT, "mechanical", "drawings", "sheets")
 FC = os.path.join(ROOT, "mechanical", "freecad")
+SHEET_SVG = os.path.join(SHEETS, "OS-003.svg"), os.path.join(SHEETS, "OS-004.svg")
+WIN_X0 = CONST["DISP_X"] - CONST["DISP_WIN_W"] / 2.0
+WIN_X1 = CONST["DISP_X"] + CONST["DISP_WIN_W"] / 2.0
+WIN_Z0 = CONST["DISP_Z"] - CONST["DISP_WIN_H"] / 2.0
+WIN_Z1 = CONST["DISP_Z"] + CONST["DISP_WIN_H"] / 2.0
+PAN_X0 = CONST["DISP_X"] - CONST["DISP_W"] / 2.0
+PAN_X1 = CONST["DISP_X"] + CONST["DISP_W"] / 2.0
+PAN_Z0 = CONST["DISP_Z"] - CONST["DISP_H"] / 2.0
+PAN_Z1 = CONST["DISP_Z"] + CONST["DISP_H"] / 2.0
+STACK_D = CONST["DISP_POD_D"] + 2.0 * CONST["DISP_GASKET"]
 FAILS = []
 CHECKS = []
 
@@ -51,6 +62,10 @@ def ents(part, view, grp):
 
 def circles(lst):
     return [e for e in lst if e["t"] in ("circle", "arc")]
+
+
+def lines(lst):
+    return [e for e in lst if e["t"] == "line"]
 
 
 def extent(lst):
@@ -95,11 +110,14 @@ for _part, _views in hlr.items():
         check(f"HLR {_part}/{_view} carries measured projection axes", _ok,
               str(_ax))
 check("exploded view offsets are recorded with the geometry",
-      set(hlr.get("explode", {})) == {"pcb", "filter", "lid", "screws", "fan"},
+      set(hlr.get("explode", {})) == {"pcb", "filter", "lid", "screws",
+                                      "fan", "display"},
       str(hlr.get("explode")))
 
 fc = circles(ents("shell", "FRONT", "visible"))
-no = [c for c in fc if near(c["r"], CONST["NO_R"], 1e-3)]
+no = [c for c in fc
+      if near(c["r"], CONST["NO_R"], 1e-3)
+      and near(-c["c"][0], CONST["NO_Z"], 1e-3)]
 usb = [c for c in fc if near(c["r"], CONST["USB_R"], 1e-3)]
 check("shell FRONT = 3 nostril bores + 1 USB port",
       len(no) == 3 and len(usb) == 1, f"{len(fc)} circles")
@@ -108,10 +126,72 @@ xs = sorted(c["c"][1] for c in no)
 check("shell FRONT nostril pitch = NO_PITCH",
       len(xs) == 3 and near(xs[1] - xs[0], CONST["NO_PITCH"], 1e-3)
       and near(xs[2] - xs[1], CONST["NO_PITCH"], 1e-3), str(xs))
+_want_no = sorted((CONST["SH"] / 2.0 + dx, CONST["NO_Z"])
+                  for dx in (-CONST["NO_PITCH"], 0, CONST["NO_PITCH"]))
+_got_no = sorted((round(c["c"][1], 3), round(-c["c"][0], 3)) for c in no)
+check("shell FRONT nostrils keep centred X/Z positions",
+      _got_no == _want_no, str(_got_no))
 check("shell FRONT USB port at (USB_X, USB_Z)",
       len(usb) == 1 and near(usb[0]["c"][1], CONST["USB_X"], 1e-3)
       and near(-usb[0]["c"][0], CONST["USB_Z"], 1e-3),
       str(usb[0]["c"]) if usb else "-")
+
+# The fixed front wall carries the whole UI.  In this projection the first
+# coordinate is -Z and the second is X, so the aperture and bores can be located
+# against the shell coordinates without guessing from a picture.
+front = ents("shell", "FRONT", "visible")
+ff = circles(front)
+fl = lines(front)
+_feed = [c for c in ff
+         if near(c["r"], CONST["UI_FEED_D"] / 2.0, 1e-3)
+         and near(c["c"][0], -CONST["UI_FEED_Z"], 1e-3)
+         and near(c["c"][1], CONST["UI_FEED_X"], 1e-3)]
+_btn = [c for c in ff
+        if near(c["r"], CONST["BTN_HOLE_D"] / 2.0, 1e-3)
+        and any(near(c["c"][0], -bz, 1e-3) and near(c["c"][1], bx, 1e-3)
+                for bx, bz in CONST["BTN_FRONT"].values())]
+_btn_got = sorted((round(-c["c"][0], 3), round(c["c"][1], 3)) for c in _btn)
+_btn_want = sorted((round(z, 3), round(x, 3))
+                   for x, z in CONST["BTN_FRONT"].values())
+
+
+def _ap_h(z):
+    return [e for e in fl
+            if near(e["a"][0], e["b"][0], 1e-3)
+            and near(-e["a"][0], z, 1e-3)
+            and near(abs(e["b"][1] - e["a"][1]), CONST["DISP_WIN_W"], 1e-3)]
+
+
+def _ap_v(x):
+    return [e for e in fl
+            if near(e["a"][1], e["b"][1], 1e-3)
+            and near(e["a"][1], x, 1e-3)
+            and near(abs(e["b"][0] - e["a"][0]), CONST["DISP_WIN_H"], 1e-3)]
+
+
+_apw = _ap_h(WIN_Z0) + _ap_h(WIN_Z1)
+_aph = _ap_v(WIN_X0) + _ap_v(WIN_X1)
+check("shell FRONT UI grommet DIA UI_FEED_D at (UI_FEED_X, UI_FEED_Z)",
+      len(_feed) == 1,
+      str([(c["c"], c["r"]) for c in _feed]))
+check("shell FRONT 4 button holes at BTN_FRONT with DIA BTN_HOLE_D",
+      len(_btn) == 4 and _btn_got == _btn_want, str(_btn_got))
+check("shell FRONT aperture edges = DISP_WIN_W x DISP_WIN_H",
+      len(_apw) == 2 and len(_aph) == 2,
+      f"{len(_apw)} horizontal, {len(_aph)} vertical edges")
+check("shell FRONT aperture centred at (DISP_X, DISP_Z)",
+      len(_apw) == 2 and len(_aph) == 2
+      and all(near(min(e["a"][1], e["b"][1]), WIN_X0, 1e-3)
+              and near(max(e["a"][1], e["b"][1]), WIN_X1, 1e-3) for e in _apw)
+      and all(near(min(-e["a"][0], -e["b"][0]), WIN_Z0, 1e-3)
+              and near(max(-e["a"][0], -e["b"][0]), WIN_Z1, 1e-3)
+              for e in _aph),
+      f"x {WIN_X0:g}..{WIN_X1:g}, z {WIN_Z0:g}..{WIN_Z1:g}")
+check("front UI clears the nostril tops and the lid seam",
+      PAN_Z0 - (CONST["NO_Z"] + CONST["NO_R"]) >= 0.5 - 1e-6
+      and CONST["LID_Z0"] - PAN_Z1 >= 0.5 - 1e-6,
+      f"panel z {PAN_Z0:g}..{PAN_Z1:g}; nostril top "
+      f"{CONST['NO_Z'] + CONST['NO_R']:g}; lid {CONST['LID_Z0']:g}")
 
 # The section has to show the real part, not a bounding box: a cut through x=61
 # must measure the shell depth (fan plate included) and the height.  The fan
@@ -126,6 +206,23 @@ check(f"shell SECTION A-A extent {CONST['SW'] + CONST['FAN_PLATE_T']:.0f} x "
       == sorted([CONST["SW"] + CONST["FAN_PLATE_T"], _shell_top]),
       f"{sx1-sx0:.1f} x {sy1-sy0:.1f}")
 
+
+def _cut_bboxes(part, view):
+    out = []
+    for face in hlr[part][view].get("cuts", []):
+        pts = face[0]
+        out.append((min(p[1] for p in pts), max(p[1] for p in pts),
+                    min(p[2] for p in pts), max(p[2] for p in pts)))
+    return out
+
+
+_slot_want = (CONST["FILT_Y0"], CONST["FILT_Y0"] + CONST["RAIL_D"],
+              CONST["FILT_Z0"] - CONST["RAIL_W"], CONST["FILT_Z0"])
+_slot_cut = [b for b in _cut_bboxes("shell", "SECTION_A")
+             if all(near(a, w, 1e-3) for a, w in zip(b, _slot_want))]
+check("filter slot section still at FILT_Y0/Y1 and FILT_Z0",
+      len(_slot_cut) == 1, str(_slot_cut))
+
 # The lid plan must be the plate, with four counterbored screw holes on the boss
 # centres: that pattern is what the shell's inserts are drilled to.
 lp = ents("lid", "PLAN", "visible")
@@ -135,7 +232,16 @@ check(f"lid PLAN extent {CONST['SH']:.0f} x {CONST['SW']:.0f}",
       f"{lx1-lx0:.1f} x {ly1-ly0:.1f}")
 lc = circles(lp)
 bore = [c for c in lc if near(c["r"], CONST["CBORE_D"] / 2.0, 1e-3)]
-thru = [c for c in lc if near(c["r"], CONST["SCREW_D"] / 2.0, 1e-3)]
+thru = [c for c in lc
+        if near(c["r"], CONST["SCREW_D"] / 2.0, 1e-3)
+        and any(near(c["c"][0], x, 1e-3) and near(c["c"][1], y, 1e-3)
+                for x, y in ((CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
+                             (CONST["SH"] - CONST["BOSS_INSET"],
+                              CONST["BOSS_INSET"]),
+                             (CONST["BOSS_INSET"],
+                              CONST["SW"] - CONST["BOSS_INSET"]),
+                             (CONST["SH"] - CONST["BOSS_INSET"],
+                              CONST["SW"] - CONST["BOSS_INSET"])))]
 want = sorted((round(x, 1), round(y, 1)) for x, y in
               ((CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
                (CONST["SH"] - CONST["BOSS_INSET"], CONST["BOSS_INSET"]),
@@ -147,18 +253,77 @@ check("lid PLAN = 4 counterbores + 4 through holes at the boss centres",
       and sorted((round(c["c"][0], 1), round(c["c"][1], 1)) for c in thru) == want,
       str([(c["c"], c["r"]) for c in lc]))
 
+_lp_lines = lines(lp)
+check("lid PLAN is plain: only 4 counterbores + 4 through holes",
+      len(bore) == 4 and len(thru) == 4 and len(lc) == 8
+      and len(_lp_lines) == 4,
+      f"{len(bore)} counterbores, {len(thru)} through, {len(lc)} circles, "
+      f"{len(_lp_lines)} outline edges")
+_lid_cut_centres = {(6.5, 6.5), (CONST["SH"] - 6.5, 6.5),
+                    (6.5, CONST["SW"] - 6.5),
+                    (CONST["SH"] - 6.5, CONST["SW"] - 6.5)}
+check("lid PLAN has no window, grommet or button cuts",
+      not any(near(abs(e["b"][0] - e["a"][0]), CONST["DISP_WIN_W"], 1e-3)
+              for e in _lp_lines)
+      and all(any(near(c["c"][0], bx, 1e-3)
+                  and near(c["c"][1], by, 1e-3)
+                  for bx, by in _lid_cut_centres) for c in lc),
+      str([(c["c"], c["r"]) for c in lc]))
+
 # The assembly section is the one view that proves the stack: shell depth + the
 # fan hanging off the back, and the full height including the lid.
 ab = ents("assembly", "SECTION_B", "visible")
 ax0, ay0, ax1, ay1 = extent(ab)
-check("assembly SECTION B-B extent = shell + fan plate + fan x full height",
+check("assembly SECTION B-B extent = shell + fan + front panel x full height",
       sorted([round(ax1 - ax0, 3), round(ay1 - ay0, 3)])
-      == sorted([CONST["SW"] + CONST["FAN_PLATE_T"] + CONST["FAN_T"],
-                 CONST["SHH"]]),
+      == sorted([CONST["SW"] + CONST["FAN_PLATE_T"] + CONST["FAN_T"]
+                 + STACK_D, CONST["SHH"]]),
       f"{ax1-ax0:.1f} x {ay1-ay0:.1f}")
+
+# The front-panel stack projects in X/Y (PLAN) and Z/Y (SECTION_D).  Its depth
+# is the same number of layers in both views: gasket, acrylic, bezel, OLED.
+dp = ents("display", "PLAN", "visible")
+dpx0, dpy0, dpx1, dpy1 = extent(dp)
+check("display PLAN extent = DISP_W x front stack depth",
+      near(dpx1 - dpx0, CONST["DISP_W"], 1e-3)
+      and near(dpy1 - dpy0, STACK_D, 1e-3),
+      f"{dpx1-dpx0:.1f} x {dpy1-dpy0:.1f}")
+ds = ents("display", "SECTION_D", "visible")
+dsy0, dsx0, dsy1, dsx1 = extent(ds)
+check("display SECTION D extent = DISP_H x front stack depth",
+      near(dsy1 - dsy0, CONST["DISP_H"], 1e-3)
+      and near(dsx1 - dsx0, STACK_D, 1e-3),
+      f"z {dsy1-dsy0:.1f}, stack {dsx1-dsx0:.1f}")
+check("display section sits outside the front wall and below the lid seam",
+      near(dsy0, PAN_Z0, 1e-3) and near(dsy1, PAN_Z1, 1e-3)
+      and near(dsx0, 0.0, 1e-3) and near(dsx1, STACK_D, 1e-3)
+      and CONST["LID_Z0"] - PAN_Z1 >= 0.5 - 1e-6,
+      f"z {dsy0:.1f}..{dsy1:.1f}, depth {dsx0:.1f}..{dsx1:.1f}; "
+      f"lid {CONST['LID_Z0']:.1f}")
+_layer_y = {round(-p[1], 3) for face in
+            hlr["display"]["SECTION_D"].get("cuts", []) for p in face[0]}
+_layer_z = {round(p[2], 3) for face in
+            hlr["display"]["SECTION_D"].get("cuts", []) for p in face[0]}
+check("display section has gasket/acrylic/bezel layers at CONST depths",
+      {0.0, round(CONST["DISP_GASKET"], 3),
+       round(2 * CONST["DISP_GASKET"], 3), round(STACK_D, 3)} <= _layer_y,
+      str(sorted(_layer_y)))
+check("display section aperture edges are DISP_WIN_W x DISP_WIN_H",
+      {round(WIN_Z0, 3), round(WIN_Z1, 3)} <= _layer_z,
+      str(sorted(_layer_z)))
 
 # ------------------------------- 3D model -----------------------------------
 for f in ("smell_monitor.FCStd", "smell_monitor.STEP"):
+    p = os.path.join(FC, f)
+    check(f"{f} exists and non-empty",
+          os.path.exists(p) and os.path.getsize(p) > 1000,
+          f"{os.path.getsize(p)/1024:.0f} KB" if os.path.exists(p) else "missing")
+
+for f in ("smell_monitor_display_gasket.STEP",
+          "smell_monitor_display_window.STEP",
+          "smell_monitor_display_bezel.STEP",
+          "smell_monitor_display_oled.STEP",
+          "smell_monitor_button_caps.STEP"):
     p = os.path.join(FC, f)
     check(f"{f} exists and non-empty",
           os.path.exists(p) and os.path.getsize(p) > 1000,
@@ -189,7 +354,12 @@ def _stl_manifold(path):
     return n, sum(1 for c in ec.values() if c != 2)
 
 
-for s in ("smell_monitor_shell.stl", "smell_monitor_lid.stl"):
+for s in ("smell_monitor_shell.stl", "smell_monitor_lid.stl",
+          "smell_monitor_display_gasket.stl",
+          "smell_monitor_display_window.stl",
+          "smell_monitor_display_bezel.stl",
+          "smell_monitor_display_oled.stl",
+          "smell_monitor_button_caps.stl"):
     p = os.path.join(FC, s)
     sz = os.path.getsize(p) if os.path.exists(p) else 0
     check(f"STL {s} present, <=10 MB",
@@ -299,24 +469,31 @@ check("board has a standoff to sit on at PCB_Z",
 
 # ------------------------- CAD drawing sheets (DXF source) ------------------
 SHEET_DIMS = {
-    "OS-000": {CONST["SW"] + CONST["FAN_PLATE_T"] + CONST["FAN_T"],
-               CONST["CY"], round(CONST["PCB_TOP"], 1), CONST["SHH"]},
+    "OS-000": {CONST["SW"] + CONST["FAN_PLATE_T"] + CONST["FAN_T"] + STACK_D,
+               CONST["CY"], round(CONST["PCB_TOP"], 1), CONST["SHH"],
+               CONST["DISP_H"], CONST["DISP_WIN_H"], CONST["UI_FEED_D"],
+               STACK_D, CONST["DISP_GASKET"]},
     "OS-001": {CONST["SH"], CONST["CAV_Z1"], CONST["NO_Z"],
                round(CONST["CAV_Z1"] - CONST["NO_Z"], 1),
                CONST["NO_PITCH"], CONST["SW"] + CONST["FAN_PLATE_T"],
-               CONST["CY"], CONST["CAV_Z1"] - CONST["FLOOR_T"]},
+               CONST["CY"], CONST["CAV_Z1"] - CONST["FLOOR_T"],
+               CONST["DISP_WIN_W"], CONST["DISP_WIN_H"], CONST["DISP_X"],
+               CONST["DISP_Z"], CONST["UI_FEED_D"], CONST["UI_FEED_X"],
+               CONST["BTN_HOLE_D"]},
     "OS-002": {CONST["SH"], CONST["SW"], CONST["BOSS_INSET"],
                CONST["SW"] - 2 * CONST["BOSS_INSET"], CONST["LID_T"],
-               CONST["CBORE_T"]},
+               CONST["CBORE_T"], CONST["SCREW_D"], CONST["CBORE_D"]},
 }
 # A drawing that stops stating its geometry has stopped being a drawing, so each
 # part sheet must carry at least this many dimensions.
-SHEET_MIN_DIMS = {"OS-000": 5, "OS-001": 12, "OS-002": 8}
+SHEET_MIN_DIMS = {"OS-000": 8, "OS-001": 12, "OS-002": 8}
 SHEET_TOKENS = {
     "OS-000": ("ASSEMBLY", "EXPLODED", "BILL OF MATERIALS", "SECTION B-B",
-               "PETG"),
-    "OS-001": ("SHELL", "FRONT", "SECTION A-A", "FILTER SEAT", "MATERIAL"),
-    "OS-002": ("LID", "PLAN", "SECTION C-C", "COUNTERBORE", "MATERIAL"),
+               "PETG", "FRONT PANEL", "ACRYLIC", "PLAIN LID"),
+    "OS-001": ("SHELL", "FRONT", "SECTION A-A", "FILTER SEAT", "MATERIAL",
+               "DISPLAY APERTURE", "UI HARNESS", "BUTTONS"),
+    "OS-002": ("LID", "PLAN", "SECTION C-C", "CBORE", "MATERIAL",
+               "NO WINDOW", "FRONT WALL", "ACRYLIC"),
 }
 for name, want in SHEET_DIMS.items():
     dxf = os.path.join(SHEETS, name + ".dxf")
@@ -400,6 +577,31 @@ check("drawings PDF is VECTOR (no raster images)", imgs == 0, f"{imgs} images")
 check("drawings PDF pages are A3 landscape (420x297 mm)",
       bool(mm) and all(abs(w - 420) <= 2 and abs(h - 297) <= 2 for w, h in mm),
       str(mm))
+
+# ------------------------- SVG sheets OS-003 / OS-004 -----------------------
+def _svg_text(path):
+    try:
+        root = ET.parse(path).getroot()
+    except Exception:
+        return ""
+    return " ".join(t.strip() for t in root.itertext() if t.strip())
+
+
+_svg3, _svg4 = (_svg_text(p) for p in SHEET_SVG)
+check("OS-003 SVG has front-panel button and harness coordinates",
+      bool(_svg3) and all(k in _svg3 for k in CONST["BTN_FRONT"])
+      and "Ø %g × 4" % CONST["BTN_HOLE_D"] in _svg3
+      and "Ø %g @ (%g,%g)" % (
+          CONST["UI_FEED_D"], CONST["UI_FEED_X"], CONST["UI_FEED_Z"]) in _svg3,
+      "front feed (%g,%g)" % (CONST["UI_FEED_X"], CONST["UI_FEED_Z"]))
+check("OS-004 SVG states front-wall UI with acrylic wetted face",
+      bool(_svg4)
+      and "Front-panel UI outside the gas path" in _svg4
+      and "acrylic is the only wetted face" in _svg4
+      and "plain lid, no wires cross its seam" in _svg4
+      and "UI grommet Ø%g @ (%g,%g) in the fixed front wall" % (
+          CONST["UI_FEED_D"], CONST["UI_FEED_X"], CONST["UI_FEED_Z"]) in _svg4
+      and "NO SILICONE" in _svg4)
 
 # ------------------------------- report ------------------------------------
 w = max(len(n) for n, _, _ in CHECKS) + 2

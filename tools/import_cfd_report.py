@@ -6,14 +6,13 @@ Usage:
 
 It reads postProcessing/probes/*/T and log.* from a completed run, copies those
 small text artefacts into cfd/results/<label>/, and rewrites cfd/RESULTS.md with
-the parsed t63/t90 table, the numerical scheme in use, and the achieved Courant
-and continuity figures as the acceptance check.
+the parsed t63/t90 table, numerical stability figures and the acceptance
+summary. A stable solve is reported separately from physical release acceptance.
 
 Run from anywhere; no OpenFOAM installation is required to import.
 """
 import argparse
 import importlib.util
-import os
 import re
 import shutil
 from datetime import datetime, timezone
@@ -22,6 +21,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_PY = ROOT / "cfd" / "report.py"
 OUT_MD = ROOT / "cfd" / "RESULTS.md"
+
+T63_LIMIT_S = 4.0
+T90_LIMIT_S = 22.0
+WALL_DELTA_LIMIT_S = 5.0
+UNIFORMITY_FRACTION = 0.20
+SLOT_RE = re.compile(r"^[AD][0-3]$")
 
 SCHEME_NOTE = """## Numerical setup
 
@@ -35,10 +40,59 @@ The plug-flow reference for the empty chamber is V/Q = 2.28 s.
 |---|---:|---|
 | Max Courant number (tracer) | %s | <= 1 |
 | Final global continuity error | %s | <= 1e-6 |
-| Cell count | %s | ~3e5 |
+| Cell count | %s | resolved from constants |
 
 %s
 """
+
+TUNING_NOTE = """## Tuning candidates and priority
+
+Nostril geometry is unchanged after CFD review; no tuned geometry is claimed.
+The solve is stable but non-certifying, so physical tracer and purge acceptance
+remains the release gate. No geometry is changed in this baseline. Tuning is
+deferred until a re-solve, in this order:
+
+1. **Nostril count, position and angle** — first control over how the centred
+   jets flood the two inward-facing rows.
+2. **Baffles and flow guides** — candidate devices only, not part of the current
+   chamber.
+3. **Fan and straightener** — operate on the downstream field after the inlet
+   and guides are settled.
+4. **Channel and card-reach changes** — last, because they alter the locked
+   OSM-1 envelope.
+"""
+
+RUN_NOTE = """## Run and import
+
+```sh
+cd cfd && bash run.sh
+cd .. && python3 tools/import_cfd_report.py --case-dir cfd --label linux-run
+```
+
+`run.sh` builds the mesh, solves the steady flow, then steps a passive tracer on
+the frozen field. Both runs are deterministic and derive their geometry from
+`constants.py`. Add `--omit 3,6` to `run.sh` for the empty-slot interference
+study. This importer rewrites `cfd/RESULTS.md` from the parsed probe table and
+logs; raw tables and logs are archived under `cfd/results/<label>/`."""
+
+V2_NOTE = """## What changed in v2
+
+The v1 flat-card case was non-functional: its tracer pass used `ddtSchemes
+steadyState` with `Gauss upwind` at `deltaT = 0.02 s`. That is a discretisation
+error, not a result: steady ddt removes the time derivative and upwind at
+Courant ~ 40 diffuses the scalar across cells in one step. The reported t63/t90
+~ 0.02 s was the signature of that error and is superseded.
+
+| Setting | Value | Reason |
+|---|---|---|
+| `ddtSchemes` | `Euler` | real transient time-stepping |
+| `div(phi,T)` | `bounded Gauss limitedLinear 1` | bounded, second-order, low diffusion |
+| `deltaT` | `4e-4 s` | Courant <= 0.8 at the inlet jets through 1 mm cells |
+| `endTime` | `8 s` | well beyond the 2.28 s plug-flow reference |
+| probe interval | `0.25 s` | resolves the breakthrough curve |
+
+The importer rejects a run whose logged max Courant exceeds 1, so an unstable
+solve cannot be reported as a stable one."""
 
 
 def quality_note(meta):
@@ -53,16 +107,18 @@ def quality_note(meta):
     except ValueError:
         cont_v = None
     if co_v is None:
-        return ("**Numerical quality: Courant number not parsed from the log.** "
-                "Check `log.scalarTransportFoam` before using these times.")
+        return ("**Numerical stability: NOT VERIFIED.** Courant number was not "
+                "parsed from the log. Check `log.scalarTransportFoam` before "
+                "using these times.")
     if co_v > 1.0:
-        return ("**Numerical quality: FAILED.** Max Courant %.2f exceeds 1. The "
-                "tracer step violated the stability criterion; re-run with a "
-                "smaller `deltaT`." % co_v)
+        return ("**Numerical stability: FAILED.** Max Courant %.2f exceeds 1. "
+                "The tracer step violated the stability criterion; re-run with "
+                "a smaller `deltaT`." % co_v)
     ok_cont = cont_v is None or cont_v <= 1e-6
     verdict = "PASS" if ok_cont else "REVIEW continuity"
-    return ("**Numerical quality: %s.** Max Courant %.3f (limit 1); final global "
-            "continuity %s. The tracer transient is resolved and bounded."
+    return ("**Numerical stability: %s.** Max Courant %.3f (limit 1); final "
+            "global continuity %s. This is a stable numerical solve, not "
+            "acceptance of 8/8 physical response."
             % (verdict, co_v, cont or "n/a"))
 
 
@@ -116,6 +172,46 @@ def copy_artifacts(case, label):
         if (case / name).is_file():
             shutil.copy2(case / name, dest / name)
     return dest
+
+
+def acceptance_lines(table, left, right):
+    slots = [(name, a, b) for name, a, b in table if SLOT_RE.match(name)]
+    t63_pass = [name for name, a, _ in slots
+                if a is not None and a <= T63_LIMIT_S]
+    t90_cert = [name for name, _, b in slots
+                if b is not None and b <= T90_LIMIT_S]
+    vals = [a for _, a, _ in slots if a is not None]
+    mean = sum(vals) / len(vals) if vals else None
+    uniform = (mean is not None and len(vals) == 8 and
+               all(abs(v - mean) <= UNIFORMITY_FRACTION * mean for v in vals))
+    wall_ok = (left is not None and right is not None and
+               abs(right - left) <= WALL_DELTA_LIMIT_S)
+    wall_text = ("-" if left is None or right is None
+                 else "%+.2f" % (right - left))
+    return [
+        "## Acceptance summary",
+        "",
+        "| Check | Result | Criterion |",
+        "|---|---:|---|",
+        "| t63 pass count | %d/8 | <= %.2f s at every slot |"
+        % (len(t63_pass), T63_LIMIT_S),
+        "| t90 certified | %s | 90%% crossing observed within %.2f s |"
+        % (", ".join(t90_cert) if t90_cert else "none", T90_LIMIT_S),
+        "| Wall-to-wall delta | %s s (%s) | <= %.2f s |"
+        % (wall_text, "PASS" if wall_ok else "FAIL", WALL_DELTA_LIMIT_S),
+        "| Slot uniformity | %s | all 8 slots within +/-%d%% of mean t63 |"
+        % ("PASS" if uniform else "FAIL", int(UNIFORMITY_FRACTION * 100)),
+        "| Physical tracer/purge acceptance | OPEN | "
+        "`docs/VALIDATION_PLAN.md` on a built unit |",
+        "",
+        "**Numerical evidence vs release acceptance.** The numerical solve is "
+        "stable, but it does not certify 8/8 response: %d/8 slots meet the t63 "
+        "target and slot uniformity %s. Physical tracer and purge acceptance "
+        "remains the release gate in `docs/VALIDATION_PLAN.md`. See also "
+        "`docs/CFD_NOTES.md`."
+        % (len(t63_pass), "passes" if uniform else "fails"),
+        "",
+    ]
 
 
 def main():
@@ -181,25 +277,36 @@ def main():
         "",
         "## Tracer crossing times",
         "",
-        "| Probe | t63 / s | t90 / s | t63 / (V/Q) |",
-        "|---|---:|---:|---:|",
+        "| Probe | t63 / s | t63 <= 4 s | t90 | t63 / (V/Q) |",
+        "|---|---:|---|---|---:|",
     ]
     for name, a, b in table:
-        lines.append("| %s | %s | %s | %s |" % (
-            name, fmt(a), fmt(b), "-" if a is None else "%.2f" % (a / rep.TAU)))
+        t90 = ("certified" if b is not None and b <= T90_LIMIT_S
+               else "not certified")
+        lines.append("| %s | %s | %s | %s | %s |" % (
+            name, fmt(a), "PASS" if a is not None and a <= T63_LIMIT_S else "FAIL",
+            t90, "-" if a is None else "%.2f" % (a / rep.TAU)))
     lines += [
         "",
-        "Plug-flow reference V/Q = %.2f s at 15 L/min.",
+        "Plug-flow reference V/Q = %.2f s at 15 L/min." % rep.TAU,
         "Left wall mean t63 %s s; right wall mean t63 %s s; wall-to-wall delta %s s."
         % (fmt(left), fmt(right), fmt(wall_delta)),
+        "`t90` is certified where the 90%% crossing is observed in the recorded "
+        "tracer window. A0-A3 are the left wall (J2-J5); D0-D3 are the right "
+        "wall (J6-J9).",
         "",
+    ]
+    lines += acceptance_lines(table, left, right)
+    lines += [
         SCHEME_NOTE % (meta["courant_max"] or "not parsed",
                        meta["continuity_global"] or "not parsed",
                        meta["cells"] or "not parsed",
                        quality_note(meta)),
+        TUNING_NOTE,
         "",
-        "Raw probe tables and logs are archived under `%s`." % (
-            dest.relative_to(ROOT).as_posix() if dest else "the original case"),
+        RUN_NOTE,
+        "",
+        V2_NOTE,
         "",
     ]
     OUT_MD.write_text("\n".join(lines), encoding="utf-8")

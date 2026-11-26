@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Numeric verification of the routed PCB against the chamber contract.
 
-The routed board is the one deliverable that costs money and a fab lead time,
-so it is checked with numbers rather than by looking at pictures:
+The routed board is the one deliverable that goes to fabrication, so it is
+checked with numbers rather than by looking at pictures:
 
   * placement - all 8 sensing headers sit exactly on
     ``interface.ANALOG_HEADERS`` / ``DIGITAL_HEADERS`` (the L2 contract), so a
-    slot can never drift off its chamber well,
+    slot can never drift off its chamber well; the J19 display cable and J20
+    button harness sit by the single front-wall grommet at ``UI_FEED_X`` and
+    no SMD switches remain on the board,
+  * net parity - every board.py (ref, pin) lands on the same pad/net on the
+    real PCB, including the master-I2C display header and button harness,
   * fabrication - board outline = ``CONST['PCB_X'] x CONST['PCB_Y']`` with the
     four boss cut-outs the tray needs, no copper narrower than the board's own
     minimum track width, via stack sane,
@@ -115,6 +119,47 @@ for bank, want in rows.items():
           "" if along else str([(round(g[2], 2), round(g[3], 2))
                                 for g in got if g]))
 
+# ------------------------- v1.1 front-panel UI placement --------------------
+# The buttons are panel-mounted in the FIXED FRONT WALL (CONST['BTN_FRONT']),
+# so no SMD switches belong on this board.  Both harnesses leave the wall
+# through ONE grommet at shell X = UI_FEED_X, hence both board connectors must
+# sit in the front strip near the board projection of that grommet.
+sw_refs = [r for r in ("SW1", "SW2", "SW3", "SW4")
+           if board.FindFootprintByReference(r) is not None]
+check("no board-mounted SMD switches (buttons are on the front panel)",
+      not sw_refs, str(sw_refs))
+
+feed_x = CONST["UI_FEED_X"] - (CONST["SH"] - CONST["PCB_X"]) / 2.0
+for _ref in ("J19", "J20"):
+    fp = board.FindFootprintByReference(_ref)
+    if fp is None:
+        check(f"{_ref} front-panel harness at the UI grommet", False,
+              "missing " + _ref)
+        continue
+    cx, ky, _sx, _sy = pad_extent(fp)
+    jy = CONST["PCB_Y"] - ky
+    at_feed = abs(cx - feed_x) <= 7.0 and 5.0 <= jy <= 18.0
+    check(f"{_ref} front-panel harness at the UI grommet", at_feed,
+          f"board-local ({cx:.2f}, {jy:.2f}) mm vs shell feed x "
+          f"{CONST['UI_FEED_X']:.1f} (board x {feed_x:.1f})")
+
+# ------------------------------ fan harness ----------------------------------
+# The fan is a d40 on the REAR plate at shell X = FAN_X, so its 2-pin harness
+# must leave the board near that centre line, not at a far rear corner.  Measure
+# the pad-field centre in the shell frame (the board is inset by PCB_X0/Y0) and
+# gate on both axes so this cannot drift back to a corner during a re-route.
+fp10 = board.FindFootprintByReference("J10")
+if fp10 is None:
+    check("J10 fan harness at the rear centre under FAN_X", False, "missing J10")
+else:
+    jx, ky, _sx, _sy = pad_extent(fp10)
+    shell_x = CONST["PCB_X0"] + jx
+    shell_y = CONST["PCB_Y0"] + (CONST["PCB_Y"] - ky)
+    fan_ok = (abs(shell_x - CONST["FAN_X"]) <= 12.0 and shell_y >= 90.0)
+    check("J10 fan harness at the rear centre under FAN_X", fan_ok,
+          f"shell ({shell_x:.2f}, {shell_y:.2f}) mm vs FAN_X "
+          f"{CONST['FAN_X']:.1f} +/- 12 and shell Y >= 90")
+
 # ------------------------------ fabrication ---------------------------------
 check(f"board outline = {CONST['PCB_X']:.0f} x {CONST['PCB_Y']:.0f} mm",
       abs(w - CONST["PCB_X"]) <= 0.01 and abs(h - CONST["PCB_Y"]) <= 0.01,
@@ -180,6 +225,77 @@ check("one net per board.py net",
       board.GetNetCount() - 1 == len(B.NETS),      # net 0 is the no-net sentinel
       f"{board.GetNetCount()-1} vs {len(B.NETS)}")
 
+# Pin-level parity: the model's every (ref, pin) must land on a board pad with
+# the same net.  Count-only checks above would not catch a swapped display pin.
+def _pad_numbers(pin):
+    s = str(pin)
+    if s.startswith("[") and s.endswith("]"):
+        return [n.strip() for n in s[1:-1].split(",") if n.strip()]
+    return [s]
+
+
+model_pins = {}
+for _net, _conns in B.NETS.items():
+    for _ref, _pin in _conns:
+        for _num in _pad_numbers(_pin):
+            _key = (_ref, _num)
+            if _key in model_pins and model_pins[_key] != _net:
+                check("board.py pin model is conflict-free", False, str(_key))
+            model_pins[_key] = _net
+board_pins = {}
+for _fp in board.GetFootprints():
+    for _pad in _fp.Pads():
+        _key = (_fp.GetReference(), str(_pad.GetNumber()))
+        _net = _pad.GetNetname()
+        if _key in board_pins and board_pins[_key] != _net:
+            check("duplicate pad numbers share one net", False, str(_key))
+        board_pins[_key] = _net
+wrong = sorted((k, model_pins[k], board_pins.get(k))
+               for k in model_pins if board_pins.get(k) != model_pins[k])
+check("board.py pin/net model equals the routed pad netlist",
+      not wrong, f"{len(model_pins)} model pins checked"
+      if not wrong else "; ".join(f"{r}.{p}: {a} -> {b}"
+                                  for (r, p), a, b in wrong[:8]))
+
+# --------------------------- v1.1 UI net checks ------------------------------
+def _pad_nets(ref, allow_extra=()):
+    fp = board.FindFootprintByReference(ref)
+    if fp is None:
+        return {}
+    out = {}
+    for pad in fp.Pads():
+        num = str(pad.GetNumber())
+        if num in allow_extra:
+            continue
+        out.setdefault(num, set()).add(pad.GetNetname())
+    return out
+
+
+j19_nets = _pad_nets("J19", allow_extra=("MP",))
+want_j19 = dict(zip(("1", "2", "3", "4"),
+                    ("GND", "+3V3", "I2C_SDA", "I2C_SCL")))
+j19_ok = all(j19_nets.get(p) == {n} for p, n in want_j19.items())
+check("J19 carries master I2C / power / GND", j19_ok, str(j19_nets))
+
+j20_nets = _pad_nets("J20")
+want_j20 = dict(zip(("1", "2", "3", "4", "5"),
+                    ("MEASURE", "BUTTON_MENU", "BOOT", "EN", "GND")))
+j20_ok = all(j20_nets.get(p) == {n} for p, n in want_j20.items())
+check("J20 carries MEASURE / BUTTON_MENU / BOOT / EN / GND", j20_ok,
+      str(j20_nets))
+menu_name = "IO%d" % IF.PINMAP["mcu"]["BUTTON_MENU"]
+menu_pin = [n for n, nm in B.pin_numbers(B.PARTS["U1"]["lib"])
+            if nm == menu_name][0]
+u1_nets = _pad_nets("U1")
+menu_ok = u1_nets.get(menu_pin) == {"BUTTON_MENU"}
+check("U1 GPIO%d (%s, symbol pin %s) is BUTTON_MENU"
+      % (IF.PINMAP["mcu"]["BUTTON_MENU"], menu_name, menu_pin),
+      menu_ok, str(u1_nets.get(menu_pin)))
+r54_nets = _pad_nets("R54")
+pull_ok = set().union(*r54_nets.values()) == {"+3V3", "BUTTON_MENU"} \
+    if r54_nets else False
+check("R54 pulls BUTTON_MENU up to +3V3", pull_ok, str(r54_nets))
+
 # ------------------------------- routing ------------------------------------
 check("every net fully routed (0 unconnected)",
       board.GetConnectivity().GetUnconnectedCount(False) == 0,
@@ -202,6 +318,14 @@ silk_text = [d.GetText() for d in board.GetDrawings()
 check("board carries silkscreen branding",
       "OPEN SMELL" in silk_text and any("OSM-1" in t for t in silk_text),
       f"{len(silk_text)} F.SilkS text item(s)")
+
+need_silk = (["OPEN SMELL", "OLED 0x3C", "BTN 1x05",
+              "1x6: +5V GND AO DO 3V3 ID", "Qwiic: GND 3V3 SDA SCL"] +
+             [f"S{i}" for i in range(8)] + [f"Q{i}" for i in range(8)])
+missing_silk = [t for t in need_silk if t not in silk_text]
+check("all permanent silk legends present (incl. J19 / J20)",
+      not missing_silk, "all present" if not missing_silk
+      else f"missing {missing_silk}")
 
 # --------------------------------- DRC --------------------------------------
 def kicad_cli():

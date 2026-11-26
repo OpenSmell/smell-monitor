@@ -81,7 +81,8 @@
     <text x="0" y="26" class="tiny">1. Centred single-pass flow, front → rear. No baffle, plenum or well.</text>
     <text x="0" y="38" class="tiny">2. Both walls are identical; each card faces the central stream.</text>
     <text x="0" y="50" class="tiny">3. Filter is a full-width series element; a bypassable filter is not a filter.</text>
-    <text x="0" y="62" class="tiny">4. All wetted faces inert — no silicone, PVC or carbon in series.</text>
-    <text x="0" y="74" class="tiny">5. Source: mechanical/constants.py and blueprint §3 · acceptance in VALIDATION_PLAN.md.</text>
+    <text x="0" y="62" class="tiny">4. All wetted faces inert — NO SILICONE, PVC or carbon in series.</text>
+    <text x="0" y="74" class="tiny">5. Front-panel UI outside the gas path; acrylic is the only wetted face; plain lid, no wires cross its seam.</text>
+    <text x="0" y="86" class="tiny">6. UI grommet Ø6 @ (82,45) in the fixed front wall.</text>
   </g>
 </svg>

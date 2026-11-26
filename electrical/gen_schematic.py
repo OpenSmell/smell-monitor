@@ -41,11 +41,11 @@ OUT_SCH = os.path.join(OUT_DIR, PROJECT + ".kicad_sch")
 # an architecture, not an alphabetical parts dump.  Order here is the order the
 # blocks are laid down on the sheet.
 BLOCKS = [
-    ("POWER SUPPLY", ["U7", "C7", "C9", "C10", "C11", "C12"]),
+    ("POWER SUPPLY", ["U7", "C7", "C9", "C11", "C12", "C13"]),
     ("USB \u2013 UART BRIDGE", ["J1", "U3", "R1", "R2", "C8"]),
-    ("MICROCONTROLLER", ["U1", "C1", "C2", "R34", "R35", "R36", "SW1", "SW2",
-                         "SW3"]),
+    ("MICROCONTROLLER", ["U1", "C1", "C2", "R34", "R35", "R36", "R54"]),
     ("ANALOG INPUT  (2 x ADS1115)", ["U2", "U8", "C3", "C6"]),
+    ("FRONT PANEL  (SSD1306 0x3C + buttons)", ["J19", "J20", "C10"]),
     ("I2C MULTIPLEXER  (TCA9548A)", ["U4", "C4", "R31", "R32", "R33"]),
     ("SENSOR / ID", ["U5", "C5", "R37"]),
     ("OUTPUTS", ["Q1", "R27", "Q2", "D1", "R28", "R29", "BZ1", "LED1", "R30",
@@ -300,7 +300,8 @@ def build():
     # never collide with the neighbouring cell.
     block_refs = {t: sorted(r, key=_natkey) for t, r in BLOCKS}
     col_left = ["POWER SUPPLY", "USB \u2013 UART BRIDGE", "MICROCONTROLLER",
-                "ANALOG INPUT  (2 x ADS1115)"]
+                "ANALOG INPUT  (2 x ADS1115)",
+                "FRONT PANEL  (SSD1306 0x3C + buttons)"]
     col_right = ["I2C MULTIPLEXER  (TCA9548A)", "SENSOR / ID", "OUTPUTS",
                  "SLOTS  (1x6 + Qwiic)", "SLOT FRONT-END  (AO divider, DO series)",
                  "BUS PULL-UPS"]
@@ -370,11 +371,14 @@ def build():
         "QWIIC PORT  J11..J18 = 1:GND  2:3V3  3:SDA  4:SCL   "
         "(each port is one TCA9548A channel; channel n <-> slot n).",
         "I2C ADDRESSES  ADS1115 0x48 (slots 0-3) / 0x49 (slots 4-7)   "
-        "TCA9548A 0x70   SHT31 0x44.",
+        "TCA9548A 0x70   SHT31 0x44   DISPLAY 0x3C (master bus).",
         "1-Wire ID: all eight slot ID pins share one open-drain bus with a "
         "4.7k pull-up; v1 leaves per-module identity to the host application.",
-        "S1 = MEASURE (start a sniff cycle)   S2 = BOOT   S3 = RESET.   "
-        "Manual flashing, no auto-reset transistors.",
+        "J20 = 1x05 front-panel button harness: 1 MEASURE, 2 BUTTON_MENU, "
+        "3 BOOT, 4 EN (RESET), 5 GND.  Each panel button shorts its pin to GND.",
+        "J19 = Qwiic OLED cable entry for the sealed FRONT-WALL bezel on the "
+        "MASTER I2C bus; C10 decouples its 3V3 supply at the header.  The lid "
+        "is plain: no display, no button holes.",
         "Connectivity is carried by net-name labels; the authoritative "
         "pin/net model is electrical/board.py (validated, ERC-clean).",
         "NC = not connected (no-connect flag placed).   All dimensions mm; "

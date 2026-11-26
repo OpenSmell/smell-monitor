@@ -7,8 +7,12 @@
 // T/H comes from the soldered SHT31 - all in one record.
 //
 // Field order:
-//   format, version, hardware_id, timestamp_ms, cycle, environment, ph, slots,
-//   user_metadata
+//   format, version, hardware_id, timestamp_ms, sequence, wall_clock, cycle,
+//   environment, ph, slots, user_metadata
+//
+// `sequence` (persistent record id) and `wall_clock` (SNTP-derived ISO-8601
+// UTC, JSON null when unsynced) are additive top-level fields.  The schema
+// version stays "1.0" and timestamp_ms stays monotonic millis.
 //
 // Non-finite floats are emitted as JSON `null`, never as `nan`, so every
 // transport always carries parseable JSON.  qc_flags and user_metadata are
@@ -90,9 +94,15 @@ int proto_to_json(const Record *r, char *buf, size_t n) {
   if ((size_t)(w = snprintf(buf + off, n - off,
         "{\"format\":\".osmell\",\"version\":\"1.0\","
         "\"hardware_id\":%s,"
-        "\"timestamp_ms\":%lu,",
+        "\"timestamp_ms\":%lu,"
+        "\"sequence\":%lu,"
+        "\"wall_clock\":%s,",
         fmt_str(tmp, sizeof(tmp), OS_HARDWARE_ID) >= 0 ? tmp : "\"OpenSmell_Monitor_v1.1\"",
-        (unsigned long)r->ts)) < 0 || (size_t)w >= n) return -1;
+        (unsigned long)r->ts, (unsigned long)r->seq,
+        r->wall_clock[0]
+            ? (fmt_str(tmp_kind, sizeof(tmp_kind), r->wall_clock) >= 0
+                   ? tmp_kind : "null")
+            : "null")) < 0 || (size_t)w >= n) return -1;
   off += w;
 
   // cycle
@@ -178,7 +188,47 @@ int proto_to_json(const Record *r, char *buf, size_t n) {
     off += w;
   }
 
-  w = snprintf(buf + off, n - off, "],\"user_metadata\":{}}");
+  // Optional derived interpretation.  Kept as an additive object: hosts that
+  // only understand the original raw-only schema can ignore it.  When no
+  // profile was installed every member is emitted as JSON null.
+  const bool profiled = r->profile_version[0] != 0;
+  w = snprintf(buf + off, n - off, "],\"derived\":{\"profile\":");
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+  if (profiled) w = fmt_str(buf + off, n - off, r->profile_version);
+  else         w = fmt_null(buf + off, n - off);
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+
+  w = snprintf(buf + off, n - off, ",\"aqi\":");
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+  if (profiled) w = fmt_num(buf + off, n - off, r->aqi, 2);
+  else         w = fmt_null(buf + off, n - off);
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+
+  w = snprintf(buf + off, n - off, ",\"label\":");
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+  if (profiled && r->aqi_label[0]) w = fmt_str(buf + off, n - off, r->aqi_label);
+  else                             w = fmt_null(buf + off, n - off);
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+
+  w = snprintf(buf + off, n - off, ",\"slots\":[");
+  if (w < 0 || (size_t)(off + w) >= n) return -1;
+  off += w;
+  for (int i = 0; i < 8; i++) {
+    if (i) { if ((size_t)(off + 1) >= n) return -1; buf[off++] = ','; }
+    if (profiled && isfinite(r->derived[i]))
+      w = fmt_num(buf + off, n - off, r->derived[i], 3);
+    else
+      w = fmt_null(buf + off, n - off);
+    if (w < 0 || (size_t)(off + w) >= n) return -1;
+    off += w;
+  }
+  w = snprintf(buf + off, n - off, "]},\"user_metadata\":{}}");
   if (w < 0 || (size_t)(off + w) >= n) return -1;
   off += w;
 

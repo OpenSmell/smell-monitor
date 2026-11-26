@@ -2,8 +2,10 @@
 """Add the permanent silkscreen identity and slot labelling to the routed board.
 
 Reproducible step: branding, a slot number beside every gas-cell socket, a
-Qwiic number beside every Qwiic port, and the two pin-order legends.  Positions
-are board-local; tools/verify_pcb.py runs full DRC, so any silkscreen/copper or
+Qwiic number beside every Qwiic port, the two pin-order legends, and the v1.1
+"OLED 0x3C" / "BTN 1x05" labels for the front-panel harnesses J19 and J20.
+Positions are board-local;
+tools/verify_pcb.py runs full DRC, so any silkscreen/copper or
 silkscreen/silkscreen collision fails the gate.
 
 Run with KiCad's Python:
@@ -33,6 +35,13 @@ def board_xy(shell_x, shell_y):
 MARKINGS = [
     ("OPEN SMELL", 78.0, 62.3, 2.4, 0.35),
     ("SMELL MONITOR v1.1  /  OSM-1", 78.0, 65.0, 1.3, 0.20),
+    # v1.1 front-panel UI: J19 is the sealed bezel's display cable on the
+    # master I2C bus; J20 is the single harness for the four panel buttons.
+    # KiCad y=90 is the clear band between the Qwiic MP pads (y=84.94), the
+    # pin-order legends (y=88) and the J19/J20 pin fields (y>=91).  y=85 used
+    # to clip J16/J17/J18 mounting pads and failed silkscreen DRC.
+    ("OLED 0x3C", 54.0, 90.0, 1.1, 0.18),
+    ("BTN 1x05", 86.0, 90.0, 1.1, 0.18),
     # gas-cell socket legends: the pin order is printed once per wall
     ("1x6: +5V GND AO DO 3V3 ID", 46.0, 88.0, 1.0, 0.16),
     ("Qwiic: GND 3V3 SDA SCL", 80.0, 88.0, 1.0, 0.16),
@@ -60,6 +69,13 @@ REF_PLACEMENT = [
     ("J3", 7.0, 61.5, 90),
     ("J4", 7.0, 37.5, 90),
     ("BZ1", 24.0, 30.0, 0),
+    # v1.1 refs sit in the same clear y=90 band as their silk labels; y=85
+    # clipped J17's MP pad, while y=88 lands on the pin-order legends.
+    ("J19", 66.0, 90.0, 0),
+    ("J20", 98.0, 90.0, 0),
+    # J10 moved to the fan centre line (57, 100.7); its default reference
+    # landed on U1's pads and then on its own silk, so park it to the left.
+    ("J10", 50.5, 4.5, 0),
 ]
 
 

@@ -80,6 +80,17 @@ def os003():
             ref = ("J%d" % (2 + i)) if sx == CONST["AN_X"] else ("J%d" % (6 + i))
             s.append(f'    <text x="{x:g}" y="{y-9:g}" class="tiny" text-anchor="middle" fill="{colour}">{ref}</text>\n')
         s.append(f'    <text x="{x:g}" y="{CONST["PCB_Y"]+8:g}" class="tiny" text-anchor="middle">{name}</text>\n')
+    # Front-panel UI is cut in the FIXED front wall at (shell X, shell Z), not
+    # in the board or the lid.  Project each centre onto the board FRONT EDGE
+    # (board-local Y=0) so the fab can see the X alignment; the Z value is
+    # called out as text because it is a height, not a board coordinate.
+    for name, (sx, sz) in CONST["BTN_FRONT"].items():
+        bx = board_x(sx)
+        s.append(f'    <circle cx="{bx:g}" cy="0" r="{CONST["BTN_HOLE_D"]/2:g}" stroke="#cc0000" stroke-width="0.4" fill="none" />\n')
+        s.append(f'    <text x="{bx:g}" y="-3" class="tiny" text-anchor="middle" fill="#cc0000">{name} z={sz:g}</text>\n')
+    fx = board_x(CONST["UI_FEED_X"])
+    s.append(f'    <circle cx="{fx:g}" cy="0" r="{CONST["UI_FEED_D"]/2:g}" stroke="#cc0000" stroke-width="0.4" fill="none" />\n')
+    s.append(f'    <text x="{fx:g}" y="-7" class="tiny" text-anchor="middle" fill="#cc0000">UI FEED z={CONST["UI_FEED_Z"]:g}</text>\n')
     # central channel between the two inward card tips
     xl = board_x(CONST["AN_X"] + CONST["CARD_REACH"])
     xr = board_x(CONST["DI_X"] - CONST["CARD_REACH"])
@@ -101,11 +112,16 @@ def os003():
         ("Upright card envelope", f"≤ {CONST['SOCK_P']*0+20:g} wide × {CONST['CARD_H']:g} tall, reach {CONST['CARD_REACH']:g}"),
         ("Boss cut-outs", f"r {boss:g} ×4 (Ø{CONST['BOSS_D']:g} boss + {CONST['BOSS_CLEAR']:g})"),
         ("USB-C bulkhead", f"Ø {CONST['USB_R']*2:g} @ ({CONST['USB_X']:g}, {CONST['USB_Z']:g})"),
+        ("Front button holes", "Ø %g × 4 (shell X,Z)" % CONST["BTN_HOLE_D"]),
+        ("BTN_FRONT centres", ", ".join("%s(%g,%g)" % (k, x, z)
+                                        for k, (x, z) in CONST["BTN_FRONT"].items())),
+        ("UI grommet (front wall)", "Ø %g @ (%g,%g)" % (
+            CONST["UI_FEED_D"], CONST["UI_FEED_X"], CONST["UI_FEED_Z"])),
     ]
-    s.append('  <g transform="translate(280,90)">\n    <rect x="0" y="0" width="135" height="150" stroke="#000" stroke-width="0.5" fill="#fafafa" />\n')
+    s.append('  <g transform="translate(280,90)">\n    <rect x="0" y="0" width="135" height="162" stroke="#000" stroke-width="0.5" fill="#fafafa" />\n')
     s.append('    <text x="67" y="16" class="hdr" text-anchor="middle">MECHANICAL DATA — OS-003</text>\n')
     for i, (k, v) in enumerate(rows):
-        y = 30 + i * 14
+        y = 30 + i * 12
         s.append(f'    <text x="8" y="{y}" class="cell">{k}</text>\n')
         s.append(f'    <text x="128" y="{y}" class="cell" text-anchor="end">{v}</text>\n')
     s.append('  </g>\n')
@@ -176,8 +192,9 @@ def os004():
     <text x="0" y="26" class="tiny">1. Centred single-pass flow, front → rear. No baffle, plenum or well.</text>
     <text x="0" y="38" class="tiny">2. Both walls are identical; each card faces the central stream.</text>
     <text x="0" y="50" class="tiny">3. Filter is a full-width series element; a bypassable filter is not a filter.</text>
-    <text x="0" y="62" class="tiny">4. All wetted faces inert — no silicone, PVC or carbon in series.</text>
-    <text x="0" y="74" class="tiny">5. Source: mechanical/constants.py and blueprint §3 · acceptance in VALIDATION_PLAN.md.</text>
+    <text x="0" y="62" class="tiny">4. All wetted faces inert — NO SILICONE, PVC or carbon in series.</text>
+    <text x="0" y="74" class="tiny">5. Front-panel UI outside the gas path; acrylic is the only wetted face; plain lid, no wires cross its seam.</text>
+    <text x="0" y="86" class="tiny">6. UI grommet Ø{CONST['UI_FEED_D']:g} @ ({CONST['UI_FEED_X']:g},{CONST['UI_FEED_Z']:g}) in the fixed front wall.</text>
   </g>
 """)
     s.append(FOOT)
