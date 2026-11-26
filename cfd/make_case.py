@@ -21,8 +21,10 @@ Z0, Z1 = CONST["PCB_TOP"], CONST["CAV_Z1"]
 NX, NY, NZ = 58, 54, 26         # 2 mm cells; snappy refines to 1 mm
 
 # nostrils on the channel centreline, centred on the upright card's sensing band
-INLETS = [(CONST["SH"] / 2.0 + k * CONST["NO_PITCH"], CONST["NO_Z"])
-          for k in (-1, 0, 1)]
+NO_COUNT = int(CONST["NO_COUNT"])
+INLETS = [(CONST["SH"] / 2.0 + (i - (NO_COUNT - 1) / 2.0) * CONST["NO_PITCH"],
+           CONST["NO_Z"])
+          for i in range(NO_COUNT)]
 INLET_R = CONST["NO_R"]
 OUTLET = (CONST["FAN_X"] - CONST["FAN_R"], CONST["FAN_X"] + CONST["FAN_R"],
           CONST["FAN_Z"] - CONST["FAN_R"], CONST["FAN_Z"] + CONST["FAN_R"])
@@ -45,7 +47,7 @@ PROBES = (
 )
 
 Q_TOTAL = 2.5e-4          # 15 L/min, the design purge flow, m3/s
-Q_INLET = Q_TOTAL / 3.0
+Q_INLET = Q_TOTAL / NO_COUNT
 
 HEADER = """FoamFile
 {

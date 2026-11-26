@@ -58,10 +58,11 @@ CONST = {
     # an upright board rises 32 mm above the socket pin line; its can/probe
     # protrudes ~21 mm into the channel.  Both numbers are verified downstream.
     "CARD_H": 32.0, "CARD_REACH": 21.0,
-    # nostrils: 3 x d6 in the FRONT wall, on the central channel (not the walls),
-    # spaced 14 mm so the three jets flood the channel evenly.  Z is centred on
-    # the upright cards' sensing height.
-    "NO_R": 3.0, "NO_Z": 33.0, "NO_PITCH": 14.0,
+    # nostrils in the FRONT wall, on the central channel (not the walls),
+    # spaced NO_PITCH mm so the jets flood the channel evenly.  Z is centred on
+    # the upright cards' sensing height.  NO_COUNT selects how many; NO_PITCH is
+    # the centre-to-centre spacing between adjacent nostrils.
+    "NO_COUNT": 3, "NO_R": 3.0, "NO_Z": 33.0, "NO_PITCH": 14.0,
     # USB-C: d12 bulkhead hole for a panel-mount pigtail, in the dead zone
     # below the channel (the only place a cable can live without wetting).
     # X is pinned to J1's board position plus the board origin (14 + 4), so the
