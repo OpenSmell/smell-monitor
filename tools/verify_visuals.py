@@ -256,6 +256,15 @@ check("assembly keeps nostrils visible below the front UI",
       and "3 x dia6 inlet nostrils remain clear below the panel" in asm_src
       and "draw_nostril_callout(d)" in asm_src,
       "iso callout + front elevation + panel gap")
+check("assembly projects the UI stack on the fixed wall in iso",
+      "FRONT_UI_ISO_Y" in asm_src
+      and "y_bezel = FRONT_UI_ISO_Y - 0.04" in asm_src
+      and "%.1f mm PANEL WEB / %.1f mm WINDOW GAP" in asm_src,
+      "no depth-projected overlap with the inlet bores")
+check("assembly renders a true front-wall clearance proof",
+      "def render_front_wall_clearance" in asm_src
+      and "aperture %.1f mm above inlet top" in asm_src,
+      "front elevation + wall section, both from CONST")
 check("assembly uses canonical wall/row constants",
       all(k in asm_src for k in ("SOCK_X_L", "SOCK_X_R", "ROW_Y", "NO_Z",
                                  "NO_PITCH", "FAN_Z", "CARD_TOP")),
@@ -280,6 +289,7 @@ needs = {
     "assembly_animation.gif": (1200, 700, 60),
     "assembly_storyboard.png": (1200, 600, 1),
     "header_proof.png": (1200, 700, 1),
+    "enclosure_front_wall.png": (1200, 700, 1),
     "assembly_assembled_iso.png": (1200, 700, 1),
     "assembly_flow_top.png": (1200, 700, 1),
     "assembly_exploded_iso.png": (1200, 700, 1),

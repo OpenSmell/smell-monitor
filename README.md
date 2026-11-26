@@ -48,6 +48,7 @@ Vendor STEP models for sensors are not in this repository.
 | Full assembly + flow animation | `docs/figures/cad/assembly_animation.gif` |
 | Six-frame storyboard | `docs/figures/cad/assembly_storyboard.png` |
 | Header / upright-card proof | `docs/figures/cad/header_proof.png` |
+| Enclosure front-wall clearance | `docs/figures/cad/enclosure_front_wall.png` |
 | Exploded cutaway | `docs/figures/cad/assembly_exploded_iso.png` |
 | Assembled cutaway | `docs/figures/cad/assembly_assembled_iso.png` |
 | Flow frame | `docs/figures/cad/assembly_flow_top.png` |
@@ -55,6 +56,13 @@ Vendor STEP models for sensors are not in this repository.
 ![Assembly storyboard](docs/figures/cad/assembly_storyboard.png)
 
 ![Header proof](docs/figures/cad/header_proof.png)
+
+![Enclosure front-wall clearance](docs/figures/cad/enclosure_front_wall.png)
+
+The front-wall clearance proof shows the true elevation and wall section: the
+visible aperture starts 2.5 mm above the nostril tops, the panel footprint
+leaves a 0.5 mm wall web, and the bezel/gasket stack projects outward only on
+the fixed front wall.
 
 The header proof shows the 1×6 pin line running **front-to-back** along each side
 wall, the cartridge standing **upright** in the Y-Z plane and facing

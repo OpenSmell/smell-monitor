@@ -60,6 +60,12 @@ WIN_X1 = CONST["DISP_X"] + CONST["DISP_WIN_W"] / 2.0
 WIN_Z0 = CONST["DISP_Z"] - CONST["DISP_WIN_H"] / 2.0
 WIN_Z1 = CONST["DISP_Z"] + CONST["DISP_WIN_H"] / 2.0
 BTN_FRONT = {k: list(v) for k, v in CONST["BTN_FRONT"].items()}
+PANEL_WEB = DISP_Z0 - (CONST["NO_Z"] + CONST["NO_R"])
+WINDOW_GAP = WIN_Z0 - (CONST["NO_Z"] + CONST["NO_R"])
+# The iso view projects the sealed UI on its mounting plane.  True outward
+# depths are dimensioned in the front-wall proof and in the elevation inset;
+# this keeps the inlet bores directly below the panel footprint.
+FRONT_UI_ISO_Y = -0.05
 
 GEOMETRY = {
     "source": "mechanical/constants.py + routed pcb_geometry.json",
@@ -618,27 +624,34 @@ def draw_shell_near(d):
     vcircle(d, CONST["USB_X"], -0.4, CONST["USB_Z"], CONST["USB_R"],
             (5, 11, 19, 255), (*C_GOLD, 190), 2, 24)
     p = P(CONST["USB_X"], -1, CONST["USB_Z"] - CONST["USB_R"] * 1.8)
+    txt(d, (p[0], p[1] + 14), "INLETS BELOW UI: %.1f mm PANEL WEB" % PANEL_WEB,
+        F_TINY, (*C_CYAN, 220), "mm")
     txt(d, (p[0], p[1]), "USB-C POWER + DATA", F_TINY, (*C_GOLD, 220), "mm")
 
 
 def draw_nostril_callout(d):
-    """Keep the inlet bores legible where the bezel projection overlaps them."""
+    """Keep the inlet bores legible in front of the panel projection."""
     for nx in NO_X:
-        vcircle(d, nx, -0.6, CONST["NO_Z"], CONST["NO_R"],
-                (5, 11, 19, 255), (*C_CYAN, 240), 2, 24)
-    p = P(NO_X[0] - 8, -0.8, CONST["NO_Z"] - CONST["NO_R"] * 2.1)
+        vcircle(d, nx, -0.8, CONST["NO_Z"], CONST["NO_R"],
+                (5, 11, 19, 255), (*C_CYAN, 255), 3, 24)
+    p = P(NO_X[0] - 8, -0.9, CONST["NO_Z"] - CONST["NO_R"] * 2.1)
     txt(d, (p[0], p[1]), "3 x dia6 NOSTRILS (INLET, BELOW UI)",
         F_TINY, (*C_CYAN, 245), "mm")
+    p = P(NO_X[0] - 8, -0.9, CONST["NO_Z"] - CONST["NO_R"] * 2.9)
+    txt(d, (p[0], p[1]),
+        "%.1f mm PANEL WEB / %.1f mm WINDOW GAP" % (PANEL_WEB, WINDOW_GAP),
+        F_TINY, (*C_CYAN, 225), "mm")
 
 
 def draw_front_panel_ui(d):
     """Sealed front-wall UI: gasket/acrylic/bezel stack, OLED, grommet, buttons."""
     gt = CONST["DISP_GASKET"]
-    y_gasket = -0.05
-    y_acrylic = -gt
-    y_bezel = -(gt * 2 + CONST["DISP_POD_D"])
-    # The stack layers sit at their true outward depths; the offsets are visible
-    # in the iso view, so the drawing cannot imply a lid or a display enclosure.
+    y_gasket = FRONT_UI_ISO_Y
+    y_acrylic = FRONT_UI_ISO_Y - 0.02
+    y_bezel = FRONT_UI_ISO_Y - 0.04
+    # The iso view projects the whole stack on the fixed front-wall plane so the
+    # inlet bores below it stay clear.  True outward depths are dimensioned in
+    # the front-wall proof and in the elevation inset; the lid stays plain.
     xz_rect(d, DISP_X0, DISP_Z0, DISP_X1, DISP_Z1, y_gasket,
             None, (*C_GOLD, 190), 2)
     xz_rect(d, DISP_X0, DISP_Z0, DISP_X1, DISP_Z1, y_acrylic,
@@ -651,6 +664,9 @@ def draw_front_panel_ui(d):
     txt(d, (p[0], p[1]), "OLED 0x3C", F_TINY, (*C_CYAN, 245), "mm")
     q = P(CONST["DISP_X"], y_bezel - 0.1, DISP_Z1 + CONST["SOCK_P"] * 1.6)
     txt(d, (q[0], q[1]), "FRONT WALL UI", F_TINY, (*C_WHITE, 220), "mm")
+    r = P(CONST["DISP_X"], y_bezel - 0.1, CONST["NO_Z"] - CONST["NO_R"] * 4.0)
+    txt(d, (r[0], r[1]), "%.1f mm WEB TO INLETS" % PANEL_WEB,
+        F_TINY, (*C_GOLD, 220), "mm")
 
     fx, fz = CONST["UI_FEED_X"], CONST["UI_FEED_Z"]
     vcircle(d, fx, y_gasket, fz, CONST["UI_FEED_D"] / 2.0,
@@ -661,11 +677,11 @@ def draw_front_panel_ui(d):
     for name, (bx, bz) in BTN_FRONT.items():
         user = name in ("MEASURE", "MENU")
         ring = (*C_CYAN, 225) if user else (*C_MUTED, 215)
-        vcircle(d, bx, -CONST["DISP_GASKET"] - 0.05, bz, CONST["BTN_HOLE_D"],
+        vcircle(d, bx, y_bezel - 0.01, bz, CONST["BTN_HOLE_D"],
                 (30, 40, 52, 235), ring, 2, 18)
         vcircle(d, bx, y_gasket, bz, CONST["BTN_HOLE_D"] / 2.0,
                 (8, 14, 20, 255), ring, 2, 18)
-        p = P(bx, -CONST["DISP_GASKET"] - 0.1, bz - CONST["BTN_HOLE_D"] * 2)
+        p = P(bx, y_bezel - 0.1, bz - CONST["BTN_HOLE_D"] * 2)
         lab = {"MEASURE": "MEASURE/OK", "MENU": "MENU/BACK"}.get(name, name)
         txt(d, (p[0], p[1]), lab, F_TINY, ring, "mm")
 
@@ -721,10 +737,13 @@ def draw_ui_detail(d):
         "3 x dia6 inlet nostrils remain clear below the panel",
         F_SMALL, (*C_CYAN, 235))
     txt(d, (x0 + 16, 682),
-        "gasket %.0f / acrylic %.0f / bezel %.0f mm" %
+        "%.1f mm PANEL WEB / %.1f mm WINDOW GAP" % (PANEL_WEB, WINDOW_GAP),
+        F_SMALL, (*C_CYAN, 220))
+    txt(d, (x0 + 16, 704),
+        "gasket %.0f / acrylic %.0f / bezel %.0f mm outward" %
         (CONST["DISP_GASKET"], CONST["DISP_GASKET"], CONST["DISP_POD_D"]),
         F_SMALL, C_WHITE)
-    txt(d, (x0 + 16, 704), "4 x dia3.4 front bores + caps; dia6 harness in wall",
+    txt(d, (x0 + 16, 726), "4 x dia3.4 front bores + caps; dia6 harness in wall",
         F_SMALL, C_MUTED)
 
 
@@ -1055,6 +1074,127 @@ def render_header_proof(path):
     print("  wrote", path)
 
 
+def render_front_wall_clearance(path):
+    """True-scale front elevation and wall section at the three inlet bores."""
+    W2, H2 = 1500, 900
+    im = Image.new("RGB", (W2, H2), (240, 244, 249))
+    d = ImageDraw.Draw(im, "RGBA")
+    S = 8.0
+    x0, z0 = 90.0, 720.0
+
+    def fx(x):
+        return x0 + x * S
+
+    def fz(z):
+        return z0 - z * S
+
+    txt(d, (42, 24), "OSM-1 ENCLOSURE / FRONT-WALL CLEARANCE", F_TITLE,
+        (15, 35, 55))
+    txt(d, (44, 64),
+        "True front elevation with wall section at the centre inlet; "
+        "all dimensions derived from CONST",
+        F_SUB, (70, 92, 116))
+
+    d.rectangle([fx(0), fz(CONST["SHH"]), fx(CONST["SH"]), fz(0)],
+                fill=(210, 223, 236), outline=(88, 112, 138), width=2)
+    d.rectangle([fx(DISP_X0), fz(DISP_Z1), fx(DISP_X1), fz(DISP_Z0)],
+                fill=(248, 250, 253), outline=(176, 128, 38), width=2)
+    d.rectangle([fx(WIN_X0), fz(WIN_Z1), fx(WIN_X1), fz(WIN_Z0)],
+                fill=(14, 32, 42), outline=(30, 150, 215), width=2)
+    txt(d, (fx(CONST["DISP_X"]), fz(CONST["DISP_Z"])),
+        "OLED 0x3C", F_TINY, (210, 245, 255), "mm")
+
+    for nx in NO_X:
+        d.ellipse([fx(nx - CONST["NO_R"]), fz(CONST["NO_Z"] + CONST["NO_R"]),
+                   fx(nx + CONST["NO_R"]), fz(CONST["NO_Z"] - CONST["NO_R"])],
+                  fill=(5, 11, 19), outline=(30, 150, 215), width=3)
+    txt(d, (fx(NO_X[0]), fz(CONST["NO_Z"]) + 34),
+        "3 x dia6 NOSTRILS", F_SMALL, (20, 90, 140), "mm")
+
+    gx, gz = CONST["UI_FEED_X"], CONST["UI_FEED_Z"]
+    gr = CONST["UI_FEED_D"] / 2.0
+    d.ellipse([fx(gx - gr), fz(gz + gr), fx(gx + gr), fz(gz - gr)],
+              fill=(246, 191, 82), outline=(120, 78, 20), width=2)
+    for name, (bx, bz) in BTN_FRONT.items():
+        br = CONST["BTN_HOLE_D"] / 2.0
+        d.ellipse([fx(bx - br), fz(bz + br), fx(bx + br), fz(bz - br)],
+                  fill=(20, 32, 42), outline=(30, 150, 215), width=2)
+        txt(d, (fx(bx), fz(bz) + 30), name, F_TINY, (20, 90, 140), "mm")
+
+    # Dimension the two clearances that matter at the inlet face.
+    nx = NO_X[-1]
+    dx_dim = fx(nx + 12)
+    top = CONST["NO_Z"] + CONST["NO_R"]
+    for z, colour in ((top, (30, 150, 215)),
+                      (DISP_Z0, (176, 128, 38)),
+                      (WIN_Z0, (30, 150, 215))):
+        d.line([(dx_dim - 12, fz(z)), (dx_dim + 18, fz(z))],
+               fill=colour, width=2)
+    d.line([(dx_dim + 8, fz(top)), (dx_dim + 8, fz(WIN_Z0))],
+           fill=(30, 150, 215), width=2)
+    d.text((dx_dim + 14, (fz(top) + fz(WIN_Z0)) / 2 - 8),
+           "%.1f mm WINDOW GAP" % WINDOW_GAP, font=F_SMALL,
+           fill=(20, 90, 140))
+    d.text((dx_dim + 14, fz(DISP_Z0) - 16),
+           "%.1f mm PANEL WEB" % PANEL_WEB, font=F_SMALL,
+           fill=(140, 96, 20))
+
+    # Wall section through the centre inlet.  The stack is shown at true depth.
+    sx, sz = 1180.0, 690.0
+    ss = 12.0
+
+    def sec_y(y):
+        return sx - y * ss
+
+    def sec_z(z):
+        return sz - (z - 24.0) * ss
+
+    d.rounded_rectangle([1080, 110, 1480, 830], 10,
+                        fill=(255, 255, 255, 235),
+                        outline=(150, 170, 190), width=2)
+    txt(d, (1100, 126), "WALL SECTION / X = %.0f" % CONST["FAN_X"],
+        F_PANEL, (20, 44, 68))
+    d.rectangle([sec_y(CONST["WALL"]), sec_z(CONST["SHH"]),
+                 sec_y(0), sec_z(0)], fill=(205, 220, 236),
+                outline=(100, 120, 140), width=2)
+    d.rectangle([sec_y(0), sec_z(DISP_Z1), sec_y(-CONST["DISP_GASKET"]),
+                 sec_z(DISP_Z0)], fill=(246, 191, 82),
+                outline=(120, 78, 20), width=2)
+    d.rectangle([sec_y(-CONST["DISP_GASKET"]), sec_z(DISP_Z1),
+                 sec_y(-2 * CONST["DISP_GASKET"]), sec_z(DISP_Z0)],
+                fill=(168, 205, 236), outline=(88, 112, 138), width=2)
+    d.rectangle([sec_y(-2 * CONST["DISP_GASKET"]), sec_z(WIN_Z1),
+                 sec_y(-(2 * CONST["DISP_GASKET"] + CONST["DISP_POD_D"])),
+                 sec_z(WIN_Z0)], fill=(52, 66, 82),
+                outline=(30, 150, 215), width=2)
+    d.rectangle([sec_y(0), sec_z(top), sec_y(-1), sec_z(CONST["NO_Z"] - CONST["NO_R"])],
+                fill=(5, 11, 19), outline=(30, 150, 215), width=2)
+    d.line([(sec_y(-10), sec_z(DISP_Z0)), (sec_y(2), sec_z(DISP_Z0))],
+           fill=(176, 128, 38), width=2)
+    d.line([(sec_y(-10), sec_z(WIN_Z0)), (sec_y(2), sec_z(WIN_Z0))],
+           fill=(30, 150, 215), width=2)
+    d.text((1100, sec_z(WIN_Z0) - 18),
+           "aperture %.1f mm above inlet top" % WINDOW_GAP,
+           font=F_SMALL, fill=(20, 90, 140))
+    d.text((1100, sec_z(DISP_Z0) - 18),
+           "panel footprint %.1f mm above inlet top" % PANEL_WEB,
+           font=F_SMALL, fill=(140, 96, 20))
+    notes = [
+        "gasket %.0f / acrylic %.0f / bezel %.0f mm outward" %
+        (CONST["DISP_GASKET"], CONST["DISP_GASKET"], CONST["DISP_POD_D"]),
+        "UI stack projects on the wall in the animated iso view",
+        "true depths are shown here and on the elevation inset",
+        "plain flat lid: 4 x M3, zero cables or holes",
+    ]
+    y = 750
+    for n in notes:
+        d.text((1100, y), n, font=F_SMALL, fill=(45, 80, 110))
+        y += 20
+
+    im.save(path, pnginfo=geom_pnginfo())
+    print("  wrote", path)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     total = 96
@@ -1073,6 +1213,7 @@ def main():
         frames[idx].save(path, pnginfo=geom_pnginfo())
         print("  wrote", path)
     render_header_proof(os.path.join(OUT, "header_proof.png"))
+    render_front_wall_clearance(os.path.join(OUT, "enclosure_front_wall.png"))
 
 
 if __name__ == "__main__":
